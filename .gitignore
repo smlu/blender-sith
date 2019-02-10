@@ -108,3 +108,6 @@ venv.bak/
 
 # Blender
 *.blend*
+
+# Src
+__test.py
