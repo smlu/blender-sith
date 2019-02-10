@@ -1,6 +1,6 @@
 from enum import IntEnum
 from typing import Tuple, List
-from ..types.vector import *
+from ijim.types.vector import *
 
 class GeometryMode(IntEnum):
     NotDrawn   = 0
