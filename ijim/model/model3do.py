@@ -29,11 +29,12 @@ class FaceType(IntEnum):
     Normal      = 0
     DoubleSided = 1
     Translucent = 2
+    Unknown1    = 3   # inf_cage.3do
     Collision   = 4
-    Unknown1    = 5   # anson.3do
-    Unknown2    = 64  # 0x0040 in olv_statue_lefty.3do
-    Unknown3    = 65  # 0x0041 in tem_bridge_20mholes.3do
-    Unknown4    = 512 # 0x0200 in aet_dais_trio.3do
+    Unknown2    = 5   # anson.3do
+    Unknown3    = 64  # 0x0040 in olv_statue_lefty.3do
+    Unknown4    = 65  # 0x0041 in tem_bridge_20mholes.3do
+    Unknown5    = 512 # 0x0200 in aet_dais_trio.3do
 
 class MeshNodeType(IntEnum):
     Nothing    = 0x00000
