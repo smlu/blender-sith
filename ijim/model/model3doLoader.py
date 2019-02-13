@@ -169,7 +169,7 @@ def _parse_hierarchy_section(tok: Tokenizer, model: Model):
 
 
 
-def LoadModel3do(filePath) -> Model:
+def load(filePath) -> Model:
     f = open(filePath, 'r')
     tok = Tokenizer(f)
 
@@ -195,7 +195,3 @@ def LoadModel3do(filePath) -> Model:
             _parse_hierarchy_section(tok, model)
 
     return model
-
-
-if __name__ == '__main__':
-    model = LoadModel3do("gen_vo.3do")
