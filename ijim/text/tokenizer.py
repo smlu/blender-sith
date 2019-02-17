@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Callable
+from typing import Callable, Tuple
 from ..types.vector import *
 
 class TokenType(Enum):
