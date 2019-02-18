@@ -33,7 +33,7 @@ def _write_comment_line(file, comment):
     _write_line(file, _make_comment(comment))
 
 def _write_new_line(file):
-    file.write("\n")
+    file.write("\r\n")
 
 def _write_line(file, line):
     file.write(line)
