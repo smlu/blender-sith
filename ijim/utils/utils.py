@@ -20,6 +20,22 @@ kHnType       = "type"
 kHnName       = 'name'
 kFaceType     = "type"
 
+maxNameLen = 64
+
+def isValidNameLen(name: str):
+    return len(name) <= maxNameLen
+
+def isASCII(s: str):
+    return all(ord(c) < 128 for c in s)
+
+def assertName(name: str):
+    if not isValidNameLen(name):
+        raise AssertionError("name error: len of '{}' is greater then {} chars".format(name, maxNameLen))
+
+    if not isASCII(name):
+        raise AssertionError("name error: '{}' len does not contain all ASCII chars".format(name))
+
+
 def getBmeshFaceLayer(faces: bmesh.types.BMFaceSeq, name: str):
     return faces.layers.string.get(name) or faces.layers.string.new(name)
 
@@ -54,11 +70,11 @@ def clearAllScenes():
             if obj.mode != "OBJECT":
                 bpy.ops.object.mode_set(mode='OBJECT')
             scene.objects.unlink(obj)
-            
+
         for layer in scene.render.layers:
             try: scene.render.layers.remove(layer)
             except: pass
-        
+
         # Remove scene
         try: bpy.data.scenes.remove(scene)
         except: pass
@@ -98,7 +114,7 @@ def getDrawType(geo_mode: GeometryMode):
     if geo_mode == GeometryMode.Texture:
         return 'TEXTURED'
     raise ValueError("Unknown geometry mode {}".format(geo_mode))
-    
+
 def getGeometryMode(obj: bpy.types.Object):
     dt = obj.draw_type
     if dt == 'BOUNDS':
