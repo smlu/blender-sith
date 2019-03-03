@@ -111,3 +111,5 @@ venv.bak/
 
 # Src
 __test.py
+# IDE-s
+.vs
