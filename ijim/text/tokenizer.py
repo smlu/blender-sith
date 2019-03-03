@@ -274,6 +274,12 @@ class Tokenizer:
             raise AssertionError("Expected identifier '{0}', found '{1}'! line: {2} column: {3}"
                 .format(id, t.value, self.line, self.column))
 
+    def assertInteger(self, num: str):
+        t = self.getToken()
+        if t.type != TokenType.Integer or t.toIntNumber() != num:
+            raise AssertionError("Expected integer '{0}', found '{1}'! line: {2} column: {3}"
+                .format(num, t.toIntNumber(), self.line, self.column))
+
     def assertPunctuator(self, punc: str):
         t = self.getToken()
         if t.type != TokenType.Punctuator or t.value.lower() != punc.lower():
