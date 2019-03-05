@@ -8,6 +8,7 @@ import time
 from typing import List
 
 from . import model3doLoader
+from .utils import *
 from .model3do import (
     Model,
     GeometryMode,
@@ -20,8 +21,13 @@ from .model3do import (
 from ijim.material.material import importMatFile
 from ijim.utils.utils import *
 
-
-
+def getObjByName(name):
+    if name in bpy.context.scene.objects:
+        return bpy.context.scene.objects[name]
+    for o in bpy.context.scene.objects:
+        if name in o.name:
+            return o
+    raise ValueError("Could not find object '{}'".format(name))
 
 def _get_encoded_face_prop(prop):
     return str(int(prop)).encode('utf-8')
@@ -34,12 +40,7 @@ def _get_radius_obj(name):
 
 
 def _set_obj_rotation(obj, rotation):
-    p = math.radians(rotation[0])
-    y = math.radians(rotation[1])
-    r = math.radians(rotation[2])
-    
-    obj.rotation_mode = 'YXZ'
-    obj.rotation_euler  = mathutils.Euler((p, r, y), 'YXZ')
+    setObjEulerRotation(obj, rotation)
 
 def _set_obj_pivot(obj, pivot):
     # note: this function might be worng, load gen_chicken.3do to see the outcome
@@ -154,9 +155,10 @@ def getObjRadiusObj(obj):
     return _get_radius_obj(kObjRadius + obj.name)
 
 def getMeshRadiusObj(mesh):
-    return _get_radius_obj(kMeshRadius + mesh.name)
+    obj = getObjByName(mesh.name)
+    return _get_radius_obj(kMeshRadius + obj.name)
 
-def importObject(file_path, mat_paths = [], b_clear_scene = True):
+def importObject(file_path, mat_paths = [], b_preserve_order = True, b_clear_scene = True):
     print("importing 3DO: %r..." % (file_path), end="")
     startTime = time.clock()
 
@@ -170,10 +172,12 @@ def importObject(file_path, mat_paths = [], b_clear_scene = True):
     importMaterials(model.materials, getDefaultMatFolders(file_path) + mat_paths)
 
     # Create model's meshes
-    for mesh3do in model.geosets[0].meshes:
+    meshes3do = model.geosets[0].meshes
+    for idx, mesh3do in enumerate(meshes3do):
 
         mesh = _make_mesh(mesh3do, model.materials)
-        obj = bpy.data.objects.new(mesh3do.name, mesh)
+        meshName = makeOrderedName(mesh3do.name, idx, len(meshes3do)) if b_preserve_order else mesh3do.name
+        obj = bpy.data.objects.new(meshName, mesh)
 
         # Set mesh radius object, draw type, custom property for ligting and texture mode
         _set_mesh_radius(obj, mesh3do.radius)
@@ -195,7 +199,7 @@ def importObject(file_path, mat_paths = [], b_clear_scene = True):
             bpy.context.scene.objects.link(obj)
         else:
             meshName = model.geosets[0].meshes[meshIdx].name
-            obj = bpy.context.scene.objects[meshName]
+            obj = getObjByName(meshName)
 
         # Set mode's parent mesh
         if meshNode.parentIdx != -1:
@@ -205,7 +209,7 @@ def importObject(file_path, mat_paths = [], b_clear_scene = True):
                 pname = pnode.name
             else:
                 pname = model.geosets[0].meshes[pnode.meshIdx].name
-            obj.parent = bpy.context.scene.objects[pname]
+            obj.parent = getObjByName(pname)
 
         bpy.context.scene.update()
 
@@ -224,12 +228,12 @@ def importObject(file_path, mat_paths = [], b_clear_scene = True):
     baseObj = bpy.data.objects.new(model.name, None)
     baseObj.empty_draw_size = (0.0)
     bpy.context.scene.objects.link(baseObj)
-    
+
     baseObj.location = model.insert_offset
     _set_obj_radius(baseObj, model.radius)
-    
+
     firstCName = model.hierarchyNodes[0].name
-    firstChild = bpy.context.scene.objects[firstCName]
+    firstChild = getObjByName(firstCName)
     firstChild.parent_type = 'OBJECT'
     firstChild.parent = baseObj
 
