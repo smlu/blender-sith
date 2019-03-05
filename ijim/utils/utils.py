@@ -1,24 +1,7 @@
 import bpy, bmesh
-import math
-import mathutils
 import os.path
 
 from typing import List
-from ijim.model.model3do import Model, GeometryMode
-from ijim.material.material import importMatFile
-
-kGModel3do    = 'Model3do'
-kObjRadius    = "OBJ_RADIUS_"
-kMeshRadius   = "MESH_RADIUS_"
-kPivotObj     = "PIVOT_OBJ_"
-kGeometryMode = "geometry mode"
-kLightingMode = "lighting mode"
-kTextureMode  = "texture mode"
-kFType        = "type"
-kHnFlags      = "flags"
-kHnType       = "type"
-kHnName       = 'name'
-kFaceType     = "type"
 
 maxNameLen = 64
 
@@ -48,21 +31,8 @@ def getDefaultMatFolders(model_path):
 def getGlobalMaterial(name):
     return bpy.data.materials[name]
 
-def getRadius(obj):
-    if obj is None:
-        return 0
-
-    bx = obj.dimensions[0]
-    by = obj.dimensions[1]
-    bz = obj.dimensions[2]
-    r2 = math.pow(bx, 2) + math.pow(by, 2) + math.pow(bz, 2)
-    return math.sqrt(r2)
-
-def makeQuaternionRotation(v):
-    p = mathutils.Quaternion((1.0, 0.0, 0.0), math.radians(v[0]))
-    y = mathutils.Quaternion((0.0, 0.0, 1.0), math.radians(v[1]))
-    r = mathutils.Quaternion((0.0, 1.0, 0.0), math.radians(v[2]))
-    return   y * p * r
+def clearSceneAnimData(scene):
+    scene.timeline_markers.clear()
 
 def clearAllScenes():
     for scene in bpy.data.scenes:
@@ -75,6 +45,8 @@ def clearAllScenes():
             try: scene.render.layers.remove(layer)
             except: pass
 
+        # Remove animation data:
+        clearSceneAnimData(scene)
         # Remove scene
         try: bpy.data.scenes.remove(scene)
         except: pass
@@ -103,48 +75,3 @@ def clearAllScenes():
     ):
         for id_data in bpy_data_iter:
             bpy_data_iter.remove(id_data)
-
-def getDrawType(geo_mode: GeometryMode):
-    if geo_mode == GeometryMode.NotDrawn:
-        return 'BOUNDS'
-    if geo_mode == GeometryMode.Wireframe:
-        return 'WIRE'
-    if geo_mode == GeometryMode.Solid:
-        return 'SOLID'
-    if geo_mode == GeometryMode.Texture:
-        return 'TEXTURED'
-    raise ValueError("Unknown geometry mode {}".format(geo_mode))
-
-def getGeometryMode(obj: bpy.types.Object):
-    dt = obj.draw_type
-    if dt == 'BOUNDS':
-        return GeometryMode.NotDrawn
-    elif dt == 'WIRE':
-        return GeometryMode.Wireframe
-    elif dt == 'SOLID':
-        return GeometryMode.Solid
-    elif dt == 'TEXTURED':
-        return GeometryMode.Texture
-    raise ValueError("Unknown draw type {}".format(dt))
-
-def importMaterials(mat_names: List, search_paths: List):
-    for name in mat_names:
-        if name in bpy.data.materials:
-            continue
-
-        mat_imported = False
-        for path in search_paths:
-            mat_path = path + '/' + name
-            if os.path.isfile(mat_path) and os.access(mat_path, os.R_OK):
-                importMatFile(mat_path)
-                mat_imported = True
-                break
-
-        if not mat_imported:
-            print("\nWarning: could not find material file '{}'".format(name))
-            mat = bpy.data.materials.new(name)
-            mat.texture_slots.add()
-            ts = mat.texture_slots[0]
-            print(ts.name)
-            ts.texture_coords = 'UV'
-            ts.uv_layer = 'UVMap'
