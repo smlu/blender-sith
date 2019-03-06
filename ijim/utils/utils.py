@@ -33,6 +33,8 @@ def getGlobalMaterial(name):
 
 def clearSceneAnimData(scene):
     scene.timeline_markers.clear()
+    for ob in scene.objects:
+        ob.animation_data_clear()
 
 def clearAllScenes():
     for scene in bpy.data.scenes:
