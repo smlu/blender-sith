@@ -160,7 +160,7 @@ def getMeshRadiusObj(mesh):
 
 def importObject(file_path, mat_paths = [], b_preserve_order = True, b_clear_scene = True):
     print("importing 3DO: %r..." % (file_path), end="")
-    startTime = time.clock()
+    startTime = time.process_time()
 
     model = model3doLoader.load(file_path)
     if len(model.geosets) == 0: return
@@ -244,5 +244,5 @@ def importObject(file_path, mat_paths = [], b_preserve_order = True, b_clear_sce
         group = bpy.data.groups.new(kGModel3do)
     group.objects.link(baseObj)
 
-    print(" done in %.4f sec." % (time.clock() - startTime))
+    print(" done in %.4f sec." % (time.process_time() - startTime))
     return baseObj
