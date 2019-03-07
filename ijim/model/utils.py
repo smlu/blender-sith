@@ -33,6 +33,10 @@ def makeOrderedName(name, order, maxOrder):
 def isOrderPrefixed(name):
     return re.match("^{}([0-9]+)_".format(kNameOrderPrefix), name)
 
+def getOrderedNameIdx(name):
+    str_idx = re.findall("^{}([0-9]+)_".format(kNameOrderPrefix), name)[0]
+    return int(str_idx)
+
 def stripOrderPrefix(name):
     return re.sub("^{}([0-9]+)_".format(kNameOrderPrefix), "", name)
 
