@@ -25,7 +25,7 @@ def getObjByName(name):
     if name in bpy.context.scene.objects:
         return bpy.context.scene.objects[name]
     for o in bpy.context.scene.objects:
-        if name in o.name:
+        if name == stripOrderPrefix(o.name):
             return o
     raise ValueError("Could not find object '{}'".format(name))
 
@@ -188,7 +188,7 @@ def importObject(file_path, mat_paths = [], b_preserve_order = True, b_clear_sce
         bpy.context.scene.objects.link(obj)
 
 
-    # Update model's mesh hirarchy
+    # Update model's mesh hierarchy
     for meshNode in model.hierarchyNodes:
         meshIdx = meshNode.meshIdx
 
