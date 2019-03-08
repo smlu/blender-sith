@@ -109,7 +109,7 @@ def getObjPivot(obj: bpy.types.Object):
             if c.target:
                 pivot += -c.target.location
             return mathutils.Vector(pivot)
-    return mathutils.Vector(0.0, 0.0, 0.0)
+    return mathutils.Vector((0.0, 0.0, 0.0))
 
 def getDrawType(geo_mode: GeometryMode):
     if geo_mode == GeometryMode.NotDrawn:
