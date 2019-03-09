@@ -111,5 +111,9 @@ venv.bak/
 
 # Src
 __test.py
+
+# Script's output zip file
+*.zip
+
 # IDE-s
 .vs
