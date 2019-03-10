@@ -173,13 +173,13 @@ def importObject(file_path, mat_paths = [], b_preserve_order = True, b_clear_sce
 
     # Create model's meshes
     meshes3do = model.geosets[0].meshes
-    for idx, mesh3do in enumerate(meshes3do):
+    for mesh3do in meshes3do:
 
         mesh = _make_mesh(mesh3do, model.materials)
-        meshName = makeOrderedName(mesh3do.name, idx, len(meshes3do)) if b_preserve_order else mesh3do.name
+        meshName = mesh3do.name
         obj = bpy.data.objects.new(meshName, mesh)
 
-        # Set mesh radius object, draw type, custom property for ligting and texture mode
+        # Set mesh radius object, draw type, custom property for lighting and texture mode
         _set_mesh_radius(obj, mesh3do.radius)
         obj.draw_type        = getDrawType(mesh3do.geometryMode)
         obj[kLightingMode]   = mesh3do.lightMode
@@ -189,7 +189,7 @@ def importObject(file_path, mat_paths = [], b_preserve_order = True, b_clear_sce
 
 
     # Update model's mesh hierarchy
-    for meshNode in model.hierarchyNodes:
+    for idx, meshNode in enumerate(model.hierarchyNodes):
         meshIdx = meshNode.meshIdx
 
         # Get node's mesh
@@ -200,6 +200,10 @@ def importObject(file_path, mat_paths = [], b_preserve_order = True, b_clear_sce
         else:
             meshName = model.geosets[0].meshes[meshIdx].name
             obj = getObjByName(meshName)
+
+        # Make obj name prefixed by idx num.
+        # This will make the hierarchy of model 3do ordered by index instead by name in Blender.
+        obj.name = makeOrderedName(obj.name, idx, len(model.hierarchyNodes)) if b_preserve_order else obj.name
 
         # Set mode's parent mesh
         if meshNode.parentIdx != -1:
