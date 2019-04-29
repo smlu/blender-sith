@@ -84,6 +84,8 @@ def _read_header(f):
         raise ImportError("Cannot read older version of MAT file")
     if h.record_count <= 0:
         raise ImportError("MAT file record count <= 0")
+    if h.color_info.color_mode < 1: # must not be indexed color mode
+        raise ImportError("Invalid color mode: indexed")
     if h.color_info.bpp % 8 != 0:
         raise ImportError("BPP % 8 != 0")
 
