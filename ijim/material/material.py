@@ -2,6 +2,7 @@ import bpy
 from bpy_extras.io_utils import ImportHelper
 
 from collections import namedtuple
+from enum import IntEnum
 from struct import *
 import os
 
@@ -9,6 +10,12 @@ import os
 file_magic       = b'MAT '
 required_version = 0x32
 required_type    = 2
+
+class ColorMode(IntEnum):
+    Indexed  = 0
+    RGB      = 1
+    RGBA     = 2
+
 
 color_format = namedtuple('color_format', [
     'color_mode',
@@ -84,7 +91,7 @@ def _read_header(f):
         raise ImportError("Cannot read older version of MAT file")
     if h.record_count <= 0:
         raise ImportError("MAT file record count <= 0")
-    if not ( 0 < h.color_info.color_mode < 3 ): # must not be indexed color mode (0)
+    if not ( ColorMode.RGB <= h.color_info.color_mode <= ColorMode.RGBA ):
         raise ImportError("Invalid color mode")
     if h.color_info.bpp % 8 != 0:
         raise ImportError("BPP % 8 != 0")
