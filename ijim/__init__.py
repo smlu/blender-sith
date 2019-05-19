@@ -30,7 +30,7 @@ from .material.material import importMatFile
 from .utils.utils import *
 
 class ImportMat(bpy.types.Operator, ImportHelper):
-    """Import Indiana Jones and the Infernal Machine MAT file format (.mat)"""
+    """Import Indiana Jones and the Infernal Machine material (.mat)"""
     bl_idname = "import_material.ijim_mat"
     bl_label = "Import MAT"
     filename_ext = ".mat"
@@ -46,7 +46,7 @@ class ImportMat(bpy.types.Operator, ImportHelper):
 
 
 class ImportModel3do(bpy.types.Operator, ImportHelper):
-    """Import Indiana Jones and the Infernal Machine 3DO file format (.3do)"""
+    """Import Indiana Jones and the Infernal Machine 3DO model (.3do)"""
     bl_idname = "import_object.ijim_3do"
     bl_label = "Import 3DO"
     filename_ext = ".3do"
