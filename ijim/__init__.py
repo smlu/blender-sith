@@ -70,13 +70,13 @@ class ImportModel3do(bpy.types.Operator, ImportHelper):
 
     b_preserve_order = bpy.props.BoolProperty(
         name='Preserve Mesh Hierarchy',
-        description="If set, the order of imported mesh hierarchy will be preserved by prefixing the name of all mesh objects with '{}XYZ_'.\n('XYZ' represents the order number)".format(kNameOrderPrefix),
+        description="If set, the order of imported mesh hierarchy will be preserved by prefixing the name of every mesh object with '{}XYZ_'.\n('XYZ' represents the order number)\nNote: How hierarchy is ordered impacts the animations using 3do model.".format(kNameOrderPrefix),
         default=True,
     )
 
     mat_path = bpy.props.StringProperty(
         name='Materials folder',
-        description='Path to a directory to search for material files (.mat) of 3do model',
+        description='Path to the directory to search for material files (.mat) of 3do model',
         #subtype='DIR_PATH'
     )
 
