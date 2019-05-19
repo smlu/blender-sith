@@ -48,7 +48,7 @@ mat_record_header = namedtuple('mat_record_header', [
     'unknown_5',
     'unknown_6',
     'unknown_7',
-    'unknown_8'
+    'mipmap_idx'
 ])
 mrh_serf = Struct('<10i')
 
