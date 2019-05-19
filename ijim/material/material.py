@@ -128,7 +128,8 @@ def _decode_pixel(p, ci: color_format):
 
 def _decode_pixel_data(pd, width, height, ci: color_format):
     pixel_size = int(ci.bpp /8)
-    row_len = _get_img_row_len(width, ci.bpp)
+    byteorder  = 'big' if pixel_size == 3 else 'little'
+    row_len    = _get_img_row_len(width, ci.bpp)
     dpd = []
 
     # MAT cord-system is bottom left, so we use reverse here to flip img over y cord.
@@ -136,7 +137,8 @@ def _decode_pixel_data(pd, width, height, ci: color_format):
         for c in (range(0, row_len, pixel_size)):
             i = c + r * row_len
             p_raw = pd[i: i + pixel_size]
-            pixel = int.from_bytes(p_raw, byteorder='little', signed=False)
+
+            pixel = int.from_bytes(p_raw, byteorder=byteorder, signed=False)
             dpd.extend(_decode_pixel(pixel, ci))
     return dpd
 
