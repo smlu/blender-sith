@@ -19,15 +19,38 @@ import bpy, types, bmesh
 from bpy_extras.io_utils import ImportHelper
 from bpy_extras.io_utils import ExportHelper
 
-import sys
 import os.path
+import re
+import sys
+
 from typing import List
 
 import ijim.model.model3doExporter as model3doExporter
 import ijim.model.model3doImporter as model3doImporter
 from ijim.model.utils import getRadius, kGModel3do, kNameOrderPrefix
+
+from ijim.key.key import KeyFlag, KeyType
+import ijim.key.keyImporter as keyImporter
+import ijim.key.keyExporter as keyExporter
+
 from .material.material import importMatFile
 from .utils.utils import *
+
+
+def _make_readable(str):
+    return re.sub(r"(\w)([A-Z])", r"\1 \2", str)
+
+def _get_key_flags_enum_list():
+    l = []
+    for f in reversed(KeyFlag):
+        l.append((f.name, _make_readable(f.name), "", int(f)))
+    return l
+
+def _get_key_type_enum_list():
+    l = []
+    for t in reversed(KeyType):
+        l.append((t.name, t.name , "value: 0x{:04x}".format(int(t)), int(t)))
+    return l
 
 class ImportMat(bpy.types.Operator, ImportHelper):
     """Import Indiana Jones and the Infernal Machine material (.mat)"""
@@ -194,29 +217,214 @@ class ExportModel3do(bpy.types.Operator, ExportHelper):
         return {'FINISHED'}
 
 
+# TODO: add option to load model first
+class ImportKey(bpy.types.Operator, ImportHelper):
+    """Import Indiana Jones and the Infernal Machine animation (.key)"""
+    bl_idname = "import_anim.ijim_key"
+    bl_label = "Import KEY"
+    filename_ext = ".key"
+
+    filter_glob = bpy.props.StringProperty(
+        default="*.key",
+        options={"HIDDEN"}
+    )
+
+    def execute(self, context):
+        try:
+            scene = bpy.context.scene
+            keyImporter.importKeyToScene(self.filepath, scene)
+        except Exception as e:
+            print("\nAn exception was encountered while importing keyframe '{}'!\nError: {}".format(os.path.basename(self.filepath), e))
+            self.report({'ERROR'}, "Error: {}".format(e))
+            return {'CANCELLED'}
+        return {'FINISHED'}
+
+
+
+def _get_fps_enum_list():
+        return [("60"   , "60 fps", ""),
+                ("50"   , "50 fps", ""),
+                ("30"   , "30 fps", ""),
+                ("25"   , "25 fps", ""),
+                ("24"   , "24 fps", "")]
+
+class ExportKey(bpy.types.Operator, ExportHelper):
+    """Export animation to Indiana Jones and the Infernal Machine KEY file format (.key)"""
+    bl_idname = "export_anim.ijim_key"
+    bl_label = "Export KEY"
+    filename_ext = ".key"
+
+    filter_glob = bpy.props.StringProperty(
+        default="*.key",
+        options={"HIDDEN"}
+    )
+
+    animation_flags = bpy.props.EnumProperty(
+        name="Animation flags",
+        items=_get_key_flags_enum_list()
+    )
+
+    animation_type= bpy.props.EnumProperty(
+        name="Animation type",
+        description="It is not known what role does animation type have in the game.",
+        items=_get_key_type_enum_list()
+    )
+
+    fps = bpy.props.EnumProperty(
+        name="Frame rate",
+        items=_get_fps_enum_list()
+    )
+
+    obj = None
+    scene = None
+
+    def invoke(self, context, event):
+        # Initializes self.scene and self.obj by searching for a top object which represents 3DO model
+        try:
+            self.scene = bpy.context.scene.copy()
+            self.animation_flags = self.scene.animation_flags
+            self.animation_type  = self.scene.animation_type
+
+            fps = self.scene.render.fps
+            for e in reversed(_get_fps_enum_list()):
+                if e[0] == str(fps):
+                    self.fps = str(e[0])
+                    break
+                elif fps < float(e[0]):
+                    self.fps = str(e[0])
+                    break
+
+            eobj = None
+            if not kGModel3do in bpy.data.groups or len(bpy.data.groups[kGModel3do].objects) == 0:
+                # Get one selected object
+                if len(bpy.context.selected_objects) == 0:
+                    print("Error: could not determine which objects to export. Put into '{}' group or select (1) top object in hierarchy!".format(kGModel3do))
+                    self.report({'ERROR'}, 'No object selected to export')
+                    bpy.data.scenes.remove(self.scene, True)
+                    return {'CANCELLED'}
+
+                if len(bpy.context.selected_objects) > 1:
+                    print("Error: could not determine which objects to export, more then 1 object selected!")
+                    self.report({'ERROR'}, 'Too many objects selected to export')
+                    bpy.data.scenes.remove(self.scene, True)
+                    return {'CANCELLED'}
+
+                eobj = bpy.context.selected_objects[0]
+
+            else: # Model3do group
+                objs = bpy.data.groups[kGModel3do].objects
+                if len(objs) == 0:
+                    print("Error: could not determine which objects to export animation data from. No object in '{}' group!".format(kGModel3do))
+                    self.report({'ERROR'}, "No object in group '{}' to export animation data from".format(kGModel3do))
+                    bpy.data.scenes.remove(self.scene, True)
+                    return {'CANCELLED'}
+                elif len(objs) > 1:
+                    for obj in objs:
+                        if obj.select:
+                            if not eobj is None:
+                                print("Error: could not determine from which objects to export animation data. Too many objects selected in '{}' group!".format(kGModel3do))
+                                self.report({'ERROR'}, "Too many objects selected in group '{}' to export animation data from".format(kGModel3do))
+                                bpy.data.scenes.remove(self.scene, True)
+                                return {'CANCELLED'}
+                            eobj = obj
+                    if eobj is None:
+                        print("Error: could not determine which from objects to export animation data from. No object selected in '{}' group!".format(kGModel3do))
+                        self.report({'ERROR'}, "No object selected in group '{}' to export animation data from".format(kGModel3do))
+                        bpy.data.scenes.remove(self.scene, True)
+                        return {'CANCELLED'}
+                else:
+                    eobj = objs[0]
+
+            if 'EMPTY' != eobj.type != 'MESH':
+                print("Error: selected object is of type '{}', can only export the animation data from an object with type 'MESH' or 'EMPTY'!".format(eobj.type))
+                self.report({'ERROR'}, "Cannot export animation data from selected object of a type '{}'".format(eobj.type ))
+                bpy.data.scenes.remove(self.scene, True)
+                return {'CANCELLED'}
+
+            # Get the top obj
+            while eobj.parent != None:
+                eobj = eobj.parent
+
+            self.obj = eobj
+            kfname = bpy.path.display_name_from_filepath(self.obj.name )
+            self.filepath = bpy.path.ensure_ext(kfname, self.filename_ext)
+            return ExportHelper.invoke(self, context, event)
+
+        except:
+            if self.scene:
+                bpy.data.scenes.remove(self.scene, True)
+            raise
+
+    def execute(self, context):
+        try:
+            self.scene.animation_flags = self.animation_flags
+            self.scene.animation_type  = self.animation_type
+            self.scene.render.fps = float(self.fps)
+            keyExporter.exportObjectAnim(self.obj, self.scene, self.filepath)
+
+            self.report({'INFO'}, "Key '{}' was successfully exported".format(os.path.basename(self.filepath)))
+            return {'FINISHED'}
+        except (AssertionError, ValueError) as e:
+            print("\nAn exception was encountered while exporting animation data of object '{}' to Key file format!\nError: {}".format(self.obj.name, e))
+            self.report({'ERROR'}, "Error: {}".format(e))
+            return {'CANCELLED'}
+        finally:
+            bpy.data.scenes.remove(self.scene, True)
+
+    def cancel(self, context):
+        if self.scene:
+            bpy.data.scenes.remove(self.scene, True)
+
+
+
+
 
 def menu_func_export(self, context):
+    self.layout.operator(ExportKey.bl_idname, text="Indiana Jones IM animation (.key)")
     self.layout.operator(ExportModel3do.bl_idname, text="Indiana Jones IM model (.3do)")
 
+
 def menu_func_import(self, context):
-    self.layout.operator(ImportModel3do.bl_idname, text="Indiana Jones IM model (.3do)")
+    self.layout.operator(ImportKey.bl_idname, text="Indiana Jones IM animation (.key)")
     self.layout.operator(ImportMat.bl_idname, text="Indiana Jones IM material (.mat)")
+    self.layout.operator(ImportModel3do.bl_idname, text="Indiana Jones IM model (.3do)")
+
 
 def register():
-    bpy.utils.register_class(ExportModel3do)
+    bpy.types.Scene.animation_flags = bpy.props.EnumProperty(
+        items = _get_key_flags_enum_list(),
+        name = 'Animation Flags',
+        description = 'Indiana Jones IM Keyframe Flags'
+    )
+
+    bpy.types.Scene.animation_type  = bpy.props.EnumProperty(
+        items = _get_key_type_enum_list(),
+        name = 'Animation Type',
+        description = 'Indiana Jones IM Keyframe type'
+    )
+
     bpy.utils.register_class(ImportMat)
     bpy.utils.register_class(ImportModel3do)
+    bpy.utils.register_class(ExportModel3do)
+    bpy.utils.register_class(ImportKey)
+    bpy.utils.register_class(ExportKey)
 
     bpy.types.INFO_MT_file_export.append(menu_func_export)
     bpy.types.INFO_MT_file_import.append(menu_func_import)
 
 
 def unregister():
+    bpy.utils.unregister_class(ExportKey)
+    bpy.utils.unregister_class(ImportKey)
     bpy.utils.unregister_class(ExportModel3do)
     bpy.utils.unregister_class(ImportModel3do)
     bpy.utils.unregister_class(ImportMat)
+
     bpy.types.INFO_MT_file_export.remove(menu_func_export)
     bpy.types.INFO_MT_file_import.remove(menu_func_import)
+
+    del bpy.types.Scene.animation_flags
+    del bpy.types.Scene.animation_type
 
 
 if __name__ == "__main__":
