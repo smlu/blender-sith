@@ -190,7 +190,7 @@ class Tokenizer:
         t.beginLine = self.line
         t.beginColumn = self.column
 
-        while not isDelim(self.current_ch):
+        while not isDelim(self.current_ch) and self.current_ch != '':
             t.value += self.current_ch
             self._read_next()
 
@@ -214,7 +214,7 @@ class Tokenizer:
 
     def getSpaceDelimitedString(self) -> str:
         t = self.getDelimitedStringToken(lambda x: x.isspace())
-        if not t.value:
+        if not t.value or len(t.value) == 0:
             IOError("Expected string got null! line: {0} column: {1}".format(self.line, self.column))
         return t.value
 
@@ -299,7 +299,7 @@ class Tokenizer:
     def _read_ch(self):
         c = self.f.read(1)
         if not c:
-            return ""
+            return ''
         return c
 
     def _read_next(self):
@@ -330,7 +330,7 @@ class Tokenizer:
             self._skip_whitespace()
 
     def _skip_to_next_line(self):
-        while self.current_ch != '\n' and self.current_ch != '\0':
+        while self.current_ch != '\n' and self.current_ch != '':
             self._read_next()
 
     def _is_identifier_prefix(self, c: str) -> bool:
