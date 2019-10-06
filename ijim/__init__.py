@@ -6,8 +6,8 @@ bl_info = {
     "version": (0, 9, 0),
     "blender": (2, 79, 0),
     "location": "File > Import-Export",
-    "wiki_url": "https://github.com/smlu/blender-infernal-machine",
-    "tracker_url": "https://github.com/smlu/blender-infernal-machine/issues",
+    "wiki_url": "https://github.com/smlu/blender-ijim",
+    "tracker_url": "https://github.com/smlu/blender-ijim/issues",
     "support": "COMMUNITY",
     "category": "Import-Export"
 }
