@@ -4,16 +4,16 @@ PACKAGE_NAME=ijim
 SRC_DIR="../${PACKAGE_NAME}"
 OUT_DIR="output/"
 
-FILE_FILTER="__test.py"
+FILE_FILTER="__test.py|.directory"
 EXT_FILTER="blend|blend1"
-FOLDER_FILTER="__pycache__"
+FOLDER_FILTER="__pycache__|.vs"
 
 
 mkdir -p $OUT_DIR
 cp -rf $SRC_DIR $OUT_DIR
 
 filter(){
-    for path in "$1"/* ; do
+    for path in "$1"/{*,.[!.]*} ; do
         if [ -d "$path" ]
         then
             dirname=$(basename -- "$path")
