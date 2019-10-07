@@ -55,8 +55,8 @@ Some of general abbreviations:
    *Note: What material files are used by model can be viewed under `MATERIALS` section at the begining of the `3do` file.*
    
    3. Select the `*.3do` model file and click `Import 3DO`   
-   *Note: If you are later planning to export the model make sure that  
-   the property `Preserve Mesh Hierarchy` is turned on, so the animations won't break in the game.*
+   *Note: If you are later planning to export the model make sure that the importing property `Preserve Mesh Hierarchy` is turned on,  
+   so the animations depending on the model won't break in the game.*
    
 ### Exporting 3do model
    1. Go to `File > Export > Import Idiana Jones IM model (.3do)`
