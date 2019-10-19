@@ -4,7 +4,7 @@ In addition, it can also import game materials (.mat).
 
 
 <img src="https://github.com/smlu/blender-ijim/blob/master/demo/inmcar.png" width="80%"/>
-<img src="https://github.com/smlu/blender-ijim/blob/master/demo/in_jump_fwd.gif" width="80%"/>
+<img src="https://github.com/smlu/blender-ijim/blob/master/demo/gif/in_jump_fwd.gif" width="80%"/>
 
 ## Requirements
 Blender 2.79, you can download it [here](https://download.blender.org/release/Blender2.79/latest/).  
@@ -51,12 +51,12 @@ Some of general abbreviations:
 ### Importing 3do model
    1. Go to `File > Import > Import Idiana Jones IM model (.3do)`
    2. In the opened dialog, set the path to the folder containing material files (.mat) of model.  
-   (Bottom left, `Materials folder` property under `Import 3DO` section)  
-   *Note: What material files are used by model can be viewed under `MATERIALS` section at the begining of the `3do` file.*
+    <img src="https://github.com/smlu/blender-ijim/blob/master/demo/dlg_imp3doprop.png" width="28%"/>  
+    (Bottom left, `Materials folder` property under `Import 3DO` section)  
+   *Note: Which material files are used by model can be viewed under `MATERIALS` section at the begining of a `3do` file.*
    
    3. Select the `*.3do` model file and click `Import 3DO`   
-   *Note: If you are later planning to export the model make sure that the importing property `Preserve Mesh Hierarchy` is turned on,  
-   so the animations depending on the model won't break in the game.*
+   *Note: If you are later planning to export imported model make sure that the importing property `Preserve Mesh Hierarchy` is turned on. This will make sure that animations depending on the model won't break in the game.*
    
 ### Exporting 3do model
    1. Go to `File > Export > Import Idiana Jones IM model (.3do)`
@@ -66,7 +66,7 @@ Some of general abbreviations:
 ### Importing animation
    1. First import 3do model that animation is for.   
    *Note: Which key file belongs to which 3do model cannot be figured out easely because one model can have many animations.
-   One thing to do is opening puppet file (`.pup`) located in misc/pup folder and see which animations belongs to same game "actor". Another way is to open up `3do` and `key` file and see if `3do` file contains all mesh names used by `key` file.*
+   One thing to do is opening puppet file (`.pup`) located in misc/pup folder and see which animations belongs to the same game "actor". Another way is to open up `3do` and `key` file and see if `3do` file contains all mesh names used by `key` file.*
    
    1. Go to `File > Import > Import Idiana Jones IM animation (.key)`
    2. Select the `*.key` file and click `Import KEY`
