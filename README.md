@@ -1,10 +1,10 @@
-# Indiana Jones and The Infernal machine Add-on for Blender 2.79
+# Indiana Jones and The Infernal Machine Add-on for Blender 2.79
 The add-on provides import/export scripts for game resources e.g. models (.3do) and animations (.key).  
 In addition, it can also import game materials (.mat).
 
 
 <img src="https://github.com/smlu/blender-ijim/blob/master/demo/inmcar.png" width="80%"/>
-<img src="https://github.com/smlu/blender-ijim/blob/master/demo/gif/in_jump_fwd.gif" width="80%"/>
+<img src="https://github.com/smlu/blender-ijim/blob/master/demo/gif/in_hat2.gif" width="80%"/>
 
 ## Requirements
 Blender 2.79, you can download it [here](https://download.blender.org/release/Blender2.79/latest/).  
