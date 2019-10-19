@@ -15,16 +15,21 @@ class KeyFlag(IntEnum):
 @unique
 class KeyType(IntEnum):
     Unknown   = 0x0000
-    Unknown1  = 0x000F    #0so_armsmid_3_3.key
-    Unknown2  = 0x0104    #in_attack_put_gun.key
-    Unknown3  = 0x010D    #in_attack_put_whip.key, in_attack_put_machete.key
-    Unknown4  = 0x018F    #in_attack_unaim_rifle.key, in_attack_unaim_shotgun.key, in_attack_put_imp.key
-    Unknown5  = 0x04FB    #in_activate_medium_left.key
-    Unknown6  = 0x0904    #in_attack_pull_whip.key, in_attack_pull_satchel.key, in_attack_pull_imp.key
-    Unknown7  = 0x0986    #in_attack_pull_rifle.key
-    Unknown8  = 0x090D    #in_attack_pull_machete.key
-    Unknown9  = 0x098F    #in_attack_pull_fists.key
-    Unknown10 = 0xFFFF
+    Unknown1  = 0x0001    #tu_hit_shoulderl.key
+    Unknown2  = 0x0004    #tu_attack_ready.key
+    Unknown3  = 0x0008    #tu_hit_headl
+    Unknown4  = 0x000F    #0so_armsmid_3_3.key
+    Unknown5  = 0x0070    #vo_rotate_left.key
+    Unknown6  = 0x0104    #in_attack_put_gun.key
+    Unknown7  = 0x010D    #in_attack_put_whip.key, in_attack_put_machete.key
+    Unknown8  = 0x0186    #0vo_bothup_3_3.key
+    Unknown9  = 0x018F    #in_attack_unaim_rifle.key, in_attack_unaim_shotgun.key, in_attack_put_imp.key
+    Unknown10 = 0x04FB    #in_activate_medium_left.key
+    Unknown11 = 0x0904    #in_attack_pull_whip.key, in_attack_pull_satchel.key, in_attack_pull_imp.key
+    Unknown12 = 0x0986    #in_attack_pull_rifle.key
+    Unknown13 = 0x090D    #in_attack_pull_machete.key
+    Unknown14 = 0x098F    #in_attack_pull_fists.key
+    Unknown15 = 0xFFFF
 
 @unique
 class KeyMarkerType(IntEnum):
