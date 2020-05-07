@@ -120,6 +120,10 @@ def _make_mesh(mesh3do: ModelMesh, mat_list: List):
         # Set face material index
         mat_name = mat_list[face3do.materialIdx]
         mat = getGlobalMaterial(mat_name)
+        if mat is None:
+            print("\nWarning: could not find material file '{}'".format(mat_name))
+            mat = makeNewGlobalMaterial(mat_name)
+
         if not mat.name in mesh.materials:
             mesh.materials.append(mat)
         face.material_index = mesh.materials.find(mat.name)

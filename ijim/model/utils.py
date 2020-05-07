@@ -1,5 +1,6 @@
 from ijim.material.material import importMatFile
 from ijim.types.vector import Vector3f
+from ijim.utils.utils import *
 from .model3do import GeometryMode
 
 import math
@@ -139,20 +140,8 @@ def importMaterials(mat_names: List, search_paths: List):
     for name in mat_names:
         if name in bpy.data.materials:
             continue
-
-        mat_imported = False
         for path in search_paths:
-            mat_path = path + '/' + name
-            if os.path.isfile(mat_path) and os.access(mat_path, os.R_OK):
+            mat_path = getFilePathInDir(name, path)
+            if mat_path is not None:
                 importMatFile(mat_path)
-                mat_imported = True
                 break
-
-        if not mat_imported:
-            print("\nWarning: could not find material file '{}'".format(name))
-            mat = bpy.data.materials.new(name)
-            mat.texture_slots.add()
-            ts = mat.texture_slots[0]
-            print(ts.name)
-            ts.texture_coords = 'UV'
-            ts.uv_layer = 'UVMap'

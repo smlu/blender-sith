@@ -23,13 +23,59 @@ def getBmeshFaceLayer(faces: bmesh.types.BMFaceSeq, name: str):
     return faces.layers.string.get(name) or faces.layers.string.new(name)
 
 def getDefaultMatFolders(model_path):
-    path1 = os.path.dirname(model_path) + '/' + 'mat'
-    path2 = os.path.abspath(os.path.join(os.path.dirname(model_path), os.pardir)) + '/' + 'mat'
+    os.path.join(os.path.dirname(model_path), 'mat')
+    path1 = os.path.join(os.path.dirname(model_path), 'mat')
+    path2 = os.path.abspath(os.path.join(os.path.dirname(model_path), os.pardir))
+    path2 = os.path.join(path2, 'mat')
     return [path1, path2]
 
+def getFilePathInDir(fileName: str, dirPath: str, insensitive=True):
+    "Returns string file path in dir if file exists otherwise None"
 
-def getGlobalMaterial(name):
-    return bpy.data.materials[name]
+    if not os.path.isdir(dirPath) or len(fileName) < 1:
+        return None
+
+    def file_exists(file_path):
+        return os.path.isfile(file_path) and os.access(file_path, os.R_OK)
+
+    file_path = os.path.join(dirPath, fileName)
+    if file_exists(file_path):
+        return file_path
+
+    if insensitive:
+        # Try to find the file by lower-cased name
+        fileName = fileName.lower()
+        file_path = os.path.join(dirPath, fileName)
+        if file_exists(file_path):
+            return file_path
+
+        # Ok, now let's go through all files in folder and
+        # try to find file by case insensitive comparing it.
+        # to other file names.
+        for f in os.listdir(dirPath):
+            file_path = os.path.join(dirPath, f)
+            if file_exists(file_path) and f.lower() == fileName:
+                return file_path
+
+def getGlobalMaterial(name: str):
+    if name in bpy.data.materials:
+        return bpy.data.materials[name]
+
+    name = name.lower()
+    if name in bpy.data.materials:
+        return bpy.data.materials[name]
+
+    for mat in bpy.data.materials:
+        if(mat.name.lower() == name):
+            return mat
+
+def makeNewGlobalMaterial(name: str):
+    mat = bpy.data.materials.new(name)
+    mat.texture_slots.add()
+    ts = mat.texture_slots[0]
+    ts.texture_coords = 'UV'
+    ts.uv_layer = 'UVMap'
+    return mat
 
 def clearSceneAnimData(scene):
     scene.timeline_markers.clear()
