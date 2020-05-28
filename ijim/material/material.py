@@ -121,7 +121,9 @@ def _decode_pixel(p, ci: color_format):
     b = ((p >> ci.blue_shl)  & _get_color_mask(ci.blue_bpp))  << ci.blue_shr
     a = 255
     if ci.alpha_bpp != 0:
-        a= ((p >> ci.alpha_shl) & _get_color_mask(ci.alpha_bpp)) << ci.alpha_shr
+        a = ((p >> ci.alpha_shl) & _get_color_mask(ci.alpha_bpp)) << ci.alpha_shr
+        if ci.alpha_bpp == 1: # RGBA5551
+            a = 255 if a > 0 else 0
 
     # Return blender's pixel representation
     return (float(r/255), float(g/255), float(b/255), float(a/255))
