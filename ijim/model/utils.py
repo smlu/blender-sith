@@ -13,7 +13,7 @@ import mathutils
 
 kImEulerOrder     = "YXZ"        # Infernal machine euler orientation order
 kGModel3do        = "Model3do"
-kObjRadius        = "OBJ_RADIUS_"
+kModelRadius      = "MODEL_RADIUS_"
 kMeshRadius       = "MESH_RADIUS_"
 kPivotObj         = "PIVOT_OBJ_"
 kGeometryMode     = "geometry mode"

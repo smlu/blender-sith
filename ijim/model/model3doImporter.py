@@ -71,8 +71,8 @@ def _make_radius_obj(name, parent, radius):
     bm.to_mesh(mesh)
     bm.free()
 
-def _set_obj_radius(obj, radius):
-    _make_radius_obj(kObjRadius + obj.name, obj, radius)
+def _set_model_radius(obj, radius):
+    _make_radius_obj(kModelRadius + obj.name, obj, radius)
 
 def _set_mesh_radius(obj, radius):
     _make_radius_obj(kMeshRadius + obj.name, obj, radius)
@@ -155,12 +155,12 @@ def _make_mesh(mesh3do: ModelMesh, mat_list: List):
 
 
 
-def getObjRadiusObj(obj):
-    return _get_radius_obj(kObjRadius + obj.name)
+def getModelRadiusObj(obj):
+    return _get_radius_obj(kModelRadius + obj.name)
 
 def getMeshRadiusObj(mesh):
     obj = getObjByName(mesh.name)
-    return _get_radius_obj(kMeshRadius + obj.name)
+    return _get_radius_obj(kMeshRadius + stripOrderPrefix(obj.name))
 
 def importObject(file_path, mat_paths = [], b_preserve_order = True, b_clear_scene = True):
     print("importing 3DO: %r..." % (file_path), end="")
@@ -238,7 +238,7 @@ def importObject(file_path, mat_paths = [], b_preserve_order = True, b_clear_sce
     bpy.context.scene.objects.link(baseObj)
 
     baseObj.location = model.insert_offset
-    _set_obj_radius(baseObj, model.radius)
+    _set_model_radius(baseObj, model.radius)
 
     firstCName = model.hierarchyNodes[0].name
     firstChild = getObjByName(firstCName)

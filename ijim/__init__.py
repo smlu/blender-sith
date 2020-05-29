@@ -12,6 +12,28 @@ bl_info = {
     "category": "Import-Export"
 }
 
+# Reload imported submodules if script is reloaded
+if "bpy" in locals():
+    import importlib
+    if "key" in locals():
+        importlib.reload(key)
+    if "keyImporter" in locals():
+        importlib.reload(keyImporter)
+    if "keyExporter" in locals():
+        importlib.reload(keyExporter)
+    if "material" in locals():
+        importlib.reload(material)
+    if "model" in locals():
+        importlib.reload(model)
+    if "model3doImporter" in locals():
+        importlib.reload(model3doImporter)
+    if "model3doExporter" in locals():
+        importlib.reload(model3doExporter)
+    if "text" in locals():
+        importlib.reload(text)
+    if "utils" in locals():
+        importlib.reload(utils)
+
 
 import mathutils
 import math
@@ -122,10 +144,10 @@ class ImportModel3do(bpy.types.Operator, ImportHelper):
             space.grid_scale  = 0.027
             space.grid_subdivisions = 14
 
-            obj_radius = model3doImporter.getObjRadiusObj(obj)
+            model_radius = model3doImporter.getModelRadiusObj(obj)
             mesh_radius = model3doImporter.getMeshRadiusObj(obj)
-            if getRadius(obj_radius) >= getRadius(mesh_radius):
-                obj = obj_radius
+            if getRadius(model_radius) >= getRadius(mesh_radius):
+                obj = model_radius
             else:
                 obj = mesh_radius
 

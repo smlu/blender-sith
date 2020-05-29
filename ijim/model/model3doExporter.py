@@ -11,7 +11,7 @@ from typing import List
 from collections import defaultdict, OrderedDict
 
 from .model3do import *
-from .model3doImporter import getObjByName, getObjRadiusObj, getMeshRadiusObj
+from .model3doImporter import getObjByName, getModelRadiusObj, getMeshRadiusObj
 from . import model3doWriter
 from .utils import *
 from ijim.utils.utils import *
@@ -51,7 +51,7 @@ def _get_mat_name(mat: bpy.types.Material):
     return name
 
 def _is_aux_obj(obj: bpy.types.Object):
-    return (kObjRadius in obj.name) or (kMeshRadius in obj.name) or (kPivotObj in obj.name)
+    return (kModelRadius in obj.name) or (kMeshRadius in obj.name) or (kPivotObj in obj.name)
 
 def _get_face_property_or_default(face: bmesh.types.BMFace, tag: bmesh.types.BMLayerAccessFace, default):
     v = face[tag]
@@ -320,7 +320,7 @@ def makeModel3doFromObj(name, obj: bpy.types.Object):
     model.geosets.append(ModelGeoSet())
 
     model.insertOffset = Vector3f(*obj.location)
-    radius_obj = getObjRadiusObj(obj)
+    radius_obj = getModelRadiusObj(obj)
     if radius_obj is None:
         print("\nWarning: no model radius object found, using calculated value!")
         model.radius = getRadius(obj)
