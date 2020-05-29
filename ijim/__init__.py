@@ -3,7 +3,7 @@ bl_info = {
     "name": "Indiana Jones and the Infernal Machine",
     "description": "Import-Export game model (.3do) and material (.mat)",
     "author": "smlu",
-    "version": (0, 9, 1),
+    "version": (0, 9, 2),
     "blender": (2, 79, 0),
     "location": "File > Import-Export",
     "wiki_url": "https://github.com/smlu/blender-ijim",
