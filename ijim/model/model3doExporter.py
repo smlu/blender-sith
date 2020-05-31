@@ -11,7 +11,7 @@ from typing import List
 from collections import defaultdict, OrderedDict
 
 from .model3do import *
-from .model3doImporter import getObjByName, getObjRadiusObj, getMeshRadiusObj
+from .model3doImporter import getObjByName, getModelRadiusObj, getMeshRadiusObj
 from . import model3doWriter
 from .utils import *
 from ijim.utils.utils import *
@@ -51,7 +51,7 @@ def _get_mat_name(mat: bpy.types.Material):
     return name
 
 def _is_aux_obj(obj: bpy.types.Object):
-    return (kObjRadius in obj.name) or (kMeshRadius in obj.name) or (kPivotObj in obj.name)
+    return (kModelRadius in obj.name) or (kMeshRadius in obj.name) or (kPivotObj in obj.name)
 
 def _get_face_property_or_default(face: bmesh.types.BMFace, tag: bmesh.types.BMLayerAccessFace, default):
     v = face[tag]
@@ -76,7 +76,7 @@ def _get_face_tex_mode(face: bmesh.types.BMFace, bmesh: bmesh.types.BMesh):
     return _get_face_property_or_default(face, tag, 3)
 
 
-def _add_mesh_to_model3d(mesh: bpy.types.Mesh, model: Model) -> int:
+def _model3do_add_mesh(model: Model, mesh: bpy.types.Mesh) -> int:
     if mesh is None:
         return -1
 
@@ -187,14 +187,13 @@ def _get_obj_hnode_name(obj: bpy.types.Object):
 
 def _get_hnode_idx(nodes: List[MeshHierarchyNode], name):
     for idx, node in enumerate(nodes):
-        if name in node.name:
+        if name == node.name:
             return idx
     return -1
 
 def _get_obj_hnode_idx(nodes: List[MeshHierarchyNode], obj: bpy.types.Object):
     if obj is None:
         return -1
-
     name = _get_obj_hnode_name(obj)
     return _get_hnode_idx(nodes, name)
 
@@ -204,7 +203,7 @@ def _get_hnode_last_sibling(first_child: MeshHierarchyNode, nodes: List[MeshHier
         return _get_hnode_last_sibling(nodes[sidx], nodes)
     return first_child
 
-def _update_model3do_hirarchy(model: Model, mesh_idx: int, obj: bpy.types.Object, parent: bpy.types.Object):
+def _model3do_add_hnode(model: Model, mesh_idx: int, obj: bpy.types.Object, parent: bpy.types.Object):
     name = _get_obj_hnode_name(obj)
     if name in model.hierarchyNodes:
         return
@@ -232,95 +231,25 @@ def _update_model3do_hirarchy(model: Model, mesh_idx: int, obj: bpy.types.Object
     _set_hnode_location(node, obj)
     model.hierarchyNodes.append(node)
 
-def _sort_model3do_hirarchy(model: Model):
-    ohl = model.hierarchyNodes
-
-    # First stage: Order node idxs by type
-    otd = {
-        MeshNodeType.Nothing : [],
-        MeshNodeType.Vehicle : [],
-        MeshNodeType.Torso : [],
-        MeshNodeType.Head : [],
-        MeshNodeType.Torso : [],
-        MeshNodeType.LeftArm : [],
-        MeshNodeType.LeftHand : [],
-        MeshNodeType.LeftHand2 : [],
-        MeshNodeType.RightArm : [],
-        MeshNodeType.RightHand : [],
-        MeshNodeType.RightHand2 : [],
-        MeshNodeType.Hip : [],
-        MeshNodeType.RightLeg : [],
-        MeshNodeType.LeftLeg : [],
-        MeshNodeType.BackPart : [],
-        MeshNodeType.FrontPart : [],
-        MeshNodeType.BackWheel : [],
-        MeshNodeType.FrontWheel : [],
-    }
-
-    for idx, n in enumerate(ohl):
-        otd[n.type] += [idx]
-
-    # Second stage: Grup node idxs by parent and order by parents by type
-    hnond = OrderedDict()
-    for v in otd.values():
-        for idx in v:
-            n = ohl[idx]
-            hnond[n.name] = idx
-
-    lidx = []
-    for idx in hnond.values():
-        if idx not in lidx:
-            n = ohl[idx]
-            if n.parentIdx > -1:
-                pn = ohl[n.parentIdx].name
-                pidx = hnond[pn]
-                if pidx not in lidx:
-                    lidx.append(pidx)
-                lidx.append(idx)
-
-    # Third stage: Make new list of hirarchy nodes and update child/sibling idxs
-    nhl = []
-    for idx in lidx:
-        n = ohl[idx]
-
-        if n.parentIdx > -1:
-            n.parentIdx = _get_hnode_idx(nhl, ohl[n.parentIdx].name)
-            pn = nhl[n.parentIdx]
-
-            node_idx = len(nhl)
-            if pn.firstChildIdx == -1:
-                pn.firstChildIdx = node_idx
-            else:
-                snode = nhl[pn.firstChildIdx]
-                snode = _get_hnode_last_sibling(snode,  nhl)
-                snode.siblingIdx = node_idx
-
-        n.siblingIdx = -1
-        n.firstChildIdx = -1
-        nhl.append(n)
-
-    # Set new hirarchy list
-    model.hierarchyNodes = nhl
-
-def _add_obj_to_model3do(obj: bpy.types.Object, model: Model, parent: bpy.types.Object = None):
+def _model3do_add_obj(model: Model, obj: bpy.types.Object, parent: bpy.types.Object = None):
     if 'EMPTY' != obj.type != 'MESH' or _is_aux_obj(obj):
         return
 
-    mesh_idx  = _add_mesh_to_model3d(obj.data, model)
+    mesh_idx  = _model3do_add_mesh(model, obj.data)
     if mesh_idx > -1:
         mesh = model.geosets[0].meshes[mesh_idx]
         _set_mesh_properties(mesh, obj)
 
-    _update_model3do_hirarchy(model, mesh_idx, obj, parent)
+    _model3do_add_hnode(model, mesh_idx, obj, parent)
     for child in obj.children:
-        _add_obj_to_model3do(child, model, obj)
+        _model3do_add_obj(model, child, obj)
 
 def makeModel3doFromObj(name, obj: bpy.types.Object):
     model = Model(name)
     model.geosets.append(ModelGeoSet())
 
     model.insertOffset = Vector3f(*obj.location)
-    radius_obj = getObjRadiusObj(obj)
+    radius_obj = getModelRadiusObj(obj)
     if radius_obj is None:
         print("\nWarning: no model radius object found, using calculated value!")
         model.radius = getRadius(obj)
@@ -328,11 +257,9 @@ def makeModel3doFromObj(name, obj: bpy.types.Object):
         model.radius = radius_obj.dimensions[0] / 2
 
     for child in obj.children:
-        _add_obj_to_model3do(child, model, obj)
-
-    _sort_model3do_hirarchy(model)
+        _model3do_add_obj(model, child, obj)
+        
     return model
-
 
 def exportObject(obj: bpy.types.Object, path: str):
     bpy.path.ensure_ext(path, '.3do')
