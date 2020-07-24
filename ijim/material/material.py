@@ -6,7 +6,6 @@ from enum import IntEnum
 from struct import *
 import os
 
-
 file_magic       = b'MAT '
 required_version = 0x32
 required_type    = 2
@@ -15,7 +14,6 @@ class ColorMode(IntEnum):
     Indexed  = 0
     RGB      = 1
     RGBA     = 2
-
 
 color_format = namedtuple('color_format', [
     'color_mode',
@@ -32,11 +30,10 @@ mat_header = namedtuple('mat_header', [
     'version',
     'type',
     'record_count',
-    'mipmap_count',
+    'cel_count',
     'color_info'
 ])
 mh_serf = Struct('<4siIii')
-
 
 mat_record_header = namedtuple('mat_record_header', [
     'record_type',
@@ -48,7 +45,7 @@ mat_record_header = namedtuple('mat_record_header', [
     'unknown_5',
     'unknown_6',
     'unknown_7',
-    'mipmap_idx'
+    'cel_idx'
 ])
 mrh_serf = Struct('<10i')
 
@@ -58,10 +55,9 @@ mat_mipmap_header = namedtuple('mat_mipmap_header', [
     'transparent',
     'unknown_1',
     'unknown_2',
-    'texture_count',
+    'mipmap_levels',
 ])
 mmm_serf = Struct('<6i')
-
 
 mipmap = namedtuple("mipmap", [
     'width',
@@ -69,10 +65,6 @@ mipmap = namedtuple("mipmap", [
     'color_info',
     'pixel_data_array'
 ])
-
-
-
-
 
 
 def _read_header(f):
@@ -87,15 +79,14 @@ def _read_header(f):
         raise ImportError("Invalid MAT file version")
     if h.type != required_type:
         raise ImportError("Invalid MAT file type")
-    if h.record_count != h.mipmap_count:
+    if h.record_count != h.cel_count:
         raise ImportError("Cannot read older version of MAT file")
     if h.record_count <= 0:
         raise ImportError("MAT file record count <= 0")
-    if not ( ColorMode.RGB <= h.color_info.color_mode <= ColorMode.RGBA ):
+    if not (ColorMode.RGB <= h.color_info.color_mode <= ColorMode.RGBA):
         raise ImportError("Invalid color mode")
-    if h.color_info.bpp % 8 != 0:
-        raise ImportError("BPP % 8 != 0")
-
+    if h.color_info.bpp % 8 != 0 and not (16 <= h.color_info.bpp <= 32):
+        raise ImportError("Invalid color depth")
     return h
 
 def _read_records(f, h: mat_header):
@@ -143,33 +134,28 @@ def _decode_pixel_data(pd, width, height, ci: color_format):
             dpd.extend(_decode_pixel(pixel, ci))
     return dpd
 
-def _read_texture(f, width, height, ci: color_format):
+def _read_pixel_data(f, width, height, ci: color_format):
     pd_size = _get_pixel_data_size(width, height, ci.bpp)
     pd = bytearray(f.read(pd_size))
     return _decode_pixel_data(pd, width, height, ci)
-
 
 def _read_mipmap(f, ci: color_format):
     mmh_raw = mmm_serf.unpack(bytearray(f.read(mmm_serf.size)))
     mmh = mat_mipmap_header._make(mmh_raw)
 
     pd = []
-    for i in range(0, mmh.texture_count):
-        tex_w  = mmh.width >> i
-        tex_h = mmh.height >> i
-        pd += [_read_texture(f, tex_w, tex_h, ci)]
+    for i in range(0, mmh.mipmap_levels):
+        w  = mmh.width >> i
+        h = mmh.height >> i
+        pd += [_read_pixel_data(f, w, h, ci)]
 
     return mipmap(mmh.width, mmh.height, ci, pd)
-
 
 def _get_tex_name(idx, mat_name):
     name = os.path.splitext(mat_name)[0]
     if idx > 0:
-        name += '_' + str(idx)
+        name += '_cel_' + str(idx)
     return name
-
-
-
 
 
 def importMatFile(filePath):
@@ -183,8 +169,7 @@ def importMatFile(filePath):
     else:
         mat = bpy.data.materials.new(mat_name)
 
-
-    mat.use_shadeless = True
+    mat.use_shadeless    = True
     mat.use_object_color = True
     mat.use_face_texture = True
 
@@ -193,12 +178,12 @@ def importMatFile(filePath):
     mat.transparency_method = 'Z_TRANSPARENCY'
     mat.alpha = 0.0
 
-    for i in range(0, h.mipmap_count):
+    for i in range(0, h.cel_count):
         mm = _read_mipmap(f, h.color_info)
 
         img_width  = mm.width
         img_height = mm.height
-        img_name = _get_tex_name(i, mat_name)
+        img_name   = _get_tex_name(i, mat_name)
         if not img_name in bpy.data.images:
             img = bpy.data.images.new(
                 img_name,
@@ -218,9 +203,9 @@ def importMatFile(filePath):
         tex.use_preview_alpha = use_transparency
 
         ts = mat.texture_slots.add()
-        ts.texture = tex
-        ts.use_map_alpha = use_transparency
+        ts.texture        = tex
+        ts.use_map_alpha  = use_transparency
         ts.texture_coords = 'UV'
-        ts.uv_layer = 'UVMap'
+        ts.uv_layer       = 'UVMap'
 
     return mat
