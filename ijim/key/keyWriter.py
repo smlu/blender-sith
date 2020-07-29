@@ -13,8 +13,8 @@ def _flags2str(flags: int):
 
 def _vector_to_str(vector: Tuple):
     out = ""
-    vert_format  = "{:>" + str(13) + ".8f}"
-    for count, e in enumerate(vector):
+    vert_format  = " {:>" + str(12) + ".8f}"
+    for e in vector:
         out += vert_format.format(e)
     return out
 
@@ -78,3 +78,6 @@ def write(key: Key, filePath, headerComment):
     _write_section_header(f, key, headerComment)
     _write_section_markers(f, key)
     _write_section_keyframe_nodes(f, key)
+
+    f.flush()
+    f.close()

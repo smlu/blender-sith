@@ -7,17 +7,16 @@ import os
 _file_magic = "3DO"
 _file_version = "2.3"
 
-def _vector_to_str(vector: Tuple, compact = True, align_width = 11):
+def _vector_to_str(vector: Tuple, compact = True, align_width = 10):
     out = "" if compact else '('
-
-    if align_width > 0 and compact:
-        format_text = "{:>" + str(align_width) + ".6f}"
+    if compact:
+        format_text = " {:>" + str(align_width) + ".6f}"
     else:
         format_text = "{:.6f}"
 
     for count, e in enumerate(vector):
-        if count > 0 and (not compact or align_width == 0):
-            out += '/' if not compact else ' '
+        if count > 0 and not compact:
+            out += '/'
         out += format_text.format(e)
 
     if not compact:
@@ -201,10 +200,8 @@ def _write_section_hierarchydef(file, model: Model):
         row += _vector_to_str(node.position)
         row += _vector_to_str(node.rotation)
         row += _vector_to_str(node.pivot)
-        row += "  " + node.name
+        row += '  ' + node.name
         writeLine(file, row)
-
-
 
 
 
@@ -215,3 +212,6 @@ def write(model: Model, filePath, headerComment):
     _write_section_resources(f, model)
     _write_section_geometry(f, model)
     _write_section_hierarchydef(f, model)
+    
+    f.flush()
+    f.close()
