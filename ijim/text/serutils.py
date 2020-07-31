@@ -5,7 +5,7 @@ def makeComment(comment):
     return cline
 
 def writeNewLine(file):
-    file.write("\r\n")
+    file.write("\n")
 
 def writeLine(file, line):
     file.write(line)
