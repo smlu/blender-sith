@@ -54,25 +54,26 @@ def _is_aux_obj(obj: bpy.types.Object):
     return (kModelRadius in obj.name) or (kMeshRadius in obj.name) or (kPivotObj in obj.name)
 
 def _get_face_property_or_default(face: bmesh.types.BMFace, tag: bmesh.types.BMLayerAccessFace, default):
-    v = face[tag]
-    if len(v):
-        return int(v)
+    if tag:
+        v = face[tag]
+        if len(v):
+            return int(v)
     return default
 
 def _get_face_type(face: bmesh.types.BMFace, bm: bmesh.types.BMesh):
-    tag = getBmeshFaceLayer(bm.faces, kFType)
+    tag = getBmeshFaceLayer(bm.faces, kFType, makeLayer=False)
     return _get_face_property_or_default(face, tag, 0)
 
 def _get_face_geometry_mode(face: bmesh.types.BMFace, bmesh: bmesh.types.BMesh):
-    tag = getBmeshFaceLayer(bmesh.faces, kGeometryMode)
+    tag = getBmeshFaceLayer(bmesh.faces, kGeometryMode, makeLayer=False)
     return _get_face_property_or_default(face, tag, 4)
 
 def _get_face_light_mode(face: bmesh.types.BMFace, bmesh: bmesh.types.BMesh):
-    tag = getBmeshFaceLayer(bmesh.faces, kLightingMode)
+    tag = getBmeshFaceLayer(bmesh.faces, kLightingMode, makeLayer=False)
     return _get_face_property_or_default(face, tag, 3)
 
 def _get_face_tex_mode(face: bmesh.types.BMFace, bmesh: bmesh.types.BMesh):
-    tag = getBmeshFaceLayer(bmesh.faces, kTextureMode)
+    tag = getBmeshFaceLayer(bmesh.faces, kTextureMode, makeLayer=False)
     return _get_face_property_or_default(face, tag, 3)
 
 

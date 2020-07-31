@@ -19,8 +19,8 @@ def assertName(name: str):
         raise AssertionError("name error: '{}' len does not contain all ASCII chars".format(name))
 
 
-def getBmeshFaceLayer(faces: bmesh.types.BMFaceSeq, name: str):
-    return faces.layers.string.get(name) or faces.layers.string.new(name)
+def getBmeshFaceLayer(faces: bmesh.types.BMFaceSeq, name: str, makeLayer=True):
+    return faces.layers.string.get(name) or faces.layers.string.new(name) if makeLayer else None
 
 def getDefaultMatFolders(model_path):
     os.path.join(os.path.dirname(model_path), 'mat')
