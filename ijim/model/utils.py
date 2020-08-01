@@ -44,28 +44,37 @@ def stripOrderPrefix(name):
 def getRadius(obj):
     if obj is None:
         return 0
-
     bx = obj.dimensions[0]
     by = obj.dimensions[1]
     bz = obj.dimensions[2]
     r2 = math.pow(bx, 2) + math.pow(by, 2) + math.pow(bz, 2)
     return math.sqrt(r2)
 
+def rot_matrix(pitch, yaw, roll):
+    p = math.radians(pitch)
+    y = math.radians(yaw)
+    r = math.radians(roll)
+    return mathutils.Matrix.Rotation(y, 3, 'Z') * \
+           mathutils.Matrix.Rotation(p, 3, 'X') * \
+           mathutils.Matrix.Rotation(r, 3, 'Y')
+
 def makeEulerRotation(rot: Vector3f):
-    p = math.radians(rot[0])
-    y = math.radians(rot[1])
-    r = math.radians(rot[2])
-    return mathutils.Euler((p, r, y), kImEulerOrder)
+    return rot_matrix(rot[0], rot[1], rot[2]).to_euler(kImEulerOrder)
+    # p = math.radians(rot[0])
+    # y = math.radians(rot[1])
+    # r = math.radians(rot[2])
+    # return mathutils.Euler((p, r, y), kImEulerOrder)
 
 def setObjEulerRotation(obj: bpy.types.Object, rotation: Vector3f):
     obj.rotation_mode  = kImEulerOrder
     obj.rotation_euler = makeEulerRotation(rotation)
 
 def makeQuaternionRotation(rot: Vector3f):
-    p = mathutils.Quaternion((1.0, 0.0, 0.0), math.radians(rot[0]))
-    y = mathutils.Quaternion((0.0, 0.0, 1.0), math.radians(rot[1]))
-    r = mathutils.Quaternion((0.0, 1.0, 0.0), math.radians(rot[2]))
-    return   y * p * r
+    return rot_matrix(rot[0], rot[1], rot[2]).to_quaternion()
+    # p = mathutils.Quaternion((1.0, 0.0, 0.0), math.radians(rot[0]))
+    # y = mathutils.Quaternion((0.0, 0.0, 1.0), math.radians(rot[1]))
+    # r = mathutils.Quaternion((0.0, 1.0, 0.0), math.radians(rot[2]))
+    # return   y * p * r
 
 def setObjQuaternionRotation(obj: bpy.types.Object, rotation: Vector3f):
     obj.rotation_mode = 'QUATERNION'
