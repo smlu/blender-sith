@@ -26,7 +26,7 @@ kHNDefaultType      = 0
 def _set_hnode_location(node: MeshHierarchyNode, obj: bpy.types.Object):
     node.position = Vector3f(*obj.location)
     node.rotation = getObj_ImEulerOrientation(obj)
-    node.pivot = Vector3f(0.0, 0.0, 0.0)
+    node.pivot    = Vector3f(0.0, 0.0, 0.0)
 
     pc = None
     for c in obj.constraints:
@@ -42,7 +42,7 @@ def _set_hnode_location(node: MeshHierarchyNode, obj: bpy.types.Object):
         node.pivot    = Vector3f(*pivot)
 
 def _get_mat_name_org(mat: bpy.types.Material):
-    return mat.name.lower()
+    return mat.name.lower() if mat else ""
 
 def _get_mat_name(mat: bpy.types.Material):
     name = _get_mat_name_org(mat)
@@ -93,27 +93,30 @@ def _model3do_add_mesh(model: Model, mesh: bpy.types.Mesh) -> int:
     # Set model resources
     for mat in mesh.materials:
         name = _get_mat_name_org(mat)
-        if not name.endswith(".mat"):
-            print("\nWarning: adding an extension '.mat' to the material file name '{}' ".format(name))
-            name = _get_mat_name(mat)
+        if len(name) > 0: # mesh could have non existing material
+            if not name.endswith(".mat"):
+                print("\nWarning: adding an extension '.mat' to the material file name '{}' ".format(name))
+                name = _get_mat_name(mat)
 
-        if not model.materials.count(name):
-            assertName(name)
-            model.materials.append(name)
+            if not model.materials.count(name):
+                assertName(name)
+                model.materials.append(name)
 
     # Set mesh faces
     bm = bmesh.new()
     bm.from_mesh(mesh)
+    bm.verts.ensure_lookup_table()
     bm.faces.ensure_lookup_table()
     uv_layer = bm.loops.layers.uv.verify()
 
     for face in bm.faces:
         face3do = MeshFace()
+        face3do.materialIdx = -1
+        if face.material_index >= 0 and face.material_index < len(mesh.materials):
+            mat_name = _get_mat_name(mesh.materials[face.material_index])
+            face3do.materialIdx = model.materials.index(mat_name) if mat_name in model.materials else -1
 
-        mat_name = _get_mat_name(mesh.materials[face.material_index])
-        face3do.materialIdx = model.materials.index(mat_name)
-        face3do.color = kDefaultFaceColor
-
+        face3do.color        = kDefaultFaceColor
         face3do.type         = _get_face_type(face, bm)
         face3do.geometryMode = _get_face_geometry_mode(face, bm)
         face3do.lightMode    = _get_face_light_mode(face, bm)
@@ -259,7 +262,7 @@ def makeModel3doFromObj(name, obj: bpy.types.Object):
 
     for child in obj.children:
         _model3do_add_obj(model, child, obj)
-        
+
     return model
 
 def exportObject(obj: bpy.types.Object, path: str):
@@ -276,4 +279,3 @@ def exportObject(obj: bpy.types.Object, path: str):
     model3doWriter.write(model3do, path, header)
 
     print(" done in %.4f sec." % (time.process_time() - start_time))
-
