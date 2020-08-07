@@ -43,16 +43,24 @@ def _set_obj_rotation(obj, rotation):
     setObjEulerRotation(obj, rotation)
 
 def _set_obj_pivot(obj, pivot):
-    # note: this function might be worng, load gen_chicken.3do to see the outcome
-    if pivot[0] == 0 and  pivot[1] == 0 and pivot[2] == 0:
-        return
+    # note: this function might be wrong. for example load gen_chicken.3do
+    # if pivot[0] == 0 and  pivot[1] == 0 and pivot[2] == 0:
+    #     return
 
-    pc = obj.constraints.new('PIVOT')
-    pc.rotation_range = 'ALWAYS_ACTIVE'
-    pc.use_relative_location = True
-    pc.owner_space = 'LOCAL'
-    pc.offset = -mathutils.Vector(pivot)
-    obj.location += mathutils.Vector(pivot)
+    # pc = obj.constraints.new('PIVOT')
+    # pc.rotation_range = 'ALWAYS_ACTIVE'
+    # pc.use_relative_location = True
+    # pc.owner_space = 'LOCAL'
+    # pc.offset     =  -mathutils.Vector(pivot)
+
+    # New way 1
+
+    # Removes Pivot constrain by translating mesh by pivot vector
+    # Note: in key exporter/importer and 3do exporter scripts, the code that calculates and translates object for pivot can be removed
+    pvec = mathutils.Vector(pivot)
+    data = obj.data
+    if  obj.type == 'MESH' and data is not None and pvec.length > 0 :
+        data.transform(mathutils.Matrix.Translation(pvec))
 
 def _make_radius_obj(name, parent, radius):
     if name in bpy.data.meshes:
@@ -227,9 +235,10 @@ def importObject(file_path, mat_paths = [], b_preserve_order = True, b_clear_sce
         obj[kHnName]  = meshNode.name
 
         # Set node position, rotation and pivot
+        _set_obj_pivot(obj, meshNode.pivot)
         obj.location = meshNode.position
         _set_obj_rotation(obj, meshNode.rotation)
-        _set_obj_pivot(obj, meshNode.pivot)
+    # end of [for idx, meshNode in enumerate(model.hierarchyNodes)]
 
 
     # Set model's insert offset and radius
