@@ -38,9 +38,8 @@ def _get_radius_obj(name):
     except:
         return None
 
-
 def _set_obj_rotation(obj, rotation):
-    setObjEulerRotation(obj, rotation)
+    setObjQuaternionRotation(obj, rotation)
 
 def _set_obj_pivot(obj, pivot):
     # note: this function might be wrong. for example load gen_chicken.3do
