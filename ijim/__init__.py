@@ -103,25 +103,25 @@ class ImportModel3do(bpy.types.Operator, ImportHelper):
 
     b_set_3d_view = bpy.props.BoolProperty(
         name='Adjust 3D View',
-        description='Adjust 3D View accordingly to the 3do model position, size etc...',
+        description='Adjust 3D View accordingly to the 3DO model position, size etc...',
         default=True,
     )
 
     b_clear_scene = bpy.props.BoolProperty(
         name='Clear Scene',
-        description='Remove all scenes and content before importing 3do model to the scene',
+        description='Remove all scenes and content before importing 3DO model to the scene',
         default=True,
     )
 
     b_preserve_order = bpy.props.BoolProperty(
         name='Preserve Mesh Hierarchy',
-        description="If set, the order of imported mesh hierarchy will be preserved by prefixing the name of every mesh object with '{}XYZ_'.\n('XYZ' represents the order number)\nNote: How hierarchy is ordered impacts the animations using 3do model.".format(kNameOrderPrefix),
+        description="If set, the order of imported mesh hierarchy will be preserved by prefixing the name of every mesh object with '{}XYZ_'.\n('XYZ' represents the order number)\nNote: hierarchy order effects animations which use this 3DO model.".format(kNameOrderPrefix),
         default=True,
     )
 
     mat_path = bpy.props.StringProperty(
         name='Materials folder',
-        description='Path to the directory to search for material files (.mat) of 3do model',
+        description='Path to the directory to search for material files (.mat) of 3DO model',
         #subtype='DIR_PATH'
     )
 
@@ -231,7 +231,7 @@ class ExportModel3do(bpy.types.Operator, ExportHelper):
         try:
             model3doExporter.exportObject(self.obj, self.filepath)
         except (AssertionError, ValueError) as e:
-            print("\nAn exception was encountered while exporting object '{}' to 3do format!\nError: {}".format(self.obj.name, e))
+            print("\nAn exception was encountered while exporting object '{}' to 3DO format!\nError: {}".format(self.obj.name, e))
             self.report({'ERROR'}, "Error: {}".format(e))
             return {'CANCELLED'}
 
@@ -263,13 +263,6 @@ class ImportKey(bpy.types.Operator, ImportHelper):
 
 
 
-def _get_fps_enum_list():
-        return [("60"   , "60 fps", ""),
-                ("50"   , "50 fps", ""),
-                ("30"   , "30 fps", ""),
-                ("25"   , "25 fps", ""),
-                ("24"   , "24 fps", "")]
-
 class ExportKey(bpy.types.Operator, ExportHelper):
     """Export animation to Indiana Jones and the Infernal Machine KEY file format (.key)"""
     bl_idname = "export_anim.ijim_key"
@@ -280,6 +273,13 @@ class ExportKey(bpy.types.Operator, ExportHelper):
         default="*.key",
         options={"HIDDEN"}
     )
+
+    def _get_fps_enum_list():
+        return [("60"   , "60 fps", ""),
+                ("50"   , "50 fps", ""),
+                ("30"   , "30 fps", ""),
+                ("25"   , "25 fps", ""),
+                ("24"   , "24 fps", "")]
 
     animation_flags = bpy.props.EnumProperty(
         name="Animation flags",
@@ -381,7 +381,7 @@ class ExportKey(bpy.types.Operator, ExportHelper):
         try:
             self.scene.animation_flags = self.animation_flags
             self.scene.animation_type  = self.animation_type
-            self.scene.render.fps = float(self.fps)
+            self.scene.render.fps      = float(self.fps)
             keyExporter.exportObjectAnim(self.obj, self.scene, self.filepath)
 
             self.report({'INFO'}, "Key '{}' was successfully exported".format(os.path.basename(self.filepath)))
@@ -399,8 +399,6 @@ class ExportKey(bpy.types.Operator, ExportHelper):
 
 
 
-
-
 def menu_func_export(self, context):
     self.layout.operator(ExportKey.bl_idname, text="Indiana Jones IM animation (.key)")
     self.layout.operator(ExportModel3do.bl_idname, text="Indiana Jones IM model (.3do)")
@@ -415,13 +413,13 @@ def menu_func_import(self, context):
 def register():
     bpy.types.Scene.animation_flags = bpy.props.EnumProperty(
         items = _get_key_flags_enum_list(),
-        name = 'Animation Flags',
+        name  = 'Animation Flags',
         description = 'Indiana Jones IM Keyframe Flags'
     )
 
     bpy.types.Scene.animation_type  = bpy.props.EnumProperty(
         items = _get_key_type_enum_list(),
-        name = 'Animation Type',
+        name  = 'Animation Type',
         description = 'Indiana Jones IM Keyframe type'
     )
 
