@@ -260,8 +260,11 @@ def makeModel3doFromObj(name, obj: bpy.types.Object):
     else:
         model.radius = radius_obj.dimensions[0] / 2
 
-    for child in obj.children:
-        _model3do_add_obj(model, child, obj)
+    if len(obj.children):
+        for child in obj.children:
+            _model3do_add_obj(model, child, obj)
+    else:
+        _model3do_add_obj(model, obj)
 
     return model
 
