@@ -29,6 +29,16 @@ def getObjByName(name):
             return o
     raise ValueError("Could not find object '{}'".format(name))
 
+def getMeshObjectByName(meshName: str):
+    if meshName in bpy.context.scene.objects:
+        return bpy.context.scene.objects[meshName]
+    for o in bpy.context.scene.objects:
+        if meshName == stripOrderPrefix(o.name):
+            return o
+        if o.data is not None and o.data.name == meshName:
+            return o
+    raise ValueError("Could not find mesh object with name '{}'".format(meshName))
+
 def _get_encoded_face_prop(prop):
     return str(int(prop)).encode('utf-8')
 
@@ -163,11 +173,14 @@ def _make_mesh(mesh3do: ModelMesh, mat_list: List):
 
 
 def getModelRadiusObj(obj):
-    return _get_radius_obj(kModelRadius + obj.name)
+    return _get_radius_obj(kModelRadius + stripOrderPrefix(obj.name))
 
 def getMeshRadiusObj(mesh):
-    obj = getObjByName(mesh.name)
-    return _get_radius_obj(kMeshRadius + stripOrderPrefix(obj.name))
+    try:
+        obj = getMeshObjectByName(mesh.name)
+        return _get_radius_obj(kMeshRadius + stripOrderPrefix(obj.name))
+    except:
+        return None
 
 def importObject(file_path, mat_paths = [], b_preserve_order = True, b_clear_scene = True):
     print("importing 3DO: %r..." % (file_path), end="")

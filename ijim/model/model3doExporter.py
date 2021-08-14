@@ -11,7 +11,7 @@ from typing import List
 from collections import defaultdict, OrderedDict
 
 from .model3do import *
-from .model3doImporter import getObjByName, getModelRadiusObj, getMeshRadiusObj
+from .model3doImporter import getMeshObjectByName, getModelRadiusObj, getMeshRadiusObj
 from . import model3doWriter
 from .utils import *
 from ijim.utils.utils import *
@@ -156,7 +156,7 @@ def _set_mesh_properties(mesh: ModelMesh, obj: bpy.types.Object):
     radius_obj = getMeshRadiusObj(mesh)
     if radius_obj is None:
         print("\nWarning: no radius object found for mesh '{}', using calculated value!".format(mesh.name))
-        obj = getObjByName(mesh.name)
+        obj = getMeshObjectByName(mesh.name)
         mesh.radius = getRadius(obj)
     else:
         mesh.radius = radius_obj.dimensions[0] / 2
