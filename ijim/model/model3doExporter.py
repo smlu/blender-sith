@@ -155,7 +155,6 @@ def _set_mesh_properties(mesh: ModelMesh, obj: bpy.types.Object):
 
     radius_obj = getMeshRadiusObj(mesh)
     if radius_obj is None:
-        print("\nWarning: no radius object found for mesh '{}', using calculated value!".format(mesh.name))
         obj = getMeshObjectByName(mesh.name)
         mesh.radius = getRadius(obj)
     else:
@@ -255,7 +254,6 @@ def makeModel3doFromObj(name, obj: bpy.types.Object):
     model.insertOffset = Vector3f(*obj.location)
     radius_obj = getModelRadiusObj(obj)
     if radius_obj is None:
-        print("\nWarning: no model radius object found, using calculated value!")
         model.radius = getRadius(obj)
     else:
         model.radius = radius_obj.dimensions[0] / 2

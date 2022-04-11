@@ -170,8 +170,6 @@ def _make_mesh(mesh3do: ModelMesh, mat_list: List):
     return mesh
 
 
-
-
 def getModelRadiusObj(obj):
     return _get_radius_obj(kModelRadius + stripOrderPrefix(obj.name))
 
@@ -182,7 +180,7 @@ def getMeshRadiusObj(mesh):
     except:
         return None
 
-def importObject(file_path, mat_paths = [], b_preserve_order = True, b_clear_scene = True):
+def importObject(file_path, mat_paths = [], importRadiusObjects = False, b_preserve_order = True, b_clear_scene = True):
     print("importing 3DO: %r..." % (file_path), end="")
     startTime = time.process_time()
 
@@ -204,7 +202,8 @@ def importObject(file_path, mat_paths = [], b_preserve_order = True, b_clear_sce
         obj = bpy.data.objects.new(meshName, mesh)
 
         # Set mesh radius object, draw type, custom property for lighting and texture mode
-        _set_mesh_radius(obj, mesh3do.radius)
+        if importRadiusObjects:
+            _set_mesh_radius(obj, mesh3do.radius)
         obj.draw_type        = getDrawType(mesh3do.geometryMode)
         obj[kLightingMode]   = mesh3do.lightMode
         obj[kTextureMode]    = mesh3do.textureMode
@@ -259,7 +258,8 @@ def importObject(file_path, mat_paths = [], b_preserve_order = True, b_clear_sce
     bpy.context.scene.objects.link(baseObj)
 
     baseObj.location = model.insert_offset
-    _set_model_radius(baseObj, model.radius)
+    if importRadiusObjects:
+        _set_model_radius(baseObj, model.radius)
 
     firstCName = model.hierarchyNodes[0].name
     firstChild = getObjByName(firstCName)

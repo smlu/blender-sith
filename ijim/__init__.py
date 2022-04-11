@@ -2,7 +2,7 @@
 bl_info = {
     "name": "Indiana Jones and the Infernal Machine",
     "description": "Import-Export game model (.3do) and material (.mat)",
-    "author": "smlu",
+    "author": "Crt Vavros",
     "version": (0, 9, 2),
     "blender": (2, 79, 0),
     "location": "File > Import-Export",
@@ -34,22 +34,16 @@ if "bpy" in locals():
     if "utils" in locals():
         importlib.reload(utils)
 
-
-import mathutils
-import math
-import bpy, types, bmesh
+import bpy
 from bpy_extras.io_utils import ImportHelper
 from bpy_extras.io_utils import ExportHelper
 
 import os.path
 import re
-import sys
-
-from typing import List
 
 import ijim.model.model3doExporter as model3doExporter
 import ijim.model.model3doImporter as model3doImporter
-from ijim.model.utils import getRadius, kGModel3do, kNameOrderPrefix
+from ijim.model.utils import kGModel3do, kNameOrderPrefix
 
 from ijim.key.key import KeyFlag, KeyType
 import ijim.key.keyImporter as keyImporter
@@ -113,6 +107,12 @@ class ImportModel3do(bpy.types.Operator, ImportHelper):
         default=True,
     )
 
+    b_import_radius_objects = bpy.props.BoolProperty(
+        name='Import radius objects',
+        description='Import mesh radius as 3D object',
+        default=False,
+    )
+
     b_preserve_order = bpy.props.BoolProperty(
         name='Preserve Mesh Hierarchy',
         description="If set, the order of imported mesh hierarchy will be preserved by prefixing the name of every mesh object with '{}XYZ_'.\n('XYZ' represents the order number)\nNote: hierarchy order effects animations which use this 3DO model.".format(kNameOrderPrefix),
@@ -126,7 +126,7 @@ class ImportModel3do(bpy.types.Operator, ImportHelper):
     )
 
     def execute(self, context):
-        obj = model3doImporter.importObject(self.filepath, [self.mat_path], self.b_preserve_order, self.b_clear_scene)
+        obj = model3doImporter.importObject(self.filepath, [self.mat_path], self.b_import_radius_objects, self.b_preserve_order, self.b_clear_scene)
 
         if self.b_set_3d_view:
             area = next(area for area in bpy.context.screen.areas if area.type == 'VIEW_3D')
@@ -144,24 +144,18 @@ class ImportModel3do(bpy.types.Operator, ImportHelper):
             space.grid_scale  = 0.027
             space.grid_subdivisions = 14
 
-            model_radius = model3doImporter.getModelRadiusObj(obj)
-            mesh_radius = model3doImporter.getMeshRadiusObj(obj)
-            if getRadius(model_radius) >= getRadius(mesh_radius):
-                obj = model_radius
-            else:
-                obj = mesh_radius
+            active_obj = bpy.context.scene.objects.active
+            bpy.context.scene.objects.active = obj
+            bpy.ops.object.select_grouped(type='CHILDREN_RECURSIVE')
 
-            obj.hide = False
-            obj.select = True
 
             override = {'area': area, 'region': region, 'edit_object': bpy.context.edit_object}
             bpy.ops.view3d.view_center_lock(override)
             bpy.ops.view3d.viewnumpad(override, type='BACK', align_active=True)
             bpy.ops.view3d.view_selected(override)
-            #bpy.ops.view3d.view_orbit(override, angle=0.0, type='ORBITUP') # Note: does not work properly in combination with viewnumpad operator
 
-            obj.select = False
-            obj.hide = True
+            bpy.ops.object.select_all(action='DESELECT')
+            bpy.context.scene.objects.active = active_obj
 
         return {'FINISHED'}
 
