@@ -48,7 +48,7 @@ def getRadius(obj):
     by = obj.dimensions[1]
     bz = obj.dimensions[2]
     r2 = math.pow(bx, 2) + math.pow(by, 2) + math.pow(bz, 2)
-    return math.sqrt(r2)
+    return math.sqrt(r2) /2
 
 def rot_matrix(pitch, yaw, roll):
     p = math.radians(pitch)
