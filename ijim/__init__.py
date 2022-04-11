@@ -170,6 +170,12 @@ class ExportModel3do(bpy.types.Operator, ExportHelper):
         options={"HIDDEN"}
     )
 
+    b_export_vert_colors = bpy.props.BoolProperty(
+        name='Export vertex colors',
+        description='Export vertex colors to 3DO file',
+        default=False,
+    )
+
     obj = None
 
     def invoke(self, context, event):
@@ -223,7 +229,7 @@ class ExportModel3do(bpy.types.Operator, ExportHelper):
 
     def execute(self, context):
         try:
-            model3doExporter.exportObject(self.obj, self.filepath)
+            model3doExporter.exportObject(self.obj, self.filepath, self.b_export_vert_colors)
         except (AssertionError, ValueError) as e:
             print("\nAn exception was encountered while exporting object '{}' to 3DO format!\nError: {}".format(self.obj.name, e))
             self.report({'ERROR'}, "Error: {}".format(e))

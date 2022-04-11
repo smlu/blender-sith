@@ -110,10 +110,9 @@ def _make_mesh(mesh3do: ModelMesh, mat_list: List):
     bm.from_mesh(mesh)
     bm.faces.ensure_lookup_table()
 
-    uv_layer = bm.loops.layers.uv.verify()
+    vert_color = bm.loops.layers.color.verify()
+    uv_layer   = bm.loops.layers.uv.verify()
     bm.faces.layers.tex.verify()
-
-    #face_color_layer = bm.loops.layers.color.new("face_color_")# + str(mesh3do.idx) + str(face.index))
 
     # Face's custom property tags
     tag_face_type = getBmeshFaceLayer(bm.faces, kFType)
@@ -156,7 +155,7 @@ def _make_mesh(mesh3do: ModelMesh, mat_list: List):
         for idx, loop in enumerate(face.loops): # update vertices
             vidx = loop.vert.index
             loop.vert.normal = mesh3do.normals[vidx]
-            #loop[face_color_layer] =  mesh3do.verticesColor[vidx] # don't vertex color because blender can show only 8 color layers
+            loop[vert_color] = mesh3do.verticesColor[vidx]
 
             # Set UV coordinates
             luv = loop[uv_layer]

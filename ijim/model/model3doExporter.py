@@ -1,9 +1,4 @@
-
-import mathutils
-import math
-import bpy, types, bmesh
-
-import sys
+import bpy, bmesh
 import time
 import bpy, bmesh
 import os
@@ -77,7 +72,7 @@ def _get_face_tex_mode(face: bmesh.types.BMFace, bmesh: bmesh.types.BMesh):
     return _get_face_property_or_default(face, tag, 3)
 
 
-def _model3do_add_mesh(model: Model, mesh: bpy.types.Mesh) -> int:
+def _model3do_add_mesh(model: Model, mesh: bpy.types.Mesh, exportVertexColors: bool) -> int:
     if mesh is None:
         return -1
 
@@ -107,7 +102,8 @@ def _model3do_add_mesh(model: Model, mesh: bpy.types.Mesh) -> int:
     bm.from_mesh(mesh)
     bm.verts.ensure_lookup_table()
     bm.faces.ensure_lookup_table()
-    uv_layer = bm.loops.layers.uv.verify()
+    vert_color = bm.loops.layers.color.verify()
+    uv_layer   = bm.loops.layers.uv.verify()
 
     for face in bm.faces:
         face3do = MeshFace()
@@ -116,7 +112,6 @@ def _model3do_add_mesh(model: Model, mesh: bpy.types.Mesh) -> int:
             mat_name = _get_mat_name(mesh.materials[face.material_index])
             face3do.materialIdx = model.materials.index(mat_name) if mat_name in model.materials else -1
 
-        face3do.color        = kDefaultFaceColor
         face3do.type         = _get_face_type(face, bm)
         face3do.geometryMode = _get_face_geometry_mode(face, bm)
         face3do.lightMode    = _get_face_light_mode(face, bm)
@@ -129,7 +124,8 @@ def _model3do_add_mesh(model: Model, mesh: bpy.types.Mesh) -> int:
             vertx = Vector3f(*loop.vert.co)
             if not mesh3do.vertices.count(vertx):
                 mesh3do.vertices.append(vertx)
-                mesh3do.verticesColor.append(kDefaultVertexColor)
+                vertColor = Vector4f(*loop[vert_color]) if exportVertexColors else kDefaultVertexColor
+                mesh3do.verticesColor.append(vertColor)
                 mesh3do.normals.append(Vector3f(*loop.vert.normal))
 
             vertx_idx = mesh3do.vertices.index(vertx)
@@ -234,20 +230,20 @@ def _model3do_add_hnode(model: Model, mesh_idx: int, obj: bpy.types.Object, pare
     _set_hnode_location(node, obj)
     model.hierarchyNodes.append(node)
 
-def _model3do_add_obj(model: Model, obj: bpy.types.Object, parent: bpy.types.Object = None):
+def _model3do_add_obj(model: Model, obj: bpy.types.Object, parent: bpy.types.Object = None, exportVertexColors: bool = False):
     if 'EMPTY' != obj.type != 'MESH' or _is_aux_obj(obj):
         return
 
-    mesh_idx  = _model3do_add_mesh(model, obj.data)
+    mesh_idx  = _model3do_add_mesh(model, obj.data, exportVertexColors)
     if mesh_idx > -1:
         mesh = model.geosets[0].meshes[mesh_idx]
         _set_mesh_properties(mesh, obj)
 
     _model3do_add_hnode(model, mesh_idx, obj, parent)
     for child in obj.children:
-        _model3do_add_obj(model, child, obj)
+        _model3do_add_obj(model, child, obj, exportVertexColors)
 
-def makeModel3doFromObj(name, obj: bpy.types.Object):
+def makeModel3doFromObj(name, obj: bpy.types.Object, exportVertexColors: bool = False):
     model = Model(name)
     model.geosets.append(ModelGeoSet())
 
@@ -260,13 +256,13 @@ def makeModel3doFromObj(name, obj: bpy.types.Object):
 
     if len(obj.children):
         for child in obj.children:
-            _model3do_add_obj(model, child, obj)
+            _model3do_add_obj(model, child, parent=obj, exportVertexColors=exportVertexColors)
     else:
-        _model3do_add_obj(model, obj)
+        _model3do_add_obj(model, obj, exportVertexColors=exportVertexColors)
 
     return model
 
-def exportObject(obj: bpy.types.Object, path: str):
+def exportObject(obj: bpy.types.Object, path: str, exportVertexColors: bool):
     bpy.path.ensure_ext(path, '.3do')
     print("exporting 3DO: %r..." % (path), end="")
     start_time = time.process_time()
@@ -275,7 +271,7 @@ def exportObject(obj: bpy.types.Object, path: str):
     if not isValidNameLen(model_name):
         raise ValueError("Export file name '{}' is longer then {} chars!".format(model_name, maxNameLen))
 
-    model3do = makeModel3doFromObj(model_name, obj)
+    model3do = makeModel3doFromObj(model_name, obj, exportVertexColors)
     header = "Model '{}' created with Blender v{}".format(os.path.basename(path), bpy.app.version_string)
     model3doWriter.write(model3do, path, header)
 
