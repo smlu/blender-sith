@@ -140,9 +140,9 @@ class ImportModel3do(bpy.types.Operator, ImportHelper):
             space.show_floor  = True
             space.show_axis_x = True
             space.show_axis_y = True
-            space.grid_lines  = 85
-            space.grid_scale  = 0.027
-            space.grid_subdivisions = 14
+            space.grid_lines  = 10
+            space.grid_scale  = 1.0
+            space.grid_subdivisions = 10
 
             active_obj = bpy.context.scene.objects.active
             bpy.context.scene.objects.active = obj
