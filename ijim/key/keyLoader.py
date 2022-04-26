@@ -33,7 +33,12 @@ def _parse_key_section_markers(tok: Tokenizer, key: Key):
     for i in range(0, numMarkers):
         m = KeyMarker()
         m.frame = tok.getFloatNumber()
-        m.type  = KeyMarkerType(tok.getIntNumber())
+        m.type  = KeyMarkerType.Marker
+        mt = tok.getIntNumber()
+        try:
+            m.type  = KeyMarkerType(mt)
+        except:
+            print("\nWarning: Unknown marker type '{}' fallback to '{}'!".format(mt, m.type.name))
         key.markers.append(m)
 
 def _parse_key_section_keyframe_nodes(tok: Tokenizer, key: Key):

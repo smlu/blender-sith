@@ -33,7 +33,7 @@ class KeyType(IntEnum):
 
 @unique
 class KeyMarkerType(IntEnum):
-    Invalid                  = -1
+    Marker                   = 0
     LeftFootstep             = 1
     RightFootstep            = 2
     AttackFire               = 3
@@ -77,7 +77,7 @@ class KeyframeFlag(IntEnum):
 class KeyMarker:
     def __init__(self):
         self.f : float = 0.0
-        self.t : KeyMarkerType = KeyMarkerType.Invalid
+        self.t : KeyMarkerType = KeyMarkerType.Marker
 
     @property
     def frame(self) -> float:

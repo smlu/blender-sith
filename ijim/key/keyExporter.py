@@ -1,7 +1,3 @@
-'''from .key import *
-from . import keyWriter
-'''
-
 from ijim.key.key import *
 import ijim.key.keyWriter as keyWriter
 
@@ -14,9 +10,7 @@ from ijim.utils.utils import *
 import bpy
 import mathutils
 
-import sys
 import os.path
-import re
 import time
 from collections import OrderedDict
 
@@ -58,21 +52,23 @@ def _set_keyframe_delta(dtype: KeyframeFlag, kf1: Keyframe, kf2: Keyframe):
             kf1.flags = KeyframeFlag.AllChange
 
 def _make_key_from_obj(key_name, obj: bpy.types.Object, scene: bpy.types.Scene):
-    key = Key(key_name)
+    key           = Key(key_name)
     key.flags     = KeyFlag[scene.animation_flags]
     key.type      = KeyType[scene.animation_type]
     key.numFrames = scene.frame_end + 1
     key.fps       = scene.render.fps
 
     for marker in scene.timeline_markers:
+        t = KeyMarkerType.Marker
         try:
             t = KeyMarkerType[marker.name]
-            m = KeyMarker()
-            m.frame = marker.frame
-            m.type = t
-            key.markers.append(m)
-        except Exception as e:
-            print("\nWarning: Invalid marker type for marker '{}'. Marker will not be written!".format(marker.name ))
+        except:
+            print("\nWarning: Can't convert invalid marker name '{}' to marker type. Using type '{}'!".format(marker.name, t.name))
+
+        m = KeyMarker()
+        m.frame = marker.frame
+        m.type = t
+        key.markers.append(m)
 
     # Make model3do from object to get ordered hierarchy nodes
     model3do = makeModel3doFromObj(key_name, obj)
