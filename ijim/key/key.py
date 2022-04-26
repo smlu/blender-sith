@@ -45,6 +45,7 @@ class KeyMarkerType(IntEnum):
     Died                     = 10
     Jump                     = 11
     SwimRight                = 13
+    Duck                     = 14
     Climb                    = 15
     Activate                 = 16
     Crawl                    = 17
