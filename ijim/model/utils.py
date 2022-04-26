@@ -4,7 +4,6 @@ from ijim.utils.utils import *
 from .model3do import GeometryMode
 
 import math
-import os.path
 import re
 from typing import List
 
@@ -41,14 +40,14 @@ def getOrderedNameIdx(name):
 def stripOrderPrefix(name):
     return re.sub("^{}([0-9]+)_".format(kNameOrderPrefix), "", name)
 
-def getRadius(obj):
-    if obj is None:
-        return 0
-    bx = obj.dimensions[0]
-    by = obj.dimensions[1]
-    bz = obj.dimensions[2]
-    r2 = math.pow(bx, 2) + math.pow(by, 2) + math.pow(bz, 2)
-    return math.sqrt(r2) /2
+def getRadius(obj, scale: mathutils.Vector = mathutils.Vector((1.0,)*3)):
+    r = 0
+    if obj is not None and obj.type == 'MESH':
+        for v in obj.data.vertices:
+            vl = vectorMultiply(v.co, scale).length
+            if vl > r:
+                r = vl
+    return r
 
 def rot_matrix(pitch, yaw, roll):
     p = math.radians(pitch)
@@ -154,3 +153,13 @@ def importMaterials(mat_names: List, search_paths: List):
             if mat_path is not None:
                 importMatFile(mat_path)
                 break
+
+def vectorMultiply(a: mathutils.Vector, b: mathutils.Vector) -> mathutils.Vector:
+    """
+    Multiplies vector by another vector (component-wise, not cross or dot product) and returns result vector.
+    """
+    c = a.copy()
+    c.x *= b.x
+    c.y *= b.y
+    c.z *= b.z
+    return c

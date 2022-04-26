@@ -1,15 +1,13 @@
-import bpy, bmesh
+import bpy, bmesh, mathutils
 import time
-import bpy, bmesh
 import os
-from typing import List
-from collections import defaultdict, OrderedDict
 
 from .model3do import *
 from .model3doImporter import getMeshObjectByName, getModelRadiusObj, getMeshRadiusObj
 from . import model3doWriter
 from .utils import *
 from ijim.utils.utils import *
+from typing import List
 
 kDefaultLightMode   = 3
 kDefaultTexMode     = 3
@@ -18,8 +16,8 @@ kDefaultFaceColor   = Vector4f(0.0, 0.0, 0.0, 1.0)
 kHNDefaultFlags     = 0
 kHNDefaultType      = 0
 
-def _set_hnode_location(node: MeshHierarchyNode, obj: bpy.types.Object):
-    node.position = Vector3f(*obj.location)
+def _set_hnode_location(node: MeshHierarchyNode, obj: bpy.types.Object, scale: mathutils.Vector):
+    node.position = Vector3f(*vectorMultiply(obj.location, scale))
     node.rotation = getObj_ImEulerOrientation(obj)
     node.pivot    = Vector3f(0.0, 0.0, 0.0)
 
@@ -72,7 +70,7 @@ def _get_face_tex_mode(face: bmesh.types.BMFace, bmesh: bmesh.types.BMesh):
     return _get_face_property_or_default(face, tag, 3)
 
 
-def _model3do_add_mesh(model: Model, mesh: bpy.types.Mesh, exportVertexColors: bool) -> int:
+def _model3do_add_mesh(model: Model, mesh: bpy.types.Mesh, scale: mathutils.Vector, exportVertexColors: bool) -> int:
     if mesh is None:
         return -1
 
@@ -121,7 +119,7 @@ def _model3do_add_mesh(model: Model, mesh: bpy.types.Mesh, exportVertexColors: b
 
         # Set face vertex and texture index
         for loop in face.loops:
-            vertx = Vector3f(*loop.vert.co)
+            vertx = Vector3f(*vectorMultiply(loop.vert.co, scale))
             if not mesh3do.vertices.count(vertx):
                 mesh3do.vertices.append(vertx)
                 vertColor = Vector4f(*loop[vert_color]) if exportVertexColors else kDefaultVertexColor
@@ -146,13 +144,13 @@ def _model3do_add_mesh(model: Model, mesh: bpy.types.Mesh, exportVertexColors: b
     model.geosets[0].meshes.append(mesh3do)
     return mesh_idx
 
-def _set_mesh_properties(mesh: ModelMesh, obj: bpy.types.Object):
+def _set_mesh_properties(mesh: ModelMesh, obj: bpy.types.Object, scale: mathutils.Vector):
     mesh.geometryMode = getGeometryMode(obj)
 
     radius_obj = getMeshRadiusObj(mesh)
     if radius_obj is None:
         obj = getMeshObjectByName(mesh.name)
-        mesh.radius = getRadius(obj)
+        mesh.radius = getRadius(obj, scale)
     else:
         mesh.radius = radius_obj.dimensions[0] / 2
 
@@ -202,7 +200,7 @@ def _get_hnode_last_sibling(first_child: MeshHierarchyNode, nodes: List[MeshHier
         return _get_hnode_last_sibling(nodes[sidx], nodes)
     return first_child
 
-def _model3do_add_hnode(model: Model, mesh_idx: int, obj: bpy.types.Object, parent: bpy.types.Object):
+def _model3do_add_hnode(model: Model, mesh_idx: int, obj: bpy.types.Object, parent: bpy.types.Object, scale: mathutils.Vector):
     name = _get_obj_hnode_name(obj)
     if name in model.hierarchyNodes:
         return
@@ -227,21 +225,58 @@ def _model3do_add_hnode(model: Model, mesh_idx: int, obj: bpy.types.Object, pare
             snode.siblingIdx = node_idx
         pnode.numChildren += 1
 
-    _set_hnode_location(node, obj)
+    _set_hnode_location(node, obj, scale)
     model.hierarchyNodes.append(node)
 
-def _model3do_add_obj(model: Model, obj: bpy.types.Object, parent: bpy.types.Object = None, exportVertexColors: bool = False):
+def _model3do_add_obj(model: Model, obj: bpy.types.Object, parent: bpy.types.Object = None, scale: mathutils.Vector = mathutils.Vector((1.0,)*3), exportVertexColors: bool = False):
     if 'EMPTY' != obj.type != 'MESH' or _is_aux_obj(obj):
         return
 
-    mesh_idx  = _model3do_add_mesh(model, obj.data, exportVertexColors)
+    scale = vectorMultiply(scale, obj.scale)
+
+    mesh_idx  = _model3do_add_mesh(model, obj.data, scale, exportVertexColors)
     if mesh_idx > -1:
         mesh = model.geosets[0].meshes[mesh_idx]
-        _set_mesh_properties(mesh, obj)
+        _set_mesh_properties(mesh, obj, scale)
 
-    _model3do_add_hnode(model, mesh_idx, obj, parent)
+    _model3do_add_hnode(model, mesh_idx, obj, parent, scale)
     for child in obj.children:
-        _model3do_add_obj(model, child, obj, exportVertexColors)
+        _model3do_add_obj(model, child, parent=obj, scale=scale, exportVertexColors=exportVertexColors)
+
+def _get_model_radius(obj, scale: mathutils.Vector = mathutils.Vector((1.0,)*3)):
+    min = mathutils.Vector((999999.0,)*3)
+    max = mathutils.Vector((-999999.0,)*3)
+    def do_bb(o, s):
+        if o.type != 'MESH': return
+        nonlocal min, max
+        for  v in o.data.vertices:
+
+            v_world = vectorMultiply(o.matrix_local * v.co, s)
+            if v_world.x < min.x:
+                min.x = v_world.x
+            if v_world.x > max.x:
+                max.x = v_world.x
+
+            if v_world.y < min.y:
+                min.y = v_world.y
+            if v_world.y > max.y:
+                max.y = v_world.y
+
+            if v_world.z < min.z:
+                min.z = v_world.z
+            if v_world.z > max.z:
+                max.z = v_world.z
+
+    def traverse_children(o, s):
+        for c in o.children:
+            s = vectorMultiply(s, c.scale)
+            do_bb(c, s)
+            traverse_children(c, s)
+
+    scale = vectorMultiply(scale, obj.scale)
+    do_bb(obj, scale)
+    traverse_children(obj, scale)
+    return ((max - min).length /2) 
 
 def makeModel3doFromObj(name, obj: bpy.types.Object, exportVertexColors: bool = False):
     model = Model(name)
@@ -250,13 +285,13 @@ def makeModel3doFromObj(name, obj: bpy.types.Object, exportVertexColors: bool = 
     model.insertOffset = Vector3f(*obj.location)
     radius_obj = getModelRadiusObj(obj)
     if radius_obj is None:
-        model.radius = getRadius(obj)
+        model.radius = _get_model_radius(obj)
     else:
         model.radius = radius_obj.dimensions[0] / 2
 
     if len(obj.children):
         for child in obj.children:
-            _model3do_add_obj(model, child, parent=obj, exportVertexColors=exportVertexColors)
+            _model3do_add_obj(model, child, parent=obj, scale=obj.scale, exportVertexColors=exportVertexColors)
     else:
         _model3do_add_obj(model, obj, exportVertexColors=exportVertexColors)
 

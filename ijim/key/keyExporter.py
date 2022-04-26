@@ -76,16 +76,16 @@ def _make_key_from_obj(key_name, obj: bpy.types.Object, scene: bpy.types.Scene):
 
     for hnode_idx, hnode in enumerate(model3do.hierarchyNodes):
 
-        obj = _get_obj_by_name(scene, hnode.name)
-        if obj.animation_data:
+        cobj = _get_obj_by_name(scene, hnode.name)
+        if cobj.animation_data:
             knode = KeyNode()
             knode.num = hnode_idx
             knode.meshName = hnode.name
 
             # Get node's keyframe entries
-            obj_pivot = getObjPivot(obj)
+            cobj_pivot = getObjPivot(cobj)
             kfs = OrderedDict()
-            for fc in obj.animation_data.action.fcurves :
+            for fc in cobj.animation_data.action.fcurves :
                 if fc.data_path.endswith(('location','rotation_euler','rotation_quaternion')):
                     for k in fc.keyframe_points :
                         frame = k.co[0]
@@ -105,7 +105,7 @@ def _make_key_from_obj(key_name, obj: bpy.types.Object, scene: bpy.types.Scene):
                         # Set coordinate for data
                         # Note: fc.array_index is an index to the axis of a vector
                         if fc.data_path.endswith(('location')):
-                            axis_co -= obj_pivot[fc.array_index]
+                            axis_co -= cobj_pivot[fc.array_index]
                         kfs[frame][fc.data_path][fc.array_index] = axis_co
 
             # Set node's keyframes
@@ -123,7 +123,16 @@ def _make_key_from_obj(key_name, obj: bpy.types.Object, scene: bpy.types.Scene):
                 # Set location
                 keyframe.position = Vector3f(0.0, 0.0, 0.0)
                 if "location" in entry:
-                    keyframe.position =   Vector3f(*entry["location"])
+                    def get_scale(o):
+                        scale = o.scale
+                        nonlocal obj
+                        while o != obj:
+                            o = o.parent
+                            scale = vectorMultiply(scale, o.scale)
+                        return scale
+                    loc = mathutils.Vector(entry['location'])
+                    loc = vectorMultiply(loc, get_scale(cobj))
+                    keyframe.position =  Vector3f(*loc)
                 elif previous_kf:
                     keyframe.position = previous_kf.position
 
@@ -135,7 +144,7 @@ def _make_key_from_obj(key_name, obj: bpy.types.Object, scene: bpy.types.Scene):
                 # Set orientation
                 keyframe.orientation = Vector3f(0.0, 0.0, 0.0)
                 if 'rotation_euler' in entry:
-                    keyframe.orientation   = eulerToImEuler(entry["rotation_euler"], obj.rotation_mode)
+                    keyframe.orientation   = eulerToImEuler(entry["rotation_euler"], cobj.rotation_mode)
                 elif "rotation_quaternion" in entry:
                     orient = mathutils.Quaternion(entry["rotation_quaternion"])
                     keyframe.orientation = quaternionToImEuler(orient)
