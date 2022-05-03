@@ -216,7 +216,8 @@ class ExportModel3do(bpy.types.Operator, ExportHelper):
             self.report({'ERROR'}, "Cannot export selected object of a type '{}'".format(eobj.type ))
             return {'CANCELLED'}
 
-        while eobj.parent != None:
+        while eobj.parent != None and \
+            (eobj.parent.type == 'MESH' or eobj.parent.type == 'EMPTY'):
             eobj = eobj.parent
 
         self.obj = eobj
@@ -274,7 +275,8 @@ class ExportKey(bpy.types.Operator, ExportHelper):
                 ("50"   , "50 fps", ""),
                 ("30"   , "30 fps", ""),
                 ("25"   , "25 fps", ""),
-                ("24"   , "24 fps", "")]
+                ("24"   , "24 fps", ""),
+                ("15"   , "15 fps", "")]
 
     animation_flags = bpy.props.EnumProperty(
         name    = "Animation flags",
@@ -364,7 +366,8 @@ class ExportKey(bpy.types.Operator, ExportHelper):
                 return {'CANCELLED'}
 
             # Get the top obj
-            while eobj.parent != None:
+            while eobj.parent != None and \
+                (eobj.parent.type == 'MESH' or eobj.parent.type == 'EMPTY'):
                 eobj = eobj.parent
 
             self.obj = eobj
