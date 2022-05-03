@@ -25,7 +25,7 @@ def getObjByName(name):
     if name in bpy.context.scene.objects:
         return bpy.context.scene.objects[name]
     for o in bpy.context.scene.objects:
-        if name == stripOrderPrefix(o.name):
+        if name.lower() == stripOrderPrefix(o.name).lower():
             return o
     raise ValueError("Could not find object '{}'".format(name))
 
@@ -137,7 +137,7 @@ def _make_mesh(mesh3do: ModelMesh, mat_list: List):
         mat_name = mat_list[face3do.materialIdx]
         mat = getGlobalMaterial(mat_name)
         if mat is None:
-            print("\nWarning: could not find or load material file '{}'".format(mat_name))
+            print("\nWarning: Could not find or load material file '{}'".format(mat_name))
             mat = makeNewGlobalMaterial(mat_name)
 
         if not mat.name in mesh.materials:
