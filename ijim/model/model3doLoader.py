@@ -1,6 +1,7 @@
+import os
 from ijim.text.tokenizer import TokenType, Tokenizer
 from .model3do import *
-import os
+from ..types.vector import *
 
 def _skip_to_next_model_section(tok: Tokenizer):
     t = tok.getToken()
@@ -16,7 +17,7 @@ def _parse_model_header_section(tok: Tokenizer):
         raise IOError("Invalid 3do model file!")
 
     version = tok.getFloatNumber()
-    if version != 2.3:
+    if not (2.1 <= version <= 2.3):
         raise IOError("Invalid file version of 3do model!")
     return version
 
@@ -26,11 +27,12 @@ def _parse_model_resource_section(tok: Tokenizer, model: Model):
     listLen = tok.getIntNumber()
     for i in range(0, listLen):
         idx = tok.getIntNumber()
-        assert idx == i
+        if idx != i:
+            print("Warning: Index mismatch while loading 3DO materials. {} != {}".format(idx, i))
         tok.assertPunctuator(':')
         model.materials.append(tok.getSpaceDelimitedString())
 
-def _parse_model_geometry_section(tok: Tokenizer, model: Model):
+def _parse_model_geometry_section(tok: Tokenizer, model: Model, fileVersion: float):
     tok.assertIdentifier("RADIUS")
     model.radius = tok.getFloatNumber()
 
@@ -45,14 +47,16 @@ def _parse_model_geometry_section(tok: Tokenizer, model: Model):
 
         tok.assertIdentifier("GEOSET")
         geosetIdx = tok.getIntNumber()
-        assert geosetIdx == i
+        if geosetIdx != i:
+            print("Warning: Index mismatch while loading 3DO geosets. {} != {}".format(geosetIdx, i))
 
         tok.assertIdentifier("MESHES")
         numMeshes = tok.getIntNumber()
         for j in range(0, numMeshes):
             tok.assertIdentifier("MESH")
             meshIdx = tok.getIntNumber()
-            assert meshIdx == j
+            if meshIdx != j:
+                print("Warning: Index mismatch while loading 3DO meshes. {} != {}".format(meshIdx, j))
 
             tok.assertIdentifier("NAME")
             name = tok.getDelimitedStringToken(lambda c: c == '\n')
@@ -77,18 +81,25 @@ def _parse_model_geometry_section(tok: Tokenizer, model: Model):
             numVertices = tok.getIntNumber()
             for k in range(0, numVertices):
                 vertIdx = tok.getIntNumber()
-                assert vertIdx == k
+                if vertIdx != k:
+                    print("Warning: Index mismatch while loading 3DO vertices. {} != {}".format(vertIdx, k))
+
                 tok.assertPunctuator(':')
 
                 mesh.vertices.append(tok.getVector3f())
-                mesh.verticesColor.append(tok.getVector4f())
+                if fileVersion == 2.3:
+                    mesh.verticesColor.append(tok.getVector4f())
+                else:
+                    intensity = tok.getFloatNumber()
+                    mesh.verticesColor.append(Vector4f(*((intensity, )*4)))
 
             tok.assertIdentifier("TEXTURE")
             tok.assertIdentifier("VERTICES")
             numTexVertices = tok.getIntNumber()
             for k in range(0, numTexVertices):
                 vertIdx = tok.getIntNumber()
-                assert vertIdx == k
+                if vertIdx != k:
+                    print("Warning: Index mismatch while loading 3DO UV list. {} != {}".format(vertIdx, k))
                 tok.assertPunctuator(':')
                 mesh.textureVertices.append(tok.getVector2f())
 
@@ -96,26 +107,32 @@ def _parse_model_geometry_section(tok: Tokenizer, model: Model):
             tok.assertIdentifier("NORMALS")
             for k in range(0, numVertices):
                 normalIdx = tok.getIntNumber()
-                assert normalIdx == k
+                if normalIdx != k:
+                    print("Warning: Index mismatch while loading 3DO vertex normals. {} != {}".format(normalIdx, k))
                 tok.assertPunctuator(':')
                 mesh.normals.append(tok.getVector3f())
 
             tok.assertIdentifier("FACES")
             numFaces = tok.getIntNumber()
             for k in range(0, numFaces):
-                face = MeshFace()
-
                 faceIdx = tok.getIntNumber()
-                assert faceIdx == k
+                if faceIdx != k:
+                    print("Warning: Index mismatch while loading 3DO mesh faces. {} != {}".format(faceIdx, k))
+
                 tok.assertPunctuator(':')
 
+                face = MeshFace()
                 face.materialIdx  = tok.getIntNumber()
                 face.type         = FaceType(tok.getIntNumber())
                 face.geometryMode = GeometryMode(tok.getIntNumber())
                 face.lightMode    = LightMode(tok.getIntNumber())
                 face.textureMode  = TextureMode(tok.getIntNumber())
-                face.color        = tok.getVector4f()
 
+                if fileVersion == 2.3:
+                    face.color    = tok.getVector4f()
+                else:
+                    intensity = tok.getFloatNumber()
+                    face.color    = Vector4f(*((intensity, )*4))
 
                 numFaceVerts = tok.getIntNumber()
                 for l in range(0, numFaceVerts):
@@ -129,10 +146,10 @@ def _parse_model_geometry_section(tok: Tokenizer, model: Model):
             tok.assertIdentifier("NORMALS")
             for k in range(0, numFaces):
                 faceNormalIdx = tok.getIntNumber()
-                assert faceNormalIdx == k
+                if faceNormalIdx != k:
+                    print("Warning: Index mismatch while loading 3DO mesh face normals. {} != {}".format(faceNormalIdx, k))
                 tok.assertPunctuator(':')
                 mesh.faces[k].normal = tok.getVector3f()
-
 
             geoset.meshes.append(mesh)
         model.geosets.append(geoset)
@@ -143,12 +160,13 @@ def _parse_hierarchy_section(tok: Tokenizer, model: Model):
 
     numNodes = tok.getIntNumber()
     for i in range(0, numNodes):
-        node = MeshHierarchyNode()
-
         nodeIdx = tok.getIntNumber()
-        assert nodeIdx == i
+        if nodeIdx != i:
+            print("Warning: Index mismatch while loading 3DO hierarchy list. {} != {}".format(nodeIdx, i))
+
         tok.assertPunctuator(':')
 
+        node = MeshHierarchyNode()
         node.flags         = tok.getIntNumber()
         node.type          = MeshNodeType(tok.getIntNumber())
         node.meshIdx       = tok.getIntNumber()
@@ -164,9 +182,6 @@ def _parse_hierarchy_section(tok: Tokenizer, model: Model):
         node.name = tok.getSpaceDelimitedString()
 
         model.hierarchyNodes.append(node)
-
-
-
 
 
 def load(filePath) -> Model:
@@ -189,7 +204,7 @@ def load(filePath) -> Model:
             _parse_model_resource_section(tok, model)
 
         elif t.value.upper() == "GEOMETRYDEF":
-            _parse_model_geometry_section(tok, model)
+            _parse_model_geometry_section(tok, model, file_version)
 
         elif t.value.upper() == "HIERARCHYDEF":
             _parse_hierarchy_section(tok, model)
