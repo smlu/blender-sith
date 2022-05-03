@@ -151,8 +151,12 @@ def importMaterials(mat_names: List, search_paths: List):
         for path in search_paths:
             mat_path = getFilePathInDir(name, path)
             if mat_path is not None:
-                importMatFile(mat_path)
-                break
+                try:
+                    importMatFile(mat_path)
+                    break
+                except Exception as e:
+                    print("Warning: Couldn't load material: ", mat_path)
+                    print("  Error: {}".format(e))
 
 def vectorMultiply(a: mathutils.Vector, b: mathutils.Vector) -> mathutils.Vector:
     """
