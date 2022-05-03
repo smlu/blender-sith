@@ -13,6 +13,8 @@ def HexProperty(varName: str, name: Optional[str] = '', description: Optional[st
                 value = '0'
             int(value, 16)
             self[varName] = value.upper().lstrip('0X')
+            if len(self[varName]) == 0:
+                self[varName] = '0'
             if pad:
                 l = len(self[varName])
                 l += l % 2
@@ -22,6 +24,7 @@ def HexProperty(varName: str, name: Optional[str] = '', description: Optional[st
     return bpy.props.StringProperty(
         name = name,
         description = description,
+        default = default,
         maxlen = maxlen,
         get = __get_hexvalue,
         set = __set_hexvalue,
