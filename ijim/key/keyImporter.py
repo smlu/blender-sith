@@ -46,7 +46,7 @@ def importKeyToScene(keyPath, scene: bpy.types.Scene):
         kobj = None
 
         # Get object to animate
-        for obj in scene.objects:
+        for obj in reversed(scene.objects):
             if kHnName in obj and obj[kHnName].lower() == node.meshName.lower():
                 kobj = obj
                 break

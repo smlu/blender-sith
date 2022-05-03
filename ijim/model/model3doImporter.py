@@ -137,7 +137,7 @@ def _make_mesh(mesh3do: ModelMesh, mat_list: List):
         mat_name = mat_list[face3do.materialIdx]
         mat = getGlobalMaterial(mat_name)
         if mat is None:
-            print("\nWarning: could not find material file '{}'".format(mat_name))
+            print("\nWarning: could not find or load material file '{}'".format(mat_name))
             mat = makeNewGlobalMaterial(mat_name)
 
         if not mat.name in mesh.materials:
@@ -184,7 +184,9 @@ def importObject(file_path, mat_paths = [], importRadiusObjects = False, b_prese
     startTime = time.process_time()
 
     model = model3doLoader.load(file_path)
-    if len(model.geosets) == 0: return
+    if len(model.geosets) == 0:
+        print("Info: Nothing to load because 3DO model doesn't contain any geoset.")
+        return
 
     if b_clear_scene:
         clearAllScenes()
@@ -209,7 +211,7 @@ def importObject(file_path, mat_paths = [], importRadiusObjects = False, b_prese
         obj.draw_bounds_type = 'SPHERE'
         bpy.context.scene.objects.link(obj)
 
-
+    hlist = []
     # Update model's mesh hierarchy
     for idx, meshNode in enumerate(model.hierarchyNodes):
         meshIdx = meshNode.meshIdx
@@ -223,19 +225,21 @@ def importObject(file_path, mat_paths = [], importRadiusObjects = False, b_prese
             meshName = model.geosets[0].meshes[meshIdx].name
             obj = getObjByName(meshName)
 
+        hlist.append(obj)
+
         # Make obj name prefixed by idx num.
         # This will make the hierarchy of model 3do ordered by index instead by name in Blender.
         obj.name = makeOrderedName(obj.name, idx, len(model.hierarchyNodes)) if b_preserve_order else obj.name
 
-        # Set mode's parent mesh
-        if meshNode.parentIdx != -1:
-            pnode = model.hierarchyNodes[meshNode.parentIdx]
-            obj.parent_type = 'OBJECT'
-            if pnode.meshIdx == -1:
-                pname = pnode.name
-            else:
-                pname = model.geosets[0].meshes[pnode.meshIdx].name
-            obj.parent = getObjByName(pname)
+        # # Set node's parent mesh
+        # if meshNode.parentIdx != -1:
+        #     pnode = model.hierarchyNodes[meshNode.parentIdx]
+        #     obj.parent_type = 'OBJECT'
+        #     if pnode.meshIdx == -1:
+        #         pname = pnode.name
+        #     else:
+        #         pname = model.geosets[0].meshes[pnode.meshIdx].name
+        #     obj.parent = getObjByName(pname)
 
         bpy.context.scene.update()
 
@@ -250,6 +254,14 @@ def importObject(file_path, mat_paths = [], importRadiusObjects = False, b_prese
         _set_obj_rotation(obj, meshNode.rotation)
     # end of [for idx, meshNode in enumerate(model.hierarchyNodes)]
 
+    # Set mode parent meshes
+    for idx, node in enumerate(model.hierarchyNodes):
+        if node.parentIdx != -1:
+            obj = hlist[idx]
+            obj.parent_type = 'OBJECT'
+            obj.parent = hlist[node.parentIdx]
+
+    bpy.context.scene.update()
 
     # Set model's insert offset and radius
     baseObj = bpy.data.objects.new(model.name, None)
