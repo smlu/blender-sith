@@ -1,7 +1,6 @@
 import bpy, bmesh
 import os.path
-
-from typing import List
+from .. import bl_info
 
 maxNameLen = 64
 
@@ -17,7 +16,6 @@ def assertName(name: str):
 
     if not isASCII(name):
         raise AssertionError("name error: '{}' len does not contain all ASCII chars".format(name))
-
 
 def getBmeshFaceLayer(faces: bmesh.types.BMFaceSeq, name: str, makeLayer=True):
     return faces.layers.string.get(name) or faces.layers.string.new(name) if makeLayer else None
@@ -123,3 +121,8 @@ def clearAllScenes():
     ):
         for id_data in bpy_data_iter:
             bpy_data_iter.remove(id_data)
+
+def getExportFileHeader(prefix):
+    version = bl_info['version']
+    version = '.'.join([str(v) for v in version])
+    return "{} created with Blender addon ijim v{} by {}".format(prefix, version, bl_info['author'])

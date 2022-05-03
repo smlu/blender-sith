@@ -307,7 +307,7 @@ def exportObject(obj: bpy.types.Object, path: str, exportVertexColors: bool):
         raise ValueError("Export file name '{}' is longer then {} chars!".format(model_name, maxNameLen))
 
     model3do = makeModel3doFromObj(model_name, obj, exportVertexColors)
-    header = "Model '{}' created with Blender v{}".format(os.path.basename(path), bpy.app.version_string)
+    header = getExportFileHeader("3DO model '{}'".format(os.path.basename(path)))
     model3doWriter.write(model3do, path, header)
 
     print(" done in %.4f sec." % (time.process_time() - start_time))

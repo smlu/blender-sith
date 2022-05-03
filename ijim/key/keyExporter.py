@@ -170,7 +170,9 @@ def exportObjectAnim(obj: bpy.types.Object, scene: bpy.types.Scene, path: str):
         raise ValueError("Export file name '{}' is longer then {} chars!".format(key_name, maxNameLen))
 
     key = _make_key_from_obj(key_name, obj, scene)
-    header   = "Keyframe '{}' created with Blender v{}".format(os.path.basename(path), bpy.app.version_string)
+    if len(key.nodes) == 0:
+        print("\nWarning: The object doesn't have any animation data to export!")
+    header  = getExportFileHeader("Keyframe '{}'".format(os.path.basename(path)))
     keyWriter.write(key, path, header)
 
     print(" done in %.4f sec." % (time.process_time() - start_time))
