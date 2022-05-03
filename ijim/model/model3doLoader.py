@@ -60,8 +60,7 @@ def _parse_model_geometry_section(tok: Tokenizer, model: Model, fileVersion: flo
 
             tok.assertIdentifier("NAME")
             name = tok.getDelimitedStringToken(lambda c: c == '\n')
-
-            mesh = ModelMesh(meshIdx, name.value)
+            mesh = ModelMesh(meshIdx, name.value.strip())
 
 
             tok.assertIdentifier("RADIUS")
@@ -131,7 +130,7 @@ def _parse_model_geometry_section(tok: Tokenizer, model: Model, fileVersion: flo
                 if fileVersion == 2.3:
                     face.color    = tok.getVector4f()
                 else:
-                    intensity = tok.getFloatNumber()
+                    intensity     = tok.getFloatNumber()
                     face.color    = Vector4f(*((intensity, )*4))
 
                 numFaceVerts = tok.getIntNumber()
@@ -175,11 +174,11 @@ def _parse_hierarchy_section(tok: Tokenizer, model: Model):
         node.siblingIdx    = tok.getIntNumber()
         node.numChildren   = tok.getIntNumber()
 
-        node.position = tok.getVector3f()
-        node.rotation = tok.getVector3f()
-        node.pivot    = tok.getVector3f()
+        node.position      = tok.getVector3f()
+        node.rotation      = tok.getVector3f()
+        node.pivot         = tok.getVector3f()
 
-        node.name = tok.getSpaceDelimitedString()
+        node.name          = tok.getSpaceDelimitedString()
 
         model.hierarchyNodes.append(node)
 
