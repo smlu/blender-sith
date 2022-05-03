@@ -1,9 +1,10 @@
-from enum import IntEnum, IntFlag, unique
+from enum import IntEnum, unique
 from typing import List
+from ijim.types.enum import Flag
 from ijim.types.vector import *
 
 @unique
-class KeyFlag(IntFlag):
+class KeyFlag(Flag):
     Loop                = 0x0
     PauseOnFirstFrame   = 0x1
     NoLoop              = 0x2
@@ -12,20 +13,8 @@ class KeyFlag(IntFlag):
     FinishInGivenTime   = 0x10
     EndSmoothly         = 0x20
 
-    def toSet(self) -> set:
-        return { m.name for m in KeyFlag if m.value & self.value }
-
-    @classmethod
-    def fromSet(cls, setflags: set) -> 'KeyFlag':
-        flags = cls(0)
-        for v in setflags:
-            try:
-                flags |= cls[v]
-            except: pass
-        return flags
-
 @unique
-class KeyType(IntFlag):
+class KeyType(Flag):
     Unknown_00   = 0x00
     Unknown_01   = 0x01
     Unknown_02   = 0x02
@@ -58,14 +47,6 @@ class KeyType(IntFlag):
     # Unknown12 = 0x0986    #in_attack_pull_rifle.key
     # Unknown13 = 0x090D    #in_attack_pull_machete.key
     # Unknown14 = 0x098F    #in_attack_pull_fists.key
-
-    def hex(self) -> str:
-        return hex(self)
-
-    @classmethod
-    def fromHex(cls, hexvalue: str) -> 'KeyType':
-        return cls(int(hexvalue, 16))
-
 
 @unique
 class KeyMarkerType(IntEnum):
@@ -103,7 +84,6 @@ class KeyMarkerType(IntEnum):
     Unknown_33               = 33
     MoveLeftSide             = 34
     MoveRightSide            = 35
-    
 
 @unique
 class KeyframeFlag(IntEnum):
