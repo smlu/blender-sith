@@ -1,9 +1,9 @@
-from enum import IntEnum, unique
-from typing import Tuple, List
+from enum import IntEnum, IntFlag, unique
+from typing import List
 from ijim.types.vector import *
 
 @unique
-class KeyFlag(IntEnum):
+class KeyFlag(IntFlag):
     Loop                = 0x0
     PauseOnFirstFrame   = 0x1
     NoLoop              = 0x2
@@ -12,24 +12,60 @@ class KeyFlag(IntEnum):
     FinishInGivenTime   = 0x10
     EndSmoothly         = 0x20
 
+    def toSet(self) -> set:
+        return { m.name for m in KeyFlag if m.value & self.value }
+
+    @classmethod
+    def fromSet(cls, setflags: set) -> 'KeyFlag':
+        flags = cls(0)
+        for v in setflags:
+            try:
+                flags |= cls[v]
+            except: pass
+        return flags
+
 @unique
-class KeyType(IntEnum):
-    Unknown   = 0x0000
-    Unknown1  = 0x0001    #tu_hit_shoulderl.key
-    Unknown2  = 0x0004    #tu_attack_ready.key
-    Unknown3  = 0x0008    #tu_hit_headl
-    Unknown4  = 0x000F    #0so_armsmid_3_3.key
-    Unknown5  = 0x0070    #vo_rotate_left.key
-    Unknown6  = 0x0104    #in_attack_put_gun.key
-    Unknown7  = 0x010D    #in_attack_put_whip.key, in_attack_put_machete.key
-    Unknown8  = 0x0186    #0vo_bothup_3_3.key
-    Unknown9  = 0x018F    #in_attack_unaim_rifle.key, in_attack_unaim_shotgun.key, in_attack_put_imp.key
-    Unknown10 = 0x04FB    #in_activate_medium_left.key
-    Unknown11 = 0x0904    #in_attack_pull_whip.key, in_attack_pull_satchel.key, in_attack_pull_imp.key
-    Unknown12 = 0x0986    #in_attack_pull_rifle.key
-    Unknown13 = 0x090D    #in_attack_pull_machete.key
-    Unknown14 = 0x098F    #in_attack_pull_fists.key
-    Unknown15 = 0xFFFF
+class KeyType(IntFlag):
+    Unknown_00   = 0x00
+    Unknown_01   = 0x01
+    Unknown_02   = 0x02
+    Unknown_04   = 0x04
+    Unknown_08   = 0x08
+    Unknown_10   = 0x10
+    Unknown_20   = 0x20
+    Unknown_40   = 0x40
+    Unknown_80   = 0x80
+    Unknown_100  = 0x100
+    Unknown_200  = 0x200
+    Unknown_400  = 0x400
+    Unknown_800  = 0x800
+    Unknown_1000 = 0x1000
+    Unknown_2000 = 0x2000
+    Unknown_4000 = 0x4000
+    Unknown_8000 = 0x8000
+
+    # Unknown1  = 0x0001    #tu_hit_shoulderl.key
+    # Unknown2  = 0x0004    #tu_attack_ready.key
+    # Unknown3  = 0x0008    #tu_hit_headl
+    # Unknown4  = 0x000F    #0so_armsmid_3_3.key
+    # Unknown5  = 0x0070    #vo_rotate_left.key
+    # Unknown6  = 0x0104    #in_attack_put_gun.key
+    # Unknown7  = 0x010D    #in_attack_put_whip.key, in_attack_put_machete.key
+    # Unknown8  = 0x0186    #0vo_bothup_3_3.key
+    # Unknown9  = 0x018F    #in_attack_unaim_rifle.key, in_attack_unaim_shotgun.key, in_attack_put_imp.key
+    # Unknown10 = 0x04FB    #in_activate_medium_left.key
+    # Unknown11 = 0x0904    #in_attack_pull_whip.key, in_attack_pull_satchel.key, in_attack_pull_imp.key
+    # Unknown12 = 0x0986    #in_attack_pull_rifle.key
+    # Unknown13 = 0x090D    #in_attack_pull_machete.key
+    # Unknown14 = 0x098F    #in_attack_pull_fists.key
+
+    def hex(self) -> str:
+        return hex(self)
+
+    @classmethod
+    def fromHex(cls, hexvalue: str) -> 'KeyType':
+        return cls(int(hexvalue, 16))
+
 
 @unique
 class KeyMarkerType(IntEnum):
@@ -63,8 +99,11 @@ class KeyMarkerType(IntEnum):
     InventoryPut             = 29
     AttackFireFinish         = 30
     TurnOff                  = 31
+    Unknown_32               = 32
+    Unknown_33               = 33
     MoveLeftSide             = 34
     MoveRightSide            = 35
+    
 
 @unique
 class KeyframeFlag(IntEnum):
@@ -187,7 +226,7 @@ class Key:
     def __init__(self, name: str):
         self.n = name
         self.f: KeyFlag = KeyFlag.Loop
-        self.t: KeyType = KeyType.Unknown
+        self.t: KeyType = KeyType.Unknown_00
         self.frames: int = 0
         self.nfps: float  = 0.0
         self.joints: int = 0

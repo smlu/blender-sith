@@ -53,11 +53,10 @@ def _set_keyframe_delta(dtype: KeyframeFlag, kf1: Keyframe, kf2: Keyframe):
 
 def _make_key_from_obj(key_name, obj: bpy.types.Object, scene: bpy.types.Scene):
     key           = Key(key_name)
-    key.flags     = KeyFlag[scene.animation_flags]
-    key.type      = KeyType[scene.animation_type]
+    key.flags     = KeyFlag.fromSet(scene.animation_flags)
+    key.type      = KeyType.fromHex(scene.animation_type)
     key.numFrames = scene.frame_end + 1
     key.fps       = scene.render.fps
-
     for marker in scene.timeline_markers:
         t = KeyMarkerType.Marker
         try:
@@ -73,9 +72,7 @@ def _make_key_from_obj(key_name, obj: bpy.types.Object, scene: bpy.types.Scene):
     # Make model3do from object to get ordered hierarchy nodes
     model3do = makeModel3doFromObj(key_name, obj)
     key.numJoints = len(model3do.hierarchyNodes)
-
     for hnode_idx, hnode in enumerate(model3do.hierarchyNodes):
-
         cobj = _get_obj_by_name(scene, hnode.name)
         if cobj.animation_data:
             knode = KeyNode()

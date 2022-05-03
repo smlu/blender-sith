@@ -33,6 +33,8 @@ if "bpy" in locals():
         importlib.reload(text)
     if "utils" in locals():
         importlib.reload(utils)
+    if "HexProperty" in locals():
+        importlib.reload(types.props)
 
 import bpy
 from bpy_extras.io_utils import ImportHelper
@@ -51,6 +53,7 @@ import ijim.key.keyExporter as keyExporter
 
 from .material.material import importMatFile
 from .utils.utils import *
+from .types.props import *
 
 
 def _make_readable(str):
@@ -62,21 +65,15 @@ def _get_key_flags_enum_list():
         l.append((f.name, _make_readable(f.name), "", int(f)))
     return l
 
-def _get_key_type_enum_list():
-    l = []
-    for t in reversed(KeyType):
-        l.append((t.name, t.name , "value: 0x{:04x}".format(int(t)), int(t)))
-    return l
-
 class ImportMat(bpy.types.Operator, ImportHelper):
     """Import Indiana Jones and the Infernal Machine material (.mat)"""
-    bl_idname = "import_material.ijim_mat"
-    bl_label = "Import MAT"
+    bl_idname    = "import_material.ijim_mat"
+    bl_label     = "Import MAT"
     filename_ext = ".mat"
 
     filter_glob = bpy.props.StringProperty(
-        default="*.mat",
-        options={"HIDDEN"}
+        default = "*.mat",
+        options = {"HIDDEN"}
     )
 
     def execute(self, context):
@@ -86,42 +83,42 @@ class ImportMat(bpy.types.Operator, ImportHelper):
 
 class ImportModel3do(bpy.types.Operator, ImportHelper):
     """Import Indiana Jones and the Infernal Machine 3DO model (.3do)"""
-    bl_idname = "import_object.ijim_3do"
-    bl_label = "Import 3DO"
+    bl_idname    = "import_object.ijim_3do"
+    bl_label     = "Import 3DO"
     filename_ext = ".3do"
 
     filter_glob = bpy.props.StringProperty(
-        default="*.3do",
-        options={"HIDDEN"}
+        default = "*.3do",
+        options = {"HIDDEN"}
     )
 
     b_set_3d_view = bpy.props.BoolProperty(
-        name='Adjust 3D View',
-        description='Adjust 3D View accordingly to the 3DO model position, size etc...',
-        default=True,
+        name        = 'Adjust 3D View',
+        description = 'Adjust 3D View accordingly to the 3DO model position, size etc...',
+        default     = True,
     )
 
     b_clear_scene = bpy.props.BoolProperty(
-        name='Clear Scene',
-        description='Remove all scenes and content before importing 3DO model to the scene',
-        default=True,
+        name        = 'Clear Scene',
+        description = 'Remove all scenes and content before importing 3DO model to the scene',
+        default     = True,
     )
 
     b_import_radius_objects = bpy.props.BoolProperty(
-        name='Import radius objects',
-        description='Import mesh radius as 3D object',
-        default=False,
+        name        = 'Import radius objects',
+        description = 'Import mesh radius as 3D object',
+        default     = False,
     )
 
     b_preserve_order = bpy.props.BoolProperty(
-        name='Preserve Mesh Hierarchy',
-        description="If set, the order of imported mesh hierarchy will be preserved by prefixing the name of every mesh object with '{}XYZ_'.\n('XYZ' represents the order number)\nNote: hierarchy order effects animations which use this 3DO model.".format(kNameOrderPrefix),
-        default=True,
+        name        = 'Preserve Mesh Hierarchy',
+        description = "If set, the order of imported mesh hierarchy will be preserved by prefixing the name of every mesh object with '{}XYZ_'.\n('XYZ' represents the order number)\nNote: hierarchy order effects animations which use this 3DO model.".format(kNameOrderPrefix),
+        default     = True,
     )
 
     mat_path = bpy.props.StringProperty(
-        name='Materials folder',
-        description='Path to the directory to search for material files (.mat) of 3DO model',
+        name        = 'Materials folder',
+        description = 'Path to the directory to search for material files (.mat) of 3DO model',
         #subtype='DIR_PATH'
     )
 
@@ -148,7 +145,6 @@ class ImportModel3do(bpy.types.Operator, ImportHelper):
             bpy.context.scene.objects.active = obj
             bpy.ops.object.select_grouped(type='CHILDREN_RECURSIVE')
 
-
             override = {'area': area, 'region': region, 'edit_object': bpy.context.edit_object}
             bpy.ops.view3d.view_center_lock(override)
             bpy.ops.view3d.viewnumpad(override, type='BACK', align_active=True)
@@ -161,19 +157,19 @@ class ImportModel3do(bpy.types.Operator, ImportHelper):
 
 class ExportModel3do(bpy.types.Operator, ExportHelper):
     """Export object to Indiana Jones and the Infernal Machine 3DO file format (.3do)"""
-    bl_idname = "export_object.ijim_3do"
-    bl_label = "Export 3DO"
+    bl_idname    = "export_object.ijim_3do"
+    bl_label     = "Export 3DO"
     filename_ext = ".3do"
 
     filter_glob = bpy.props.StringProperty(
-        default="*.3do",
-        options={"HIDDEN"}
+        default = "*.3do",
+        options = {"HIDDEN"}
     )
 
     b_export_vert_colors = bpy.props.BoolProperty(
-        name='Export vertex colors',
-        description='Export vertex colors to 3DO file',
-        default=False,
+        name        = 'Export vertex colors',
+        description = 'Export vertex colors to 3DO file',
+        default     = False,
     )
 
     obj = None
@@ -242,13 +238,13 @@ class ExportModel3do(bpy.types.Operator, ExportHelper):
 # TODO: add option to load model first
 class ImportKey(bpy.types.Operator, ImportHelper):
     """Import Indiana Jones and the Infernal Machine animation (.key)"""
-    bl_idname = "import_anim.ijim_key"
-    bl_label = "Import KEY"
+    bl_idname    = "import_anim.ijim_key"
+    bl_label     = "Import KEY"
     filename_ext = ".key"
 
     filter_glob = bpy.props.StringProperty(
-        default="*.key",
-        options={"HIDDEN"}
+        default = "*.key",
+        options = {"HIDDEN"}
     )
 
     def execute(self, context):
@@ -262,16 +258,15 @@ class ImportKey(bpy.types.Operator, ImportHelper):
         return {'FINISHED'}
 
 
-
 class ExportKey(bpy.types.Operator, ExportHelper):
     """Export animation to Indiana Jones and the Infernal Machine KEY file format (.key)"""
-    bl_idname = "export_anim.ijim_key"
-    bl_label = "Export KEY"
+    bl_idname    = "export_anim.ijim_key"
+    bl_label     = "Export KEY"
     filename_ext = ".key"
 
     filter_glob = bpy.props.StringProperty(
-        default="*.key",
-        options={"HIDDEN"}
+        default = "*.key",
+        options = {"HIDDEN"}
     )
 
     def _get_fps_enum_list():
@@ -282,19 +277,22 @@ class ExportKey(bpy.types.Operator, ExportHelper):
                 ("24"   , "24 fps", "")]
 
     animation_flags = bpy.props.EnumProperty(
-        name="Animation flags",
-        items=_get_key_flags_enum_list()
+        name    = "Animation flags",
+        items   = _get_key_flags_enum_list(),
+        options = {'ENUM_FLAG'}
     )
 
-    animation_type= bpy.props.EnumProperty(
-        name="Animation type",
-        description="It is not known what role does animation type have in the game.",
-        items=_get_key_type_enum_list()
+    animation_type = HexProperty(
+        'animation_type',
+        name        = "Animation type",
+        description = "It is not known what role does animation type have in the game.",
+        maxlen      = 4,
+        pad         = True
     )
 
     fps = bpy.props.EnumProperty(
-        name="Frame rate",
-        items=_get_fps_enum_list()
+        name  = "Frame rate",
+        items = _get_fps_enum_list()
     )
 
     obj = None
@@ -306,9 +304,11 @@ class ExportKey(bpy.types.Operator, ExportHelper):
             self.scene = bpy.context.scene.copy()
             self.animation_flags = self.scene.animation_flags
             self.animation_type  = self.scene.animation_type
+            if self.animation_type == '':
+                self.animation_type = 'FFFF'
 
             fps = self.scene.render.fps
-            for e in reversed(_get_fps_enum_list()):
+            for e in reversed(ExportKey._get_fps_enum_list()):
                 if e[0] == str(fps):
                     self.fps = str(e[0])
                     break
@@ -413,14 +413,17 @@ def menu_func_import(self, context):
 def register():
     bpy.types.Scene.animation_flags = bpy.props.EnumProperty(
         items = _get_key_flags_enum_list(),
-        name  = 'Animation Flags',
+        name  = 'Key Animation Flags',
+        options = {'ENUM_FLAG'},
         description = 'Indiana Jones IM Keyframe Flags'
     )
 
-    bpy.types.Scene.animation_type  = bpy.props.EnumProperty(
-        items = _get_key_type_enum_list(),
-        name  = 'Animation Type',
-        description = 'Indiana Jones IM Keyframe type'
+    bpy.types.Scene.animation_type = HexProperty(
+        'bpy.types.Scene.animation_type',
+        name  = 'Key Animation Type',
+        description="Indiana Jones IM Keyframe type",
+        maxlen = 4,
+        pad = True
     )
 
     bpy.utils.register_class(ImportMat)
