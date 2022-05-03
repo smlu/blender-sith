@@ -110,7 +110,7 @@ class Token:
         return int(self.value, base)
 
     def toFloatNumber(self) -> float:
-        if self.type != TokenType.Float:
+        if self.type != TokenType.Float and self.type != TokenType.Integer:
             raise TypeError("Token type is not float number")
         return float(self.value)
 
