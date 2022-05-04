@@ -288,6 +288,7 @@ class ExportKey(bpy.types.Operator, ExportHelper):
         'animation_type',
         name        = "Animation type",
         description = "It is not known what role does animation type have in the game.",
+        default     = '0xFFFF',
         maxlen      = 4,
         pad         = True
     )
@@ -304,10 +305,8 @@ class ExportKey(bpy.types.Operator, ExportHelper):
         # Initializes self.scene and self.obj by searching for a top object which represents 3DO model
         try:
             self.scene = bpy.context.scene.copy()
-            self.animation_flags = self.scene.animation_flags
-            self.animation_type  = self.scene.animation_type
-            if self.animation_type == '':
-                self.animation_type = 'FFFF'
+            self.animation_flags = self.scene.key_animation_flags
+            self.animation_type  = self.scene.key_animation_type
 
             fps = self.scene.render.fps
             for e in reversed(ExportKey._get_fps_enum_list()):

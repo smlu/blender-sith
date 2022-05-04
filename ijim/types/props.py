@@ -1,7 +1,7 @@
 from typing import Optional
 import bpy
 
-def HexProperty(varName: str, name: Optional[str] = '', description: Optional[str] = '', default : Optional[str] = '', maxlen: Optional[int] = None, pad: bool = False) -> bpy.props.StringProperty:
+def HexProperty(varName: str, name: Optional[str] = '', description: Optional[str] = '', default : Optional[str] = '', maxlen: Optional[int] = None, options: Optional[set] = set(), pad: bool = False) -> bpy.props.StringProperty:
     def __get_hexvalue(self):
         if varName in self:
             return self[varName] 
@@ -10,7 +10,7 @@ def HexProperty(varName: str, name: Optional[str] = '', description: Optional[st
     def __set_hexvalue(self, value):
         try:
             if len(value) == 0:
-                value = '0'
+                value = default
             int(value, 16)
             self[varName] = value.upper().lstrip('0X')
             if len(self[varName]) == 0:
@@ -28,4 +28,5 @@ def HexProperty(varName: str, name: Optional[str] = '', description: Optional[st
         maxlen = maxlen,
         get = __get_hexvalue,
         set = __set_hexvalue,
+        options = options
     )
