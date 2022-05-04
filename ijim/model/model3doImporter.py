@@ -1,21 +1,14 @@
 import mathutils
-import math
-import bpy, types, bmesh
+import bpy, bmesh
 
-import sys
-import os.path
 import time
 from typing import List
 
 from . import model3doLoader
 from .utils import *
 from .model3do import (
-    Model,
-    GeometryMode,
-    LightMode,
-    TextureMode,
-    ModelMesh,
-    FaceType
+    Model3do,
+    ModelMesh
 )
 
 from ijim.material.material import importMatFile
@@ -94,7 +87,6 @@ def _set_model_radius(obj, radius):
 def _set_mesh_radius(obj, radius):
     _make_radius_obj(kMeshRadius + obj.name, obj, radius)
 
-
 def _make_mesh(mesh3do: ModelMesh, mat_list: List):
     mesh = bpy.data.meshes.new(mesh3do.name)
 
@@ -115,7 +107,7 @@ def _make_mesh(mesh3do: ModelMesh, mat_list: List):
     bm.faces.layers.tex.verify()
 
     # Face's custom property tags
-    tag_face_type = getBmeshFaceLayer(bm.faces, kFType)
+    tag_face_type = getBmeshFaceLayer(bm.faces, kFaceType)
     tag_face_gm   = getBmeshFaceLayer(bm.faces, kGeometryMode)
     tag_face_lm   = getBmeshFaceLayer(bm.faces, kLightingMode)
     tag_face_tm   = getBmeshFaceLayer(bm.faces, kTextureMode)
@@ -182,7 +174,61 @@ def getMeshRadiusObj(mesh):
     except:
         return None
 
-def importObject(file_path, mat_paths = [], importRadiusObjects = False, b_preserve_order = True, b_clear_scene = True):
+def _create_objects_from_model(model: Model3do, geosetNum: int, importRadiusObj:bool, preserveOrder: bool):
+    meshes = model.geosets[geosetNum].meshes
+    for node in model.hierarchyNodes:
+        meshIdx = node.meshIdx
+
+        # Get node's mesh
+        if meshIdx > -1:
+            if meshIdx >= len(meshes):
+                raise IndexError("Mesh index {} out of range ({})!".format(meshIdx, len(meshes)))
+
+            mesh3do = meshes[meshIdx]
+            mesh    = _make_mesh(mesh3do, model.materials)
+            obj     = bpy.data.objects.new(mesh3do.name, mesh)
+
+            # Set mesh radius object, draw type, custom property for lighting and texture mode
+            if importRadiusObj:
+                _set_mesh_radius(obj, mesh3do.radius)
+
+            obj.draw_type             = getDrawType(mesh3do.geometryMode)
+            obj.model3do_light_mode   = mesh3do.lightMode.name
+            obj.model3do_texture_mode = mesh3do.textureMode.name
+            obj.draw_bounds_type      = 'SPHERE'
+            bpy.context.scene.objects.link(obj)
+        else:
+            obj = bpy.data.objects.new(node.name, None)
+            obj.empty_draw_size = (0.0)
+            bpy.context.scene.objects.link(obj)
+
+        # Make obj name prefixed by idx num.
+        # This will make the hierarchy of model 3do ordered by index instead by name in Blender.
+        obj.name = makeOrderedName(obj.name, node.idx, len(model.hierarchyNodes)) if preserveOrder else obj.name
+
+        # Set hierarchy node flags, type and name
+        obj.model3do_hnode_num   = node.idx
+        obj.model3do_hnode_name  = node.name
+        obj.model3do_hnode_flags = node.flags.hex()
+        obj.model3do_hnode_type  = node.type.hex()
+
+        # Set node position, rotation and pivot
+        _set_obj_pivot(obj, node.pivot)
+        obj.location = node.position
+        _set_obj_rotation(obj, node.rotation)
+
+        node.obj = obj
+
+    bpy.context.scene.update()
+
+    # Set parent hierarchy
+    for node in model.hierarchyNodes:
+        if node.parentIdx != -1:
+            node.obj.parent_type = 'OBJECT'
+            node.obj.parent      = model.hierarchyNodes[node.parentIdx].obj
+    bpy.context.scene.update()
+
+def importObject(file_path, mat_paths = [], importRadiusObj = False, preserveOrder = True, clearScene = True):
     print("importing 3DO: %r..." % (file_path), end="")
     startTime = time.process_time()
 
@@ -191,80 +237,14 @@ def importObject(file_path, mat_paths = [], importRadiusObjects = False, b_prese
         print("Info: Nothing to load because 3DO model doesn't contain any geoset.")
         return
 
-    if b_clear_scene:
+    if clearScene:
         clearAllScenes()
 
     # Load model's textures
     importMaterials(model.materials, getDefaultMatFolders(file_path) + mat_paths)
 
-    # Create model's meshes
-    meshes3do = model.geosets[0].meshes
-    for mesh3do in meshes3do:
-
-        mesh = _make_mesh(mesh3do, model.materials)
-        meshName = mesh3do.name
-        obj = bpy.data.objects.new(meshName, mesh)
-
-        # Set mesh radius object, draw type, custom property for lighting and texture mode
-        if importRadiusObjects:
-            _set_mesh_radius(obj, mesh3do.radius)
-        obj.draw_type        = getDrawType(mesh3do.geometryMode)
-        obj[kLightingMode]   = mesh3do.lightMode
-        obj[kTextureMode]    = mesh3do.textureMode
-        obj.draw_bounds_type = 'SPHERE'
-        bpy.context.scene.objects.link(obj)
-
-    hlist = []
-    # Update model's mesh hierarchy
-    for idx, meshNode in enumerate(model.hierarchyNodes):
-        meshIdx = meshNode.meshIdx
-
-        # Get node's mesh
-        if meshIdx == -1:
-            obj = bpy.data.objects.new(meshNode.name, None)
-            obj.empty_draw_size = (0.0)
-            bpy.context.scene.objects.link(obj)
-        else:
-            meshName = model.geosets[0].meshes[meshIdx].name
-            obj = getObjByName(meshName)
-
-        hlist.append(obj)
-
-        # Make obj name prefixed by idx num.
-        # This will make the hierarchy of model 3do ordered by index instead by name in Blender.
-        obj.name = makeOrderedName(obj.name, idx, len(model.hierarchyNodes)) if b_preserve_order else obj.name
-
-        # # Set node's parent mesh
-        # if meshNode.parentIdx != -1:
-        #     pnode = model.hierarchyNodes[meshNode.parentIdx]
-        #     obj.parent_type = 'OBJECT'
-        #     if pnode.meshIdx == -1:
-        #         pname = pnode.name
-        #     else:
-        #         pname = model.geosets[0].meshes[pnode.meshIdx].name
-        #     obj.parent = getObjByName(pname)
-
-        bpy.context.scene.update()
-
-        # Set hierarchy node flags, type and name
-        obj[kHnFlags] = meshNode.flags
-        obj[kHnType]  = meshNode.type
-        obj[kHnName]  = meshNode.name
-
-        # Set node position, rotation and pivot
-        _set_obj_pivot(obj, meshNode.pivot)
-        obj.location = meshNode.position
-        _set_obj_rotation(obj, meshNode.rotation)
-    # end of [for idx, meshNode in enumerate(model.hierarchyNodes)]
-
-    # Set mode parent meshes
-    for idx, node in enumerate(model.hierarchyNodes):
-        if node.parentIdx != -1:
-            obj = hlist[idx]
-            obj.parent_type = 'OBJECT'
-            obj.parent = hlist[node.parentIdx]
-
-    bpy.context.scene.update()
+    # Create objects from model
+    _create_objects_from_model(model, geosetNum=0, importRadiusObj=importRadiusObj, preserveOrder=preserveOrder)
 
     # Set model's insert offset and radius
     baseObj = bpy.data.objects.new(model.name, None)
@@ -272,13 +252,12 @@ def importObject(file_path, mat_paths = [], importRadiusObjects = False, b_prese
     bpy.context.scene.objects.link(baseObj)
 
     baseObj.location = model.insert_offset
-    if importRadiusObjects:
+    if importRadiusObj:
         _set_model_radius(baseObj, model.radius)
 
-    firstCName = model.hierarchyNodes[0].name
-    firstChild = getObjByName(firstCName)
+    firstChild             = model.hierarchyNodes[0].obj
     firstChild.parent_type = 'OBJECT'
-    firstChild.parent = baseObj
+    firstChild.parent      = baseObj
 
     # Add model to the "Model3do" group
     if kGModel3do in bpy.data.groups:

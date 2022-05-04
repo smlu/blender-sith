@@ -14,14 +14,14 @@ def _skip_to_next_model_section(tok: Tokenizer):
 def _parse_model_header_section(tok: Tokenizer):
     file_sig = tok.getSpaceDelimitedString()
     if file_sig.upper() != "3DO":
-        raise IOError("Invalid 3do model file!")
+        raise IOError("Invalid 3DO model file!")
 
     version = tok.getFloatNumber()
     if not (2.1 <= version <= 2.3):
-        raise IOError("Invalid file version of 3do model!")
+        raise IOError("Invalid file version of 3DO model!")
     return version
 
-def _parse_model_resource_section(tok: Tokenizer, model: Model):
+def _parse_model_resource_section(tok: Tokenizer, model: Model3do):
     tok.assertIdentifier("MATERIALS")
 
     listLen = tok.getIntNumber()
@@ -32,7 +32,7 @@ def _parse_model_resource_section(tok: Tokenizer, model: Model):
         tok.assertPunctuator(':')
         model.materials.append(tok.getSpaceDelimitedString())
 
-def _parse_model_geometry_section(tok: Tokenizer, model: Model, fileVersion: float):
+def _parse_model_geometry_section(tok: Tokenizer, model: Model3do, fileVersion: float):
     tok.assertIdentifier("RADIUS")
     model.radius = tok.getFloatNumber()
 
@@ -153,7 +153,7 @@ def _parse_model_geometry_section(tok: Tokenizer, model: Model, fileVersion: flo
             geoset.meshes.append(mesh)
         model.geosets.append(geoset)
 
-def _parse_hierarchy_section(tok: Tokenizer, model: Model):
+def _parse_hierarchy_section(tok: Tokenizer, model: Model3do):
     tok.assertIdentifier("HIERARCHY")
     tok.assertIdentifier("NODES")
 
@@ -164,8 +164,8 @@ def _parse_hierarchy_section(tok: Tokenizer, model: Model):
             print("Warning: Seq. number mismatch while loading 3DO hierarchy list. {} != {}".format(nodeIdx, i))
 
         tok.assertPunctuator(':')
-
-        node = MeshHierarchyNode()
+        node               = MeshHierarchyNode()
+        node.idx           = nodeIdx
         node.flags         = MeshNodeFlags(tok.getIntNumber())
         node.type          = MeshNodeType(tok.getIntNumber())
         node.meshIdx       = tok.getIntNumber()
@@ -183,12 +183,12 @@ def _parse_hierarchy_section(tok: Tokenizer, model: Model):
         model.hierarchyNodes.append(node)
 
 
-def load(filePath) -> Model:
+def load(filePath) -> Model3do:
     f = open(filePath, 'r')
     tok = Tokenizer(f)
 
     file_version = 0.0
-    model = Model(os.path.basename(filePath))
+    model = Model3do(os.path.basename(filePath))
 
     while True:
         _skip_to_next_model_section(tok)

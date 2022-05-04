@@ -25,6 +25,8 @@ if "bpy" in locals():
         importlib.reload(material)
     if "model" in locals():
         importlib.reload(model)
+    if "model3do" in locals():
+        importlib.reload(model3do)
     if "model3doImporter" in locals():
         importlib.reload(model3doImporter)
     if "model3doExporter" in locals():
@@ -43,11 +45,12 @@ from bpy_extras.io_utils import ExportHelper
 import os.path
 import re
 
+from ijim.model.model3do import LightMode, TextureMode
 import ijim.model.model3doExporter as model3doExporter
 import ijim.model.model3doImporter as model3doImporter
 from ijim.model.utils import kGModel3do, kNameOrderPrefix
 
-from ijim.key.key import KeyFlag, KeyType
+from ijim.key.key import KeyFlag
 import ijim.key.keyImporter as keyImporter
 import ijim.key.keyExporter as keyExporter
 
@@ -62,6 +65,19 @@ def _make_readable(str):
 def _get_key_flags_enum_list():
     l = []
     for f in reversed(KeyFlag):
+        if f != 0x00:
+            l.append((f.name, _make_readable(f.name), "", int(f)))
+    return l
+
+def _get_model3do_light_mode_list():
+    l = []
+    for f in LightMode:
+        l.append((f.name, _make_readable(f.name), "", int(f)))
+    return l
+
+def _get_model3do_texture_mode_list():
+    l = []
+    for f in TextureMode:
         l.append((f.name, _make_readable(f.name), "", int(f)))
     return l
 
@@ -94,7 +110,7 @@ class ImportModel3do(bpy.types.Operator, ImportHelper):
 
     b_set_3d_view = bpy.props.BoolProperty(
         name        = 'Adjust 3D View',
-        description = 'Adjust 3D View accordingly to the 3DO model position, size etc...',
+        description = 'Adjust 3D View accordingly to the 3DO model position, size etc..',
         default     = True,
     )
 
@@ -105,15 +121,15 @@ class ImportModel3do(bpy.types.Operator, ImportHelper):
     )
 
     b_import_radius_objects = bpy.props.BoolProperty(
-        name        = 'Import radius objects',
-        description = 'Import mesh radius as 3D object',
+        name        = 'Import Radius Objects',
+        description = 'Import mesh radius as wireframe sphere object',
         default     = False,
     )
 
     b_preserve_order = bpy.props.BoolProperty(
         name        = 'Preserve Mesh Hierarchy',
-        description = "If set, the order of imported mesh hierarchy will be preserved by prefixing the name of every mesh object with '{}XYZ_'.\n('XYZ' represents the order number)\nNote: hierarchy order effects animations which use this 3DO model.".format(kNameOrderPrefix),
-        default     = True,
+        description = "Preserve 3DO node hierarchy of objects in Blender.\n\nIf set, the order of imported mesh hierarchy will be preserved by prefixing the name of every mesh object with '{}<seq_number>_'.".format(kNameOrderPrefix),
+        default     = False,
     )
 
     mat_path = bpy.props.StringProperty(
@@ -279,15 +295,16 @@ class ExportKey(bpy.types.Operator, ExportHelper):
                 ("15"   , "15 fps", "")]
 
     animation_flags = bpy.props.EnumProperty(
-        name    = "Animation flags",
-        items   = _get_key_flags_enum_list(),
-        options = {'ENUM_FLAG'}
+        name        = "Flags",
+        description = "Animation flags. By default animation loops indefinitely",
+        items       = _get_key_flags_enum_list(),
+        options     = {'ENUM_FLAG'}
     )
 
     animation_type = HexProperty(
         'animation_type',
-        name        = "Animation type",
-        description = "It is not known what role does animation type have in the game.",
+        name        = "Type",
+        description = "Animation type. Unknown what role does the type have in the game.",
         default     = '0xFFFF',
         maxlen      = 4,
         pad         = True
@@ -386,10 +403,10 @@ class ExportKey(bpy.types.Operator, ExportHelper):
             self.scene.render.fps          = float(self.fps)
             keyExporter.exportObjectAnim(self.obj, self.scene, self.filepath)
 
-            self.report({'INFO'}, "Key '{}' was successfully exported".format(os.path.basename(self.filepath)))
+            self.report({'INFO'}, "KEY '{}' was successfully exported".format(os.path.basename(self.filepath)))
             return {'FINISHED'}
         except (AssertionError, ValueError) as e:
-            print("\nAn exception was encountered while exporting animation data of object '{}' to Key file format!\nError: {}".format(self.obj.name, e))
+            print("\nAn exception was encountered while exporting animation data of object '{}' to KEY file format!\nError: {}".format(self.obj.name, e))
             self.report({'ERROR'}, "Error: {}".format(e))
             return {'CANCELLED'}
         finally:
@@ -399,7 +416,44 @@ class ExportKey(bpy.types.Operator, ExportHelper):
         if self.scene:
             bpy.data.scenes.remove(self.scene, True)
 
+class Model3doPanel(bpy.types.Panel):
+    bl_idname = 'OBJECT_PT_model_3do_panel'
+    bl_label = '3DO Properties'
+    bl_description = '3DO model object properties'
+    bl_space_type = 'PROPERTIES'
+    bl_region_type = 'WINDOW'
+    bl_context = "object"
+    #bl_options = {'DEFAULT_CLOSED'}
 
+    @classmethod
+    def poll(cls, context):
+        return (context.object is not None)
+
+    def draw(self, context):
+        obj = context.object
+        layout = self.layout
+
+        mesh_properties = layout.box()
+        mesh_properties.label(text="Mesh Properties")
+        mesh_properties.prop(obj, "model3do_light_mode", text="Lighting")
+        mesh_properties.prop(obj, "model3do_texture_mode", text="Texture")
+
+        node_properties = layout.box()
+        node_properties.label(text="Hierarchy Node Properties")
+        node_properties.prop(obj, "model3do_hnode_num", text="Sequence no.")
+        node_properties.prop(obj, "model3do_hnode_name", text="Name")
+        node_properties.prop(obj, "model3do_hnode_flags", text="Flags")
+        node_properties.prop(obj, "model3do_hnode_type", text="Type")
+
+
+classes = (
+    Model3doPanel,
+    ImportMat,
+    ImportModel3do,
+    ExportModel3do,
+    ImportKey,
+    ExportKey
+)
 
 def menu_func_export(self, context):
     self.layout.operator(ExportKey.bl_idname, text="Indiana Jones IM animation (.key)")
@@ -413,11 +467,62 @@ def menu_func_import(self, context):
 
 
 def register():
-    bpy.types.Scene.animation_flags = bpy.props.EnumProperty(
-        items = _get_key_flags_enum_list(),
-        name  = 'Key Animation Flags',
-        options = {'ENUM_FLAG'},
-        description = 'Indiana Jones IM Keyframe Flags'
+    # 3DO custom properties
+    bpy.types.Object.model3do_light_mode = bpy.props.EnumProperty(
+        name        = "Lighting Mode",
+        description = "Lighting mode",
+        items       = _get_model3do_light_mode_list(),
+        default     = 'Gouraud',
+        options     = {'HIDDEN', 'LIBRARY_EDITABLE'}
+    )
+
+    bpy.types.Object.model3do_texture_mode = bpy.props.EnumProperty(
+        name        = "Texture Mode",
+        description = "Texture mapping mode (Not used by IJIM)",
+        items       = _get_model3do_texture_mode_list(),
+        default     = 'PerspectiveCorrected',
+        options     = {'HIDDEN', 'LIBRARY_EDITABLE'}
+    )
+
+    bpy.types.Object.model3do_hnode_num = bpy.props.IntProperty(
+        name        = '3DO Hierarchy Node Number',
+        description = "The hierarchy sequence number of the node",
+        default     = -1,
+        options     = {'HIDDEN', 'LIBRARY_EDITABLE'}
+    )
+
+    bpy.types.Object.model3do_hnode_name = bpy.props.StringProperty(
+        name        = '3DO Hierarchy Node Name',
+        description = "The name of hierarchy node",
+        maxlen      = 64,
+        options     = {'HIDDEN', 'LIBRARY_EDITABLE'}
+    )
+
+    bpy.types.Object.model3do_hnode_flags = HexProperty(
+        'model3do_hnode_flags',
+        name         = '3DO Hierarchy Node Flags',
+        description  = "The hierarchy node flags",
+        maxlen       = 4,
+        pad          = True,
+        options      = {'HIDDEN', 'LIBRARY_EDITABLE'}
+    )
+
+    bpy.types.Object.model3do_hnode_type = HexProperty(
+        'model3do_hnode_type',
+        name        = '3DO Hierarchy Node Type',
+        description = "The hierarchy node type",
+        default     = '0x01',
+        maxlen      = 4,
+        pad         = True,
+        options     = {'HIDDEN', 'LIBRARY_EDITABLE'}
+    )
+
+    # KEY custom properties
+    bpy.types.Scene.key_animation_flags = bpy.props.EnumProperty(
+        items       = _get_key_flags_enum_list(),
+        name        = 'KEY Flags',
+        description = "KEY Animation flags. By default animation loops indefinitely",
+        options     = {'ENUM_FLAG', 'HIDDEN', 'LIBRARY_EDITABLE'},
     )
 
     bpy.types.Scene.key_animation_type = HexProperty(
@@ -430,30 +535,31 @@ def register():
         options     = {'HIDDEN', 'LIBRARY_EDITABLE'}
     )
 
-    bpy.utils.register_class(ImportMat)
-    bpy.utils.register_class(ImportModel3do)
-    bpy.utils.register_class(ExportModel3do)
-    bpy.utils.register_class(ImportKey)
-    bpy.utils.register_class(ExportKey)
-
+    # Register classes
+    for cls in classes:
+        bpy.utils.register_class(cls)
+    
+    # Register menu functions
     bpy.types.INFO_MT_file_export.append(menu_func_export)
     bpy.types.INFO_MT_file_import.append(menu_func_import)
 
-
 def unregister():
-    bpy.utils.unregister_class(ExportKey)
-    bpy.utils.unregister_class(ImportKey)
-    bpy.utils.unregister_class(ExportModel3do)
-    bpy.utils.unregister_class(ImportModel3do)
-    bpy.utils.unregister_class(ImportMat)
-
     bpy.types.INFO_MT_file_export.remove(menu_func_export)
     bpy.types.INFO_MT_file_import.remove(menu_func_import)
 
-    del bpy.types.Scene.animation_flags
-    del bpy.types.Scene.animation_type
+    for cls in classes:
+        bpy.utils.unregister_class(cls)
+
     del bpy.types.Scene.key_animation_flags
     del bpy.types.Scene.key_animation_type
+
+
+    del bpy.types.Object.model3do_hnode_flags
+    del bpy.types.Object.model3do_hnode_type
+    del bpy.types.Object.model3do_hnode_name
+    del bpy.types.Object.model3do_hnode_num
+    del bpy.types.Object.model3do_texture_mode
+    del bpy.types.Object.model3do_light_mode
 
 
 if __name__ == "__main__":

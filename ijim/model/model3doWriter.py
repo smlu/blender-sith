@@ -26,7 +26,7 @@ def _vector_to_str(vector: Tuple, compact = True, align_width = 10):
 def _radius_to_str(radius):
     return "{:>11.6f}".format(radius)
 
-def _write_section_header(file, model: Model, headerComment):
+def _write_section_header(file, model: Model3do, headerComment):
     writeCommentLine(file, headerComment)
     writeNewLine(file)
 
@@ -34,7 +34,7 @@ def _write_section_header(file, model: Model, headerComment):
     writeKeyValue(file, _file_magic, _file_version)
     writeNewLine(file)
 
-def _write_section_resources(file, model: Model):
+def _write_section_resources(file, model: Model3do):
     num_mats = len(model.materials)
     if num_mats < 1:
         return
@@ -152,7 +152,7 @@ def _write_mesh(file, mesh: ModelMesh):
     _write_vert_normals(file, mesh.normals)
     _write_faces(file, mesh.faces)
 
-def _write_section_geometry(file, model: Model):
+def _write_section_geometry(file, model: Model3do):
     writeSectionTitle(file, "geometrydef")
 
     writeCommentLine(file, "Object radius")
@@ -180,7 +180,7 @@ def _write_section_geometry(file, model: Model):
         for mesh in geoset.meshes:
             _write_mesh(file, mesh)
 
-def _write_section_hierarchydef(file, model: Model):
+def _write_section_hierarchydef(file, model: Model3do):
     writeSectionTitle(file, "hierarchydef")
 
     writeCommentLine(file, "Hierarchy node list")
@@ -205,7 +205,7 @@ def _write_section_hierarchydef(file, model: Model):
 
 
 
-def write(model: Model, filePath, headerComment):
+def write(model: Model3do, filePath, headerComment):
     f = open(filePath, 'w')
 
     _write_section_header(f, model, headerComment)

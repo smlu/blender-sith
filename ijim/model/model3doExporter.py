@@ -16,13 +16,14 @@ kDefaultFaceColor   = Vector4f(0.0, 0.0, 0.0, 1.0)
 kHNDefaultFlags     = 0
 kHNDefaultType      = 0
 
-def _set_hnode_location(node: MeshHierarchyNode, obj: bpy.types.Object, scale: mathutils.Vector):
-    node.position = Vector3f(*vectorMultiply(obj.location, scale))
-    node.rotation = getObj_ImEulerOrientation(obj)
+
+def _set_hnode_location(node: MeshHierarchyNode, scale: mathutils.Vector):
+    node.position = Vector3f(*vectorMultiply(node.obj.location, scale))
+    node.rotation = getObj_ImEulerOrientation(node.obj)
     node.pivot    = Vector3f(0.0, 0.0, 0.0)
 
     pc = None
-    for c in obj.constraints:
+    for c in node.obj.constraints:
         if type(c) == bpy.types.PivotConstraint:
             pc = c
             break
@@ -31,7 +32,7 @@ def _set_hnode_location(node: MeshHierarchyNode, obj: bpy.types.Object, scale: m
         pivot = -pc.offset
         if c.target:
             pivot += -c.target.location
-        node.position = Vector3f(*(obj.location - pivot))
+        node.position = Vector3f(*(node.obj.location - pivot))
         node.pivot    = Vector3f(*pivot)
 
 def _get_mat_name_org(mat: bpy.types.Material):
@@ -44,7 +45,7 @@ def _get_mat_name(mat: bpy.types.Material):
     return name
 
 def _is_aux_obj(obj: bpy.types.Object):
-    return (kModelRadius in obj.name) or (kMeshRadius in obj.name) or (kPivotObj in obj.name)
+    return (kModelRadius in obj.name) or (kMeshRadius in obj.name)
 
 def _get_face_property_or_default(face: bmesh.types.BMFace, tag: bmesh.types.BMLayerAccessFace, default):
     if tag:
@@ -54,7 +55,7 @@ def _get_face_property_or_default(face: bmesh.types.BMFace, tag: bmesh.types.BML
     return default
 
 def _get_face_type(face: bmesh.types.BMFace, bm: bmesh.types.BMesh):
-    tag = getBmeshFaceLayer(bm.faces, kFType, makeLayer=False)
+    tag = getBmeshFaceLayer(bm.faces, kFaceType, makeLayer=False)
     return _get_face_property_or_default(face, tag, 0)
 
 def _get_face_geometry_mode(face: bmesh.types.BMFace, bmesh: bmesh.types.BMesh):
@@ -70,7 +71,7 @@ def _get_face_tex_mode(face: bmesh.types.BMFace, bmesh: bmesh.types.BMesh):
     return _get_face_property_or_default(face, tag, 3)
 
 
-def _model3do_add_mesh(model: Model, mesh: bpy.types.Mesh, scale: mathutils.Vector, exportVertexColors: bool) -> int:
+def _model3do_add_mesh(model: Model3do, mesh: bpy.types.Mesh, scale: mathutils.Vector, exportVertexColors: bool) -> int:
     if mesh is None:
         return -1
 
@@ -140,7 +141,7 @@ def _model3do_add_mesh(model: Model, mesh: bpy.types.Mesh, scale: mathutils.Vect
         mesh3do.faces.append(face3do)
     bm.free()
 
-    assert len(mesh3do.vertices) == len(mesh3do.verticesColor) == len(mesh3do.normals)
+    assert len(mesh3do.vertices) == len(mesh3do.vertexColors) == len(mesh3do.normals)
     model.geosets[0].meshes.append(mesh3do)
     return mesh_idx
 
@@ -154,45 +155,32 @@ def _set_mesh_properties(mesh: ModelMesh, obj: bpy.types.Object, scale: mathutil
     else:
         mesh.radius = radius_obj.dimensions[0] / 2
 
-    if kLightingMode in obj:
-        mesh.lightMode = obj[kLightingMode]
-    else:
-        print("\nWarning: no lighting mode found for mesh '{}', using default value!".format(mesh.name))
+    try:
+        mesh.lightMode = LightMode[obj.model3do_light_mode]
+    except:
+        print("\nWarning: Invalid lighting mode for mesh '{}', using default value!".format(mesh.name))
         mesh.lightMode = kDefaultLightMode
 
-    if kTextureMode in obj:
-        mesh.textureMode = obj[kTextureMode]
-    else:
-        print("\nWarning: no texture mode found for mesh '{}', using default value!".format(mesh.name))
+    try:
+        mesh.textureMode = TextureMode[obj.model3do_texture_mode]
+    except:
+        print("\nWarning: Invalid texture mode for mesh '{}', using default value!".format(mesh.name))
         mesh.textureMode = kDefaultTexMode
-
-
-def _get_obj_property(obj: bpy.types.Object, prop: str, default):
-    if prop in obj:
-        return obj[prop]
-    else:
-        print("\nWarning : Property '{}' not set for obj '{}', using default value!".format(prop, obj.name))
-        return default
 
 def _get_obj_hnode_name(obj: bpy.types.Object):
     name = stripOrderPrefix(obj.name)
-    if kHnName in obj:
-        name = obj[kHnName]
+    if len(obj.model3do_hnode_name) > 0:
+        name = obj.model3do_hnode_name
 
     assertName(name)
     return name
 
-def _get_hnode_idx(nodes: List[MeshHierarchyNode], name):
-    for idx, node in enumerate(nodes):
-        if name == node.name:
-            return idx
-    return -1
-
 def _get_obj_hnode_idx(nodes: List[MeshHierarchyNode], obj: bpy.types.Object):
-    if obj is None:
-        return -1
-    name = _get_obj_hnode_name(obj)
-    return _get_hnode_idx(nodes, name)
+    if obj is not None:
+        for idx, n in enumerate(nodes):
+            if n.obj == obj:
+                return idx
+    return -1
 
 def _get_hnode_last_sibling(first_child: MeshHierarchyNode, nodes: List[MeshHierarchyNode]):
     sidx = first_child.siblingIdx
@@ -200,19 +188,21 @@ def _get_hnode_last_sibling(first_child: MeshHierarchyNode, nodes: List[MeshHier
         return _get_hnode_last_sibling(nodes[sidx], nodes)
     return first_child
 
-def _model3do_add_hnode(model: Model, mesh_idx: int, obj: bpy.types.Object, parent: bpy.types.Object, scale: mathutils.Vector):
+def _model3do_add_hnode(model: Model3do, mesh_idx: int, obj: bpy.types.Object, parent: bpy.types.Object, scale: mathutils.Vector):
     name = _get_obj_hnode_name(obj)
-    if name in model.hierarchyNodes:
-        return
+    # if name in model.hierarchyNodes:
+    #     return
 
     node               = MeshHierarchyNode(name)
-    node.flags         = _get_obj_property(obj, kHnFlags, kHNDefaultFlags)
-    node.type          = _get_obj_property(obj, kHnType, kHNDefaultType)
+    node.idx           = obj.model3do_hnode_num
+    node.flags         = MeshNodeFlags.fromHex(obj.model3do_hnode_flags)
+    node.type          = MeshNodeType.fromHex(obj.model3do_hnode_type)
     node.meshIdx       = mesh_idx
     node.parentIdx     = _get_obj_hnode_idx(model.hierarchyNodes, parent)
     node.firstChildIdx = -1
     node.siblingIdx    = -1
     node.numChildren   = 0
+    node.obj           = obj
 
     node_idx = len(model.hierarchyNodes)
     if node.parentIdx > -1:
@@ -225,16 +215,15 @@ def _model3do_add_hnode(model: Model, mesh_idx: int, obj: bpy.types.Object, pare
             snode.siblingIdx = node_idx
         pnode.numChildren += 1
 
-    _set_hnode_location(node, obj, scale)
+    _set_hnode_location(node, scale)
     model.hierarchyNodes.append(node)
 
-def _model3do_add_obj(model: Model, obj: bpy.types.Object, parent: bpy.types.Object = None, scale: mathutils.Vector = mathutils.Vector((1.0,)*3), exportVertexColors: bool = False):
+def _model3do_add_obj(model: Model3do, obj: bpy.types.Object, parent: bpy.types.Object = None, scale: mathutils.Vector = mathutils.Vector((1.0,)*3), exportVertexColors: bool = False):
     if 'EMPTY' != obj.type != 'MESH' or _is_aux_obj(obj):
         return
 
-    scale = vectorMultiply(scale, obj.scale)
-
-    mesh_idx  = _model3do_add_mesh(model, obj.data, scale, exportVertexColors)
+    scale    = vectorMultiply(scale, obj.scale)
+    mesh_idx = _model3do_add_mesh(model, obj.data, scale, exportVertexColors)
     if mesh_idx > -1:
         mesh = model.geosets[0].meshes[mesh_idx]
         _set_mesh_properties(mesh, obj, scale)
@@ -279,7 +268,7 @@ def _get_model_radius(obj, scale: mathutils.Vector = mathutils.Vector((1.0,)*3))
     return ((max - min).length /2) 
 
 def makeModel3doFromObj(name, obj: bpy.types.Object, exportVertexColors: bool = False):
-    model = Model(name)
+    model = Model3do(name)
     model.geosets.append(ModelGeoSet())
 
     model.insertOffset = Vector3f(*obj.location)
@@ -295,6 +284,7 @@ def makeModel3doFromObj(name, obj: bpy.types.Object, exportVertexColors: bool = 
     else:
         _model3do_add_obj(model, obj, exportVertexColors=exportVertexColors)
 
+    model.reorderNodes()
     return model
 
 def exportObject(obj: bpy.types.Object, path: str, exportVertexColors: bool):

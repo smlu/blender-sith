@@ -14,14 +14,9 @@ kImEulerOrder     = "YXZ"        # Infernal machine euler orientation order
 kGModel3do        = "Model3do"
 kModelRadius      = "MODEL_RADIUS_"
 kMeshRadius       = "MESH_RADIUS_"
-kPivotObj         = "PIVOT_OBJ_"
 kGeometryMode     = "geometry mode"
 kLightingMode     = "lighting mode"
 kTextureMode      = "texture mode"
-kFType            = "type"
-kHnFlags          = "flags"
-kHnType           = "type"
-kHnName           = 'name'
 kFaceType         = "type"
 kNameOrderPrefix  = "no"
 

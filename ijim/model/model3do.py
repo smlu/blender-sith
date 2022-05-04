@@ -300,6 +300,7 @@ class MeshHierarchyNode:
         self.first_child_i: int = -1
         self.sibling_i: int     = -1
         self.num_children: int  = -1
+        self._o                 = None
 
         self.pos: Vector3f = [] # x,y,z
         self.rot: Vector3f = [] # pitch, yaw, roll:
@@ -401,9 +402,18 @@ class MeshHierarchyNode:
     def pivot(self, piv: Vector3f):
         self.piv = piv
 
+    @property
+    def obj(self):
+        """ Returns associated blender object """
+        return self._o
+
+    @obj.setter
+    def obj(self, obj):
+        """ Sets associated blender object """
+        self._o = obj
 
 
-class Model:
+class Model3do:
     def __init__(self, name: str = ""):
         self.model_name: str          = name
         self.material_list: List[str] = []
@@ -422,7 +432,7 @@ class Model:
         self.model_name = name
 
     @property
-    def materials(self) -> [str]:
+    def materials(self) -> List[str]:
         return self.material_list
 
     @materials.setter
@@ -460,3 +470,40 @@ class Model:
     @hierarchyNodes.setter
     def hierarchyNodes(self, nodes: List[MeshHierarchyNode]):
         self.hierarchy_nodes = nodes
+
+    def reorderNodes(self) -> None:
+        """
+        Reorders nodes by their sequence number
+        """
+        def get_node_seq(node, nodes):
+            for idx,n in enumerate(nodes):
+                if n == node:
+                    return idx
+            return -1
+
+        from functools import cmp_to_key
+        nodes = sorted(self. hierarchyNodes, key=cmp_to_key(lambda n1, n2: n1.idx - n2.idx))
+        for idx, node in enumerate(nodes):
+            # Update parent
+            if node.parentIdx > -1:
+                # Set parent num
+                pnode = self.hierarchyNodes[node.parentIdx]
+                pnum  = pnode.idx
+                if pnum < 0:
+                    pnum = get_node_seq(pnode, nodes)
+                node.parentIdx = pnum
+
+                # Set parent first child
+                if self.hierarchyNodes[pnode.firstChildIdx] == node:
+                    pnode.firstChildIdx = idx
+
+            # Update sibling
+            if node.siblingIdx > -1:
+                snode = self.hierarchyNodes[node.siblingIdx]
+                snum  = snode.idx
+                if snum < 0:
+                    snum = get_node_seq(snode, nodes)
+                node.siblingIdx = snum
+
+        # set new hierarchy list
+        self.hierarchyNodes = nodes
