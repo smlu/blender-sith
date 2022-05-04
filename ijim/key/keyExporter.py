@@ -75,8 +75,8 @@ def _make_key_from_obj(key_name, obj: bpy.types.Object, scene: bpy.types.Scene):
     for hnode_idx, hnode in enumerate(model3do.hierarchyNodes):
         cobj = _get_obj_by_name(scene, hnode.name)
         if cobj.animation_data:
-            knode = KeyNode()
-            knode.num = hnode_idx
+            knode          = KeyNode()
+            knode.idx      = hnode.idx
             knode.meshName = hnode.name
 
             # Get node's keyframe entries

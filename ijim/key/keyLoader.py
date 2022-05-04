@@ -48,7 +48,7 @@ def _parse_key_section_keyframe_nodes(tok: Tokenizer, key: Key):
         node = KeyNode()
 
         tok.assertIdentifier("NODE")
-        node.num = tok.getIntNumber()
+        node.idx = tok.getIntNumber()
 
         tok.assertIdentifier("MESH")
         tok.assertIdentifier("NAME")

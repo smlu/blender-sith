@@ -179,12 +179,12 @@ class KeyNode:
         self.kfs : List[Keyframe] = []
 
     @property
-    def num(self) -> int:
+    def idx(self) -> int:
         return self.n
 
-    @num.setter
-    def num(self, num: int):
-        self.n = num
+    @idx.setter
+    def idx(self, idx: int):
+        self.n = idx
 
     @property
     def meshName(self) -> str:

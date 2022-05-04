@@ -53,7 +53,7 @@ def importKeyToScene(keyPath, scene: bpy.types.Scene):
             elif node.meshName.lower() == obj.name.lower():
                 kobj = obj
                 break
-            elif isOrderPrefixed(obj.name) and getOrderedNameIdx(obj.name) == node.num:
+            elif isOrderPrefixed(obj.name) and getOrderedNameIdx(obj.name) == node.idx:
                 kobj = obj
                 break
 

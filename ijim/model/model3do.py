@@ -263,7 +263,7 @@ class ModelGeoSet:
 
 class MeshHierarchyNode:
     def __init__(self, name =""):
-        self.f: int             = 0x0000
+        self._idx: int           = -1
         self.t: MeshNodeType    = MeshNodeType.Nothing
         self.n: str             = name
         self.mesh_i: int        = -1
@@ -277,7 +277,13 @@ class MeshHierarchyNode:
         self.piv: Vector3f = [] # pivotx, pivoty, pivotz
 
     @property
-    def flags(self) -> int:
+    def idx(self) -> int:
+        return self._idx
+
+    @idx.setter
+    def idx(self, idx: int):
+        self._idx = idx
+
         return self.f
 
     @flags.setter

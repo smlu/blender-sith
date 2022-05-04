@@ -51,7 +51,7 @@ def _write_section_keyframe_nodes(file, key: Key):
     writeNewLine(file)
 
     for n in key.nodes:
-        writeKeyValue(file, "node", n.num, 7)
+        writeKeyValue(file, "node", n.idx, 7)
         writeKeyValue(file, "mesh name", n.meshName)
         writeKeyValue(file, "entries", len(n.keyframes))
         writeNewLine(file)
