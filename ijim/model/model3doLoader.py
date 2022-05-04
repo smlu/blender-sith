@@ -166,7 +166,7 @@ def _parse_hierarchy_section(tok: Tokenizer, model: Model):
         tok.assertPunctuator(':')
 
         node = MeshHierarchyNode()
-        node.flags         = tok.getIntNumber()
+        node.flags         = MeshNodeFlags(tok.getIntNumber())
         node.type          = MeshNodeType(tok.getIntNumber())
         node.meshIdx       = tok.getIntNumber()
         node.parentIdx     = tok.getIntNumber()

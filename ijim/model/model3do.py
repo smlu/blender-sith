@@ -1,5 +1,6 @@
-from enum import IntEnum
-from typing import Tuple, List
+from enum import IntEnum, unique
+from typing import List
+from ijim.types.enum import Flag
 from ijim.types.vector import *
 
 class GeometryMode(IntEnum):
@@ -8,53 +9,81 @@ class GeometryMode(IntEnum):
     Wireframe  = 2
     Solid      = 3
     Texture    = 4
-    Full       = 5
 
 class LightMode(IntEnum):
     FullyLit  = 0
     NotLit    = 1
     Diffuse   = 2
     Gouraud   = 3
-    ############### Not verified
-    Bilinear  = 4
-    Trilinear = 5
 
 class TextureMode(IntEnum):
-    AffineMapping        = 0
-    PerspectiveCorrected = 1
-    PerspectiveMapping   = 2
-    Unknown              = 3 # <- Usually is this (maybe bilinear or mipmap)
+    Affine               = 0
+    Perspective          = 1
+    PerspectiveUnknown   = 2
+    PerspectiveCorrected = 3 # <- IJIM use only this
 
-class FaceType(IntEnum):
-    Normal      = 0
-    DoubleSided = 1
-    Translucent = 2
-    Unknown1    = 3   # inf_cage.3do
-    Collision   = 4
-    Unknown2    = 5   # anson.3do
-    Unknown3    = 64  # 0x0040 in olv_statue_lefty.3do
-    Unknown4    = 65  # 0x0041 in tem_bridge_20mholes.3do
-    Unknown5    = 512 # 0x0200 in aet_dais_trio.3do
+@unique
+class FaceType(Flag):
+    Normal         = 0x00
+    DoubleSided    = 0x01
+    Translucent    = 0x02
+    #Unknown1      = 3      # inf_cage.3do
+    TexClamp_x     = 0x04,  # Mapped texture is clamped in x instead of being repeated (wrapped).
+    #Unknown2      = 5      # anson.3do
+    TexClamp_y     = 0x08,  # Mapped texture is clamped in y instead of being repeated.
+    TexFilterNone  = 0x10,  # Disables bilinear texture filtering for the polygon texture. (Sets to point filter aka nearest)
+    ZWriteDisabled = 0x20,  # Disables ZWrite for the polygon face.
+    IjimLedge      = 0x40,  # (IJIM specific) Player can hang on the ledge of this polygon face. (same as surface flag Ledge = 0x1000000 for world surface)
+                            #   e.g.: bab_bull_block.3do, olv_statue_lefty.3do, tem_bridge_20mholes.3do
 
-class MeshNodeType(IntEnum):
-    Nothing    = 0x00000
-    Torso      = 0x00001
-    LeftArm    = 0x00002
-    RightArm   = 0x00004
-    Head       = 0x00008
-    Hip        = 0x00010
-    LeftLeg    = 0x00020
-    RightLeg   = 0x00040
-    LeftHand   = 0x00080
-    LeftHand2  = 0x00082
-    RightHand  = 0x00100
-    RightHand2 = 0x00104
-    Vehicle    = 0x00400
-    BackPart   = 0x00800
-    FrontPart  = 0x01000
-    BackWheel  = 0x00C00 #Vehicle + BackPart
-    FrontWheel = 0x01400 #Vehicle + FrontWheel
+    IjimFogEnabled = 0x100, # (IJIM specific) Enables fog rendering for the face polygon.
+                            #  Note: This flag is set by default for all surfaces but sky surfaces.
 
+    IjimWhipAim    = 0x200 # (IJIM specific) Applies to polygon face of 3do model and marks the whip aim surface (same as surface flag `WhipAim` = 0x10000000).
+                           #   e.g.: aet_dais_trio.3do
+
+@unique
+class MeshNodeFlags(Flag):
+    Nothing      = 0x00
+    Unknown_01   = 0x01
+    Unknown_02   = 0x02
+    Unknown_04   = 0x04
+    Unknown_08   = 0x08
+    Unknown_10   = 0x10
+    Unknown_20   = 0x20
+    Unknown_40   = 0x40
+    Unknown_80   = 0x80
+    Unknown_100  = 0x100
+    Unknown_200  = 0x200
+    Unknown_400  = 0x400
+    Unknown_800  = 0x800
+    Unknown_1000 = 0x1000
+    Unknown_2000 = 0x2000
+    Unknown_4000 = 0x4000
+    Unknown_8000 = 0x8000
+
+@unique
+class MeshNodeType(Flag):
+    Nothing       = 0x00000
+    Torso         = 0x00001
+    LeftArm       = 0x00002
+    RightArm      = 0x00004
+    Head          = 0x00008
+    Hip           = 0x00010
+    LeftLeg       = 0x00020
+    RightLeg      = 0x00040
+    LeftHand      = 0x00080
+    #LeftHand2    = 0x00082
+    RightHand     = 0x00100
+    #RightHand2   = 0x00104
+    Vehicle       = 0x00400
+    BackPart      = 0x00800
+    FrontPart     = 0x01000
+    Unknown_2000  = 0x02000
+    Unknown_4000  = 0x04000
+    Unknown_8000  = 0x08000
+    # BackWheel  = 0x00C00 #Vehicle + BackPart
+    # FrontWheel = 0x01400 #Vehicle + FrontWheel
 
 class MeshFace:
     def __init__(self):
@@ -62,7 +91,7 @@ class MeshFace:
         self.t: FaceType            = FaceType.Normal
         self.geo_mode: GeometryMode = GeometryMode.NotDrawn
         self.light_mode: LightMode  = LightMode.FullyLit
-        self.tex_mode: TextureMode  = TextureMode.AffineMapping
+        self.tex_mode: TextureMode  = TextureMode.Affine
 
         self.c: Vector4f    = (0.000000, 0.000000, 0.000000, 0.000000) # RGBA color
         self.vi: List[int]  = []  # List of indexes to the mesh list of vertices (vertex idx)
@@ -149,7 +178,7 @@ class ModelMesh:
         self.mesh_radius: float     = 0.0
         self.geo_mode: GeometryMode = GeometryMode.NotDrawn
         self.light_mode: LightMode  = LightMode.FullyLit
-        self.tex_mode: TextureMode  = TextureMode.AffineMapping
+        self.tex_mode: TextureMode  = TextureMode.Affine
 
         self.v:  List[Vector3f] = [] # vertices
         self.vc: List[Vector4f] = [] # vertex colors
@@ -260,10 +289,10 @@ class ModelGeoSet:
         self.mesh_list = meshes
 
 
-
 class MeshHierarchyNode:
     def __init__(self, name =""):
         self._idx: int           = -1
+        self.f: MeshNodeFlags   = MeshNodeFlags.Nothing
         self.t: MeshNodeType    = MeshNodeType.Nothing
         self.n: str             = name
         self.mesh_i: int        = -1
@@ -284,10 +313,12 @@ class MeshHierarchyNode:
     def idx(self, idx: int):
         self._idx = idx
 
+    @property
+    def flags(self) -> MeshNodeFlags:
         return self.f
 
     @flags.setter
-    def flags(self, flags: int):
+    def flags(self, flags: MeshNodeFlags):
         self.f = flags
 
     @property
