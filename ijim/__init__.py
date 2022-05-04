@@ -382,9 +382,9 @@ class ExportKey(bpy.types.Operator, ExportHelper):
 
     def execute(self, context):
         try:
-            self.scene.animation_flags = self.animation_flags
-            self.scene.animation_type  = self.animation_type
-            self.scene.render.fps      = float(self.fps)
+            self.scene.key_animation_flags = self.animation_flags
+            self.scene.key_animation_type  = self.animation_type
+            self.scene.render.fps          = float(self.fps)
             keyExporter.exportObjectAnim(self.obj, self.scene, self.filepath)
 
             self.report({'INFO'}, "Key '{}' was successfully exported".format(os.path.basename(self.filepath)))
@@ -421,12 +421,14 @@ def register():
         description = 'Indiana Jones IM Keyframe Flags'
     )
 
-    bpy.types.Scene.animation_type = HexProperty(
-        'bpy.types.Scene.animation_type',
-        name  = 'Key Animation Type',
-        description="Indiana Jones IM Keyframe type",
-        maxlen = 4,
-        pad = True
+    bpy.types.Scene.key_animation_type = HexProperty(
+        'key_animation_type',
+        name        = 'KEY Type',
+        description = "KEY animation type. Unknown what role does the type have in the game.",
+        default     = '0xFFFF',
+        maxlen      = 4,
+        pad         = True,
+        options     = {'HIDDEN', 'LIBRARY_EDITABLE'}
     )
 
     bpy.utils.register_class(ImportMat)
@@ -451,6 +453,8 @@ def unregister():
 
     del bpy.types.Scene.animation_flags
     del bpy.types.Scene.animation_type
+    del bpy.types.Scene.key_animation_flags
+    del bpy.types.Scene.key_animation_type
 
 
 if __name__ == "__main__":

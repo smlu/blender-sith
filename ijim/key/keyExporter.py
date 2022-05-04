@@ -53,8 +53,8 @@ def _set_keyframe_delta(dtype: KeyframeFlag, kf1: Keyframe, kf2: Keyframe):
 
 def _make_key_from_obj(key_name, obj: bpy.types.Object, scene: bpy.types.Scene):
     key           = Key(key_name)
-    key.flags     = KeyFlag.fromSet(scene.animation_flags)
-    key.type      = KeyType.fromHex(scene.animation_type)
+    key.flags     = KeyFlag.fromSet(scene.key_animation_flags)
+    key.type      = KeyType.fromHex(scene.key_animation_type)
     key.numFrames = scene.frame_end + 1
     key.fps       = scene.render.fps
     for marker in scene.timeline_markers:

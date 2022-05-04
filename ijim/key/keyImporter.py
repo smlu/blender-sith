@@ -36,8 +36,8 @@ def importKeyToScene(keyPath, scene: bpy.types.Scene):
     scene.render.fps  = key.fps
     scene.render.fps_base = 1.0
 
-    scene.animation_flags = key.flags.toSet()
-    scene.animation_type  = key.type.hex()
+    scene.key_animation_flags = key.flags.toSet()
+    scene.key_animation_type  = key.type.hex()
     
     for m in key.markers:
         scene.timeline_markers.new(m.type.name, m.frame)
