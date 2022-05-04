@@ -4,9 +4,6 @@ from ijim.model.utils import *
 from ijim.utils.utils import *
 
 import mathutils
-
-import sys
-import os.path
 import time
 
 
@@ -30,10 +27,10 @@ def importKeyToScene(keyPath, scene: bpy.types.Scene):
     key = keyLoader.load(keyPath)
     clearSceneAnimData(scene)
 
-    scene.frame_start = 0
-    scene.frame_end   = key.numFrames - 1
-    scene.frame_step  = 1
-    scene.render.fps  = key.fps
+    scene.frame_start     = 0
+    scene.frame_end       = key.numFrames - 1
+    scene.frame_step      = 1
+    scene.render.fps      = key.fps
     scene.render.fps_base = 1.0
 
     scene.key_animation_flags = key.flags.toSet()
@@ -43,11 +40,14 @@ def importKeyToScene(keyPath, scene: bpy.types.Scene):
         scene.timeline_markers.new(m.type.name, m.frame)
 
     for node in key.nodes:
-        kobj = None
-
         # Get object to animate
-        for obj in reversed(scene.objects):
-            if kHnName in obj and obj[kHnName].lower() == node.meshName.lower():
+        kobj = None
+        for obj in scene.objects:
+            if obj.model3do_hnode_num != -1:
+                if obj.model3do_hnode_num == node.idx:
+                    kobj = obj
+                    break
+            elif obj.model3do_hnode_name.lower() == node.meshName.lower():
                 kobj = obj
                 break
             elif node.meshName.lower() == obj.name.lower():

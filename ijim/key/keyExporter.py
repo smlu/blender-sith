@@ -14,21 +14,6 @@ import os.path
 import time
 from collections import OrderedDict
 
-def _get_obj_by_name(scene: bpy.types.Scene, name):
-    for o in scene.objects:
-        if kHnName in o:
-            if o[kHnName] == name:
-                return o
-            elif stripOrderPrefix(o.name) == name:
-                return o
-    raise ValueError("Could not find object '{}'".format(name))
-
-def _get_kf_change_flag(str):
-    if str.endswith(('rotation_euler', 'rotation_quaternion')):
-        return KeyframeFlag.OrientationChange
-    else:
-        return KeyframeFlag.PositionChange
-
 def _set_keyframe_delta(dtype: KeyframeFlag, kf1: Keyframe, kf2: Keyframe):
     assert dtype == KeyframeFlag.PositionChange or dtype == KeyframeFlag.OrientationChange
     vec1 = mathutils.Vector(kf1.position)
@@ -71,9 +56,8 @@ def _make_key_from_obj(key_name, obj: bpy.types.Object, scene: bpy.types.Scene):
 
     # Make model3do from object to get ordered hierarchy nodes
     model3do = makeModel3doFromObj(key_name, obj)
-    key.numJoints = len(model3do.hierarchyNodes)
-    for hnode_idx, hnode in enumerate(model3do.hierarchyNodes):
-        cobj = _get_obj_by_name(scene, hnode.name)
+    for hnode in model3do.hierarchyNodes:
+        cobj = hnode.obj
         if cobj.animation_data:
             knode          = KeyNode()
             knode.idx      = hnode.idx
@@ -82,7 +66,7 @@ def _make_key_from_obj(key_name, obj: bpy.types.Object, scene: bpy.types.Scene):
             # Get node's keyframe entries
             cobj_pivot = getObjPivot(cobj)
             kfs = OrderedDict()
-            for fc in cobj.animation_data.action.fcurves :
+            for fc in cobj.animation_data.action.fcurves:
                 if fc.data_path.endswith(('location','rotation_euler','rotation_quaternion')):
                     for k in fc.keyframe_points :
                         frame = k.co[0]
@@ -158,7 +142,7 @@ def _make_key_from_obj(key_name, obj: bpy.types.Object, scene: bpy.types.Scene):
             # Append keyframe node if node has keyframes
             if len(knode.keyframes):
                 key.nodes.append(knode)
-
+    key.numJoints = len(key.nodes)
     return key
 
 def exportObjectAnim(obj: bpy.types.Object, scene: bpy.types.Scene, path: str):
