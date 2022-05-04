@@ -110,7 +110,7 @@ def _write_faces(file, faces: List[MeshFace]):
         row += '{:>8}'.format(face.lightMode)
         row += '{:>7}'.format(face.textureMode)
         row += ' ' + _vector_to_str(face.color, False, 0)
-        row += _face_vertx_to_str(face.vertexIdxs, face.texVertexIdxs)
+        row += _face_vertx_to_str(face.vertexIdxs, face.uvIdxs)
         writeLine(file, row)
 
         face_normals.append(face.normal)
@@ -147,8 +147,8 @@ def _write_mesh(file, mesh: ModelMesh):
     writeNewLine(file)
     writeNewLine(file)
 
-    _write_vertices(file, mesh.vertices, mesh.verticesColor)
-    _write_tex_vertices(file, mesh.textureVertices)
+    _write_vertices(file, mesh.vertices, mesh.vertexColors)
+    _write_tex_vertices(file, mesh.uvs)
     _write_vert_normals(file, mesh.normals)
     _write_faces(file, mesh.faces)
 

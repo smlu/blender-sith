@@ -123,7 +123,7 @@ def _model3do_add_mesh(model: Model, mesh: bpy.types.Mesh, scale: mathutils.Vect
             if not mesh3do.vertices.count(vertx):
                 mesh3do.vertices.append(vertx)
                 vertColor = Vector4f(*loop[vert_color]) if exportVertexColors else kDefaultVertexColor
-                mesh3do.verticesColor.append(vertColor)
+                mesh3do.vertexColors.append(vertColor)
                 mesh3do.normals.append(Vector3f(*loop.vert.normal))
 
             vertx_idx = mesh3do.vertices.index(vertx)
@@ -132,11 +132,11 @@ def _model3do_add_mesh(model: Model, mesh: bpy.types.Mesh, scale: mathutils.Vect
             # Set UV coordinates
             uv_vert = loop[uv_layer].uv
             uv = Vector2f(uv_vert[0], -uv_vert[1]) # Note: Flipped v
-            if not mesh3do.textureVertices.count(uv):
-                mesh3do.textureVertices.append(uv)
+            if not mesh3do.uvs.count(uv):
+                mesh3do.uvs.append(uv)
 
-            uv_idx = mesh3do.textureVertices.index(uv)
-            face3do.texVertexIdxs.append(uv_idx)
+            uv_idx = mesh3do.uvs.index(uv)
+            face3do.uvIdxs.append(uv_idx)
         mesh3do.faces.append(face3do)
     bm.free()
 

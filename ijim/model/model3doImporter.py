@@ -153,21 +153,24 @@ def _make_mesh(mesh3do: ModelMesh, mat_list: List):
 
         # Set vertices color and face uv map
         for idx, loop in enumerate(face.loops): # update vertices
-            vidx = loop.vert.index
+            vidx             = loop.vert.index
             loop.vert.normal = mesh3do.normals[vidx]
-            loop[vert_color] = mesh3do.verticesColor[vidx]
+            loop[vert_color] = mesh3do.vertexColors[vidx]
 
             # Set UV coordinates
-            luv = loop[uv_layer]
-            uv = mesh3do.textureVertices[face3do.texVertexIdxs[idx]]
-            luv.uv = (uv[0], -uv[1]) # Note: Flipped v
+            luv    = loop[uv_layer]
+            uvidx  = face3do.uvIdxs[idx]
+            if uvidx < len(mesh3do.uvs):
+                uv     = mesh3do.uvs[face3do.uvIdxs[idx]]
+                luv.uv = (uv[0], -uv[1]) # Note: Flipped v
+            elif uvidx > -1:
+                print("Warning: UV index out of range. {} >= {} ".format(uvidx, len(mesh3do.uvs)))
 
     bm.to_mesh(mesh)
     bm.free()
 
     mesh.update()
     return mesh
-
 
 def getModelRadiusObj(obj):
     return _get_radius_obj(kModelRadius + stripOrderPrefix(obj.name))

@@ -87,10 +87,10 @@ def _parse_model_geometry_section(tok: Tokenizer, model: Model, fileVersion: flo
 
                 mesh.vertices.append(tok.getVector3f())
                 if fileVersion == 2.3:
-                    mesh.verticesColor.append(tok.getVector4f())
+                    mesh.vertexColors.append(tok.getVector4f())
                 else:
                     intensity = tok.getFloatNumber()
-                    mesh.verticesColor.append(Vector4f(*((intensity, )*4)))
+                    mesh.vertexColors.append(Vector4f(*((intensity, )*4)))
 
             tok.assertIdentifier("TEXTURE")
             tok.assertIdentifier("VERTICES")
@@ -100,7 +100,7 @@ def _parse_model_geometry_section(tok: Tokenizer, model: Model, fileVersion: flo
                 if vertIdx != k:
                     print("Warning: Index mismatch while loading 3DO UV list. {} != {}".format(vertIdx, k))
                 tok.assertPunctuator(':')
-                mesh.textureVertices.append(tok.getVector2f())
+                mesh.uvs.append(tok.getVector2f())
 
             tok.assertIdentifier("VERTEX")
             tok.assertIdentifier("NORMALS")
@@ -137,7 +137,7 @@ def _parse_model_geometry_section(tok: Tokenizer, model: Model, fileVersion: flo
                 for l in range(0, numFaceVerts):
                     idxs = tok.getPairOfInts()
                     face.vertexIdxs.append(idxs[0])
-                    face.texVertexIdxs.append(idxs[1])
+                    face.uvIdxs.append(idxs[1])
 
                 mesh.faces.append(face)
 
@@ -161,7 +161,7 @@ def _parse_hierarchy_section(tok: Tokenizer, model: Model):
     for i in range(0, numNodes):
         nodeIdx = tok.getIntNumber()
         if nodeIdx != i:
-            print("Warning: Index mismatch while loading 3DO hierarchy list. {} != {}".format(nodeIdx, i))
+            print("Warning: Seq. number mismatch while loading 3DO hierarchy list. {} != {}".format(nodeIdx, i))
 
         tok.assertPunctuator(':')
 

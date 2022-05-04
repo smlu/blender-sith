@@ -155,11 +155,11 @@ class MeshFace:
         self.vi = idxs
 
     @property
-    def texVertexIdxs(self) -> List[int]:
+    def uvIdxs(self) -> List[int]:
         return self.tvi
 
-    @texVertexIdxs.setter
-    def texVertexIdxs(self, idxs: List[int]):
+    @uvIdxs.setter
+    def uvIdxs(self, idxs: List[int]):
         self.tvi = idxs
 
     @property
@@ -244,11 +244,11 @@ class ModelMesh:
         self.v = vertices
 
     @property
-    def verticesColor(self) -> List[Vector4f]:
+    def vertexColors(self) -> List[Vector4f]:
         return self.vc
 
-    @verticesColor.setter
-    def verticesColor(self, colors: List[Vector4f]):
+    @vertexColors.setter
+    def vertexColors(self, colors: List[Vector4f]):
         self.vc = colors
 
     @property
@@ -260,11 +260,11 @@ class ModelMesh:
         self.vn = normals
 
     @property
-    def textureVertices(self) -> List[Vector2f]:
+    def uvs(self) -> List[Vector2f]:
         return self.tv
 
-    @textureVertices.setter
-    def textureVertices(self, texVert: List[Vector2f]):
+    @uvs.setter
+    def uvs(self, texVert: List[Vector2f]):
         self.tv = texVert
 
     @property
@@ -426,7 +426,7 @@ class Model:
         return self.material_list
 
     @materials.setter
-    def materials(self, materials: [str]):
+    def materials(self, materials: List[str]):
         self.material_list = materials
 
     @property
