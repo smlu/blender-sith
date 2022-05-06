@@ -6,7 +6,6 @@ from ijim.utils.utils import *
 import mathutils
 import time
 
-
 def _set_obj_location(obj: bpy.types.Object, location: Vector3f):
     obj.location = location
 
@@ -35,7 +34,7 @@ def importKeyToScene(keyPath, scene: bpy.types.Scene):
 
     scene.key_animation_flags = key.flags.toSet()
     scene.key_animation_type  = key.type.hex()
-    
+
     for m in key.markers:
         scene.timeline_markers.new(m.type.name, m.frame)
 

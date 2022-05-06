@@ -4,7 +4,7 @@ import bpy
 def HexProperty(varName: str, name: Optional[str] = '', description: Optional[str] = '', default : Optional[str] = '', maxlen: Optional[int] = None, options: Optional[set] = set(), pad: bool = False) -> bpy.props.StringProperty:
     def __get_hexvalue(self):
         if varName in self:
-            return self[varName] 
+            return self[varName]
         return ''
 
     def __set_hexvalue(self, value):

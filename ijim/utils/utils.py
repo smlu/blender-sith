@@ -21,7 +21,6 @@ def getBmeshFaceLayer(faces: bmesh.types.BMFaceSeq, name: str, makeLayer=True):
     return faces.layers.string.get(name) or (faces.layers.string.new(name) if makeLayer else None)
 
 def getDefaultMatFolders(model_path):
-    os.path.join(os.path.dirname(model_path), 'mat')
     path1 = os.path.join(os.path.dirname(model_path), 'mat')
     path2 = os.path.abspath(os.path.join(os.path.dirname(model_path), os.pardir))
     path2 = os.path.join(path2, 'mat')

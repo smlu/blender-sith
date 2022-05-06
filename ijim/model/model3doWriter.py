@@ -212,6 +212,6 @@ def write(model: Model3do, filePath, headerComment):
     _write_section_resources(f, model)
     _write_section_geometry(f, model)
     _write_section_hierarchydef(f, model)
-    
+
     f.flush()
     f.close()
