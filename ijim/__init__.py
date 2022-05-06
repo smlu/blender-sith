@@ -1,7 +1,7 @@
 
 bl_info = {
     "name": "Indiana Jones and the Infernal Machine",
-    "description": "Import-Export game model (.3do) and material (.mat)",
+    "description": "Import/export game 3D model(s) [.3do], animation(s) [.key] and material(s) [.mat]",
     "author": "Crt Vavros",
     "version": (0, 9, 2),
     "blender": (2, 79, 0),
@@ -11,7 +11,7 @@ bl_info = {
     "support": "COMMUNITY",
     "category": "Import-Export"
 }
-
+import sys
 # Reload imported submodules if script is reloaded
 if "bpy" in locals():
     import importlib
@@ -36,7 +36,7 @@ if "bpy" in locals():
     if "utils" in locals():
         importlib.reload(utils)
     if "HexProperty" in locals():
-        importlib.reload(types.props)
+        importlib.reload(sys.modules['ijim.types.props'])
 
 import bpy
 from bpy_extras.io_utils import ImportHelper
@@ -82,7 +82,9 @@ def _get_model3do_texture_mode_list():
     return l
 
 class ImportMat(bpy.types.Operator, ImportHelper):
-    """Import Indiana Jones and the Infernal Machine material (.mat)"""
+    """
+    Import Indiana Jones and the Infernal Machine material (.mat)
+    """
     bl_idname    = "import_material.ijim_mat"
     bl_label     = "Import MAT"
     filename_ext = ".mat"
@@ -98,7 +100,9 @@ class ImportMat(bpy.types.Operator, ImportHelper):
 
 
 class ImportModel3do(bpy.types.Operator, ImportHelper):
-    """Import Indiana Jones and the Infernal Machine 3DO model (.3do)"""
+    """
+    Import Indiana Jones and the Infernal Machine 3DO model (.3do)
+    """
     bl_idname    = "import_object.ijim_3do"
     bl_label     = "Import 3DO"
     filename_ext = ".3do"
@@ -108,40 +112,50 @@ class ImportModel3do(bpy.types.Operator, ImportHelper):
         options = {"HIDDEN"}
     )
 
-    b_set_3d_view = bpy.props.BoolProperty(
+    set_3d_view = bpy.props.BoolProperty(
         name        = 'Adjust 3D View',
         description = 'Adjust 3D View accordingly to the 3DO model position, size etc..',
         default     = True,
     )
 
-    b_clear_scene = bpy.props.BoolProperty(
+    clear_scene = bpy.props.BoolProperty(
         name        = 'Clear Scene',
         description = 'Remove all scenes and content before importing 3DO model to the scene',
         default     = True,
     )
 
-    b_import_radius_objects = bpy.props.BoolProperty(
+    import_radius_objects = bpy.props.BoolProperty(
         name        = 'Import Radius Objects',
         description = 'Import mesh radius as wireframe sphere object',
         default     = False,
     )
 
-    b_preserve_order = bpy.props.BoolProperty(
+    preserve_order = bpy.props.BoolProperty(
         name        = 'Preserve Mesh Hierarchy',
         description = "Preserve 3DO node hierarchy of objects in Blender.\n\nIf set, the order of imported mesh hierarchy will be preserved by prefixing the name of every mesh object with '{}<seq_number>_'.".format(kNameOrderPrefix),
         default     = False,
     )
 
     mat_path = bpy.props.StringProperty(
-        name        = 'Materials folder',
-        description = 'Path to the directory to search for material files (.mat) of 3DO model',
+        name        = 'Materials Directory',
+        description = "Path to the directory to search for material files (.mat) of 3DO model.\n\nBy default addon tries to find required material files in the 'mat' directory of the model path and the parent directory",
         #subtype='DIR_PATH'
     )
 
-    def execute(self, context):
-        obj = model3doImporter.importObject(self.filepath, [self.mat_path], self.b_import_radius_objects, self.b_preserve_order, self.b_clear_scene)
+    def draw(self, context):
+        layout = self.layout
+        layout.prop(self, 'set_3d_view')
+        layout.prop(self, 'clear_scene')
+        layout.prop(self, 'import_radius_objects')
+        layout.prop(self, 'preserve_order')
+        mat_path_layout = layout.box().column()
+        mat_path_layout.label(text='Material Directory')
+        mat_path_layout.prop(self, "mat_path", text='')
 
-        if self.b_set_3d_view:
+    def execute(self, context):
+        obj = model3doImporter.importObject(self.filepath, [self.mat_path], self.import_radius_objects, self.preserve_order, self.clear_scene)
+
+        if self.set_3d_view:
             area = next(area for area in bpy.context.screen.areas if area.type == 'VIEW_3D')
             region = next(region for region in area.regions if region.type == 'WINDOW')
             space = next(space for space in area.spaces if space.type == 'VIEW_3D')
@@ -172,7 +186,9 @@ class ImportModel3do(bpy.types.Operator, ImportHelper):
         return {'FINISHED'}
 
 class ExportModel3do(bpy.types.Operator, ExportHelper):
-    """Export object to Indiana Jones and the Infernal Machine 3DO file format (.3do)"""
+    """
+    Export object to Indiana Jones and the Infernal Machine 3DO file format (.3do)
+    """
     bl_idname    = "export_object.ijim_3do"
     bl_label     = "Export 3DO"
     filename_ext = ".3do"
@@ -254,7 +270,9 @@ class ExportModel3do(bpy.types.Operator, ExportHelper):
 
 # TODO: add option to load model first
 class ImportKey(bpy.types.Operator, ImportHelper):
-    """Import Indiana Jones and the Infernal Machine animation (.key)"""
+    """
+    Import Indiana Jones and the Infernal Machine animation (.key)
+    """
     bl_idname    = "import_anim.ijim_key"
     bl_label     = "Import KEY"
     filename_ext = ".key"
@@ -276,7 +294,9 @@ class ImportKey(bpy.types.Operator, ImportHelper):
 
 
 class ExportKey(bpy.types.Operator, ExportHelper):
-    """Export animation to Indiana Jones and the Infernal Machine KEY file format (.key)"""
+    """
+    Export animation to Indiana Jones and the Infernal Machine KEY file format (.key)
+    """
     bl_idname    = "export_anim.ijim_key"
     bl_label     = "Export KEY"
     filename_ext = ".key"
@@ -304,7 +324,7 @@ class ExportKey(bpy.types.Operator, ExportHelper):
     animation_type = HexProperty(
         'animation_type',
         name        = "Type",
-        description = "Animation type. Unknown what role does the type have in the game.",
+        description = "Animation type. Unknown what role does the type have in the game",
         default     = '0xFFFF',
         maxlen      = 4,
         pad         = True
@@ -315,17 +335,24 @@ class ExportKey(bpy.types.Operator, ExportHelper):
         items = _get_fps_enum_list()
     )
 
-    obj = None
+    obj   = None
     scene = None
+
+    def draw(self, context):
+        layout = self.layout
+        flags_layout = layout.box().column()
+        flags_layout.label(text='Flags')
+        flags_layout.prop(self, "animation_flags")
+        layout.prop(self, 'animation_type')
+        layout.prop(self, 'fps')
 
     def invoke(self, context, event):
         # Initializes self.scene and self.obj by searching for a top object which represents 3DO model
         try:
-            self.scene = bpy.context.scene.copy()
+            self.scene           = bpy.context.scene.copy()
             self.animation_flags = self.scene.key_animation_flags
             self.animation_type  = self.scene.key_animation_type
-
-            fps = self.scene.render.fps
+            fps                  = self.scene.render.fps
             for e in reversed(ExportKey._get_fps_enum_list()):
                 if e[0] == str(fps):
                     self.fps = str(e[0])
@@ -350,7 +377,6 @@ class ExportKey(bpy.types.Operator, ExportHelper):
                     return {'CANCELLED'}
 
                 eobj = bpy.context.selected_objects[0]
-
             else: # Model3do group
                 objs = bpy.data.groups[kGModel3do].objects
                 if len(objs) == 0:
@@ -390,7 +416,6 @@ class ExportKey(bpy.types.Operator, ExportHelper):
             kfname = bpy.path.display_name_from_filepath(self.obj.name )
             self.filepath = bpy.path.ensure_ext(kfname, self.filename_ext)
             return ExportHelper.invoke(self, context, event)
-
         except:
             if self.scene:
                 bpy.data.scenes.remove(self.scene, True)
@@ -416,18 +441,24 @@ class ExportKey(bpy.types.Operator, ExportHelper):
         if self.scene:
             bpy.data.scenes.remove(self.scene, True)
 
+
 class Model3doPanel(bpy.types.Panel):
-    bl_idname = 'OBJECT_PT_model_3do_panel'
-    bl_label = '3DO Properties'
+    """
+    Panel exposes 3DO mesh properties to the UI.
+    i.e.: light mode, texture mode & hierarchy node properties.
+    """
+    bl_idname      = 'OBJECT_PT_model_3do_panel'
+    bl_label       = '3DO Properties'
     bl_description = '3DO model object properties'
-    bl_space_type = 'PROPERTIES'
+    bl_space_type  = 'PROPERTIES'
     bl_region_type = 'WINDOW'
-    bl_context = "object"
-    #bl_options = {'DEFAULT_CLOSED'}
+    bl_context     = "object"
+    bl_options     = {'DEFAULT_CLOSED'}
 
     @classmethod
     def poll(cls, context):
-        return (context.object is not None)
+        return (context.object is not None) and \
+            ('EMPTY' == context.object.type or context.object.type == 'MESH')
 
     def draw(self, context):
         obj = context.object
