@@ -105,22 +105,17 @@ def _make_mesh(mesh3do: ModelMesh, mat_list: List):
     vert_color = bm.loops.layers.color.verify()
     uv_layer   = bm.loops.layers.uv.verify()
     bm.faces.layers.tex.verify()
-
-    # Face's custom property tags
-    tag_face_type = getBmeshFaceLayer(bm.faces, kFaceType)
-    tag_face_gm   = getBmeshFaceLayer(bm.faces, kGeometryMode)
-    tag_face_lm   = getBmeshFaceLayer(bm.faces, kLightingMode)
-    tag_face_tm   = getBmeshFaceLayer(bm.faces, kTextureMode)
+    bmMeshInit3doLayers(bm)
 
     # Set mesh materials and UV map
     for face in bm.faces:
         face3do = mesh3do.faces[face.index]
 
         # Set custom property for face type, geometry, light, texture mode
-        face[tag_face_type] = _get_encoded_face_prop(face3do.type)
-        face[tag_face_gm]   = _get_encoded_face_prop(face3do.geometryMode)
-        face[tag_face_lm]   = _get_encoded_face_prop(face3do.lightMode)
-        face[tag_face_tm]   = _get_encoded_face_prop(face3do.textureMode)
+        bmFaceSetType(face, bm, face3do.type)
+        bmFaceSetGeometryMode(face, bm, face3do.geometryMode)
+        bmFaceSetLightMode(face, bm, face3do.lightMode)
+        bmFaceSetTextureMode(face, bm, face3do.textureMode)
 
         # Set face normal
         face.normal = mesh3do.faces[face.index].normal

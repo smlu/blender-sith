@@ -38,17 +38,29 @@ if "bpy" in locals():
     if "HexProperty" in locals():
         importlib.reload(sys.modules['ijim.types.props'])
 
-import bpy
+import bpy, bmesh
 from bpy_extras.io_utils import ImportHelper
 from bpy_extras.io_utils import ExportHelper
 
 import os.path
 import re
 
-from ijim.model.model3do import LightMode, TextureMode
+from ijim.model.model3do import FaceType, GeometryMode, LightMode, TextureMode
 import ijim.model.model3doExporter as model3doExporter
 import ijim.model.model3doImporter as model3doImporter
-from ijim.model.utils import kGModel3do, kNameOrderPrefix
+from ijim.model.utils import (
+    bmFaceGetGeometryMode,
+    bmFaceGetLightMode,
+    bmFaceGetTextureMode,
+    bmFaceGetType,
+    bmFaceSetGeometryMode,
+    bmFaceSetLightMode,
+    bmFaceSetTextureMode,
+    bmFaceSetType,
+    bmMeshInit3doLayers,
+    kGModel3do,
+    kNameOrderPrefix
+)
 
 from ijim.key.key import KeyFlag
 import ijim.key.keyImporter as keyImporter
@@ -67,6 +79,25 @@ def _get_key_flags_enum_list():
     for f in reversed(KeyFlag):
         if f != 0x00:
             l.append((f.name, _make_readable(f.name), "", int(f)))
+    return l
+
+def _get_mesh3do_face_type_list():
+    return [
+        (FaceType.DoubleSided.name   , 'Double Sided'              , "Polygon face is in game rendered on both sides"                                                                                         , int(FaceType.DoubleSided)   ),
+        (FaceType.Translucent.name   ,  'Translucent'              , "Polygon is in game rendered with alpha blending enabled making transparent polygon texture translucent"                                 , int(FaceType.Translucent)   ),
+        (FaceType.TexClamp_x.name    , 'Clamp Horizontal'          , "Polygon texture is clamped horizontally instead of repeated (Might not be used in JKDF2 & MOTS)"                                        , int(FaceType.TexClamp_x)    ),
+        (FaceType.TexClamp_y.name    , 'Clamp Vertical'            , "Polygon texture is clamped vertically instead of repeated (Might not be used in JKDF2 & MOTS)"                                          , int(FaceType.TexClamp_y)    ),
+        (FaceType.TexFilterNone.name , 'Disable Bilinear Filtering', "Disables texture bilinear interpolation filtering and instead point filtering is used as a texture magnification or minification filter", int(FaceType.TexFilterNone) ),
+        (FaceType.ZWriteDisabled.name, 'Disable ZWrite'            , "Disables writting polygon face to depth buffer"                                                                                         , int(FaceType.ZWriteDisabled)),
+        (FaceType.IjimLedge.name     , '(IJIM)  Ledge'             , "(IJIM only) Polygon face is a ledge that player can grab and hang from"                                                                 , int(FaceType.IjimLedge)     ),
+        (FaceType.IjimFogEnabled.name, '(IJIM)  Enable Fog'        , "(IJIM only) Enables fog rendering for polygon face. Enabled by default by the engine"                                                   , int(FaceType.IjimFogEnabled)),
+        (FaceType.IjimWhipAim.name   , '(IJIM) Whip Aim'           , "(IJIM only) Polygon face is the start point for player to aim at object with whip"                                                      , int(FaceType.IjimWhipAim)   )
+    ]
+
+def _get_model3do_geometry_mode_list():
+    l = []
+    for f in GeometryMode:
+        l.append((f.name, _make_readable(f.name), "", int(f)))
     return l
 
 def _get_model3do_light_mode_list():
@@ -477,7 +508,103 @@ class Model3doPanel(bpy.types.Panel):
         node_properties.prop(obj, "model3do_hnode_type", text="Type")
 
 
+class Mesh3doFaceLayer(bpy.types.PropertyGroup):
+    """
+    Intermediant class for temporary storing BMFace properties by Mesh3doFacePanel
+    and used it to disply stored properties to the UI.
+    """
+    face_id = bpy.props.IntProperty(default = -1)
+
+    type = bpy.props.EnumProperty(
+        name        = "Type",
+        description = "Face type flag",
+        items       = _get_mesh3do_face_type_list(),
+        options     = {'ENUM_FLAG'}
+    )
+
+    geo_mode = bpy.props.EnumProperty(
+        name        = "Geometry Mode",
+        description = "Geometry mode",
+        items       = _get_model3do_geometry_mode_list(),
+        default     = GeometryMode.Texture.name,
+        options     = {'HIDDEN', 'LIBRARY_EDITABLE'}
+    )
+
+    light_mode = bpy.props.EnumProperty(
+        name        = "Lighting Mode",
+        description = "Lighting mode",
+        items       = _get_model3do_light_mode_list(),
+        default     = LightMode.Gouraud.name,
+        options     = {'HIDDEN', 'LIBRARY_EDITABLE'}
+    )
+
+    texture_mode = bpy.props.EnumProperty(
+        name        = "Texture Mode",
+        description = "Texture mapping mode (Not used by IJIM)",
+        items       = _get_model3do_texture_mode_list(),
+        default     = TextureMode.PerspectiveCorrected.name,
+        options     = {'HIDDEN', 'LIBRARY_EDITABLE'}
+    )
+
+
+class Mesh3doFacePanel(bpy.types.Panel):
+    """
+    Panel exposes 3DO mesh face properties to the UI.
+    i.e.: face type flags, geometry mode, light mode, texture mode & hierarchy node properties.
+    """
+    bl_idname      = 'DATA_PT_model3do_face_panel'
+    bl_label       = "3DO Mesh Face Properties"
+    bl_space_type  = 'PROPERTIES'
+    bl_region_type = 'WINDOW'
+    bl_context     = "data"
+    bl_options     = {'DEFAULT_CLOSED'}
+
+    @classmethod
+    def poll(cls, context):
+        return context.edit_object is not None
+
+    @staticmethod
+    def _get_face_id(face: bmesh.types.BMFace):
+        return hash(face) %2**31 -1 # gen. 32 bit signed hash id of face
+
+    def draw(self, context):
+        wm_fl = context.window_manager.mesh3do_face_layer
+
+        bm = bmesh.from_edit_mesh(context.edit_object.data)
+        bmMeshInit3doLayers(bm)
+        face = bm.faces.active
+        enabled = face is not None
+        if enabled:
+            fid = self._get_face_id(face)
+            if wm_fl.face_id != fid: # init Mesh3doFaceLayer properties akahack to draw BMFace custom properties
+                wm_fl.face_id      = fid
+                wm_fl.type         = bmFaceGetType(face, bm).toSet()
+                wm_fl.geo_mode     = bmFaceGetGeometryMode(face, bm).name
+                wm_fl.light_mode   = bmFaceGetLightMode(face, bm).name
+                wm_fl.texture_mode = bmFaceGetTextureMode(face, bm).name
+
+            # Copy 3DO properties of BMFace from Mesh3doFaceLayer properties
+            bmFaceSetType(face, bm, FaceType.fromSet(wm_fl.type))
+            bmFaceSetGeometryMode(face, bm, GeometryMode[wm_fl.geo_mode])
+            bmFaceSetLightMode(face, bm, LightMode[wm_fl.light_mode])
+            bmFaceSetTextureMode(face, bm, TextureMode[wm_fl.texture_mode])
+        else:
+            wm_fl.face = -1
+
+        layout       = self.layout
+        box          = layout.box()
+        box.enabled  = enabled
+        tbox         = box.box()
+        tbox.label(text="Type Flags")
+        tbox.prop(wm_fl, "type", text="Type")
+        box.prop(wm_fl, "geo_mode", text="Geometry")
+        box.prop(wm_fl, "light_mode", text="Lighting")
+        box.prop(wm_fl, "texture_mode", text="Texture")
+
+
 classes = (
+    Mesh3doFaceLayer,
+    Mesh3doFacePanel,
     Model3doPanel,
     ImportMat,
     ImportModel3do,
@@ -498,7 +625,15 @@ def menu_func_import(self, context):
 
 
 def register():
-    # 3DO custom properties
+    # Register classes
+    for cls in classes:
+        bpy.utils.register_class(cls)
+
+    # Register menu functions
+    bpy.types.INFO_MT_file_export.append(menu_func_export)
+    bpy.types.INFO_MT_file_import.append(menu_func_import)
+
+    # 3DO custom properties for object
     bpy.types.Object.model3do_light_mode = bpy.props.EnumProperty(
         name        = "Lighting Mode",
         description = "Lighting mode",
@@ -548,6 +683,9 @@ def register():
         options     = {'HIDDEN', 'LIBRARY_EDITABLE'}
     )
 
+    # 3DO Mesh Face custom properties
+    bpy.types.WindowManager.mesh3do_face_layer = bpy.props.PointerProperty(type=Mesh3doFaceLayer)
+
     # KEY custom properties
     bpy.types.Scene.key_animation_flags = bpy.props.EnumProperty(
         items       = _get_key_flags_enum_list(),
@@ -566,24 +704,12 @@ def register():
         options     = {'HIDDEN', 'LIBRARY_EDITABLE'}
     )
 
-    # Register classes
-    for cls in classes:
-        bpy.utils.register_class(cls)
-    
-    # Register menu functions
-    bpy.types.INFO_MT_file_export.append(menu_func_export)
-    bpy.types.INFO_MT_file_import.append(menu_func_import)
 
 def unregister():
-    bpy.types.INFO_MT_file_export.remove(menu_func_export)
-    bpy.types.INFO_MT_file_import.remove(menu_func_import)
-
-    for cls in classes:
-        bpy.utils.unregister_class(cls)
-
     del bpy.types.Scene.key_animation_flags
     del bpy.types.Scene.key_animation_type
 
+    del bpy.types.WindowManager.mesh3do_face_layer
 
     del bpy.types.Object.model3do_hnode_flags
     del bpy.types.Object.model3do_hnode_type
@@ -591,6 +717,12 @@ def unregister():
     del bpy.types.Object.model3do_hnode_num
     del bpy.types.Object.model3do_texture_mode
     del bpy.types.Object.model3do_light_mode
+
+    bpy.types.INFO_MT_file_export.remove(menu_func_export)
+    bpy.types.INFO_MT_file_import.remove(menu_func_import)
+
+    for cls in classes:
+        bpy.utils.unregister_class(cls)
 
 
 if __name__ == "__main__":

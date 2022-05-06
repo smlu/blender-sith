@@ -47,30 +47,6 @@ def _get_mat_name(mat: bpy.types.Material):
 def _is_aux_obj(obj: bpy.types.Object):
     return (kModelRadius in obj.name) or (kMeshRadius in obj.name)
 
-def _get_face_property_or_default(face: bmesh.types.BMFace, tag: bmesh.types.BMLayerAccessFace, default):
-    if tag:
-        v = face[tag]
-        if len(v):
-            return int(v)
-    return default
-
-def _get_face_type(face: bmesh.types.BMFace, bm: bmesh.types.BMesh):
-    tag = getBmeshFaceLayer(bm.faces, kFaceType, makeLayer=False)
-    return _get_face_property_or_default(face, tag, 0)
-
-def _get_face_geometry_mode(face: bmesh.types.BMFace, bmesh: bmesh.types.BMesh):
-    tag = getBmeshFaceLayer(bmesh.faces, kGeometryMode, makeLayer=False)
-    return _get_face_property_or_default(face, tag, 4)
-
-def _get_face_light_mode(face: bmesh.types.BMFace, bmesh: bmesh.types.BMesh):
-    tag = getBmeshFaceLayer(bmesh.faces, kLightingMode, makeLayer=False)
-    return _get_face_property_or_default(face, tag, 3)
-
-def _get_face_tex_mode(face: bmesh.types.BMFace, bmesh: bmesh.types.BMesh):
-    tag = getBmeshFaceLayer(bmesh.faces, kTextureMode, makeLayer=False)
-    return _get_face_property_or_default(face, tag, 3)
-
-
 def _model3do_add_mesh(model: Model3do, mesh: bpy.types.Mesh, scale: mathutils.Vector, exportVertexColors: bool) -> int:
     if mesh is None:
         return -1
@@ -111,10 +87,10 @@ def _model3do_add_mesh(model: Model3do, mesh: bpy.types.Mesh, scale: mathutils.V
             mat_name = _get_mat_name(mesh.materials[face.material_index])
             face3do.materialIdx = model.materials.index(mat_name) if mat_name in model.materials else -1
 
-        face3do.type         = _get_face_type(face, bm)
-        face3do.geometryMode = _get_face_geometry_mode(face, bm)
-        face3do.lightMode    = _get_face_light_mode(face, bm)
-        face3do.textureMode  = _get_face_tex_mode(face, bm)
+        face3do.type         = bmFaceGetType(face, bm)
+        face3do.geometryMode = bmFaceGetGeometryMode(face, bm)
+        face3do.lightMode    = bmFaceGetLightMode(face, bm)
+        face3do.textureMode  = bmFaceGetTextureMode(face, bm)
         face3do.color        = kDefaultFaceColor
         face3do.normal       = Vector3f(*face.normal)
 
@@ -265,7 +241,7 @@ def _get_model_radius(obj, scale: mathutils.Vector = mathutils.Vector((1.0,)*3))
     scale = vectorMultiply(scale, obj.scale)
     do_bb(obj, scale)
     traverse_children(obj, scale)
-    return ((max - min).length /2) 
+    return ((max - min).length /2)
 
 def makeModel3doFromObj(name, obj: bpy.types.Object, exportVertexColors: bool = False):
     model = Model3do(name)

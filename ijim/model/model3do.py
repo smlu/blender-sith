@@ -3,25 +3,6 @@ from typing import List
 from ijim.types.enum import Flag
 from ijim.types.vector import *
 
-class GeometryMode(IntEnum):
-    NotDrawn   = 0
-    VertexOnly = 1
-    Wireframe  = 2
-    Solid      = 3
-    Texture    = 4
-
-class LightMode(IntEnum):
-    FullyLit  = 0
-    NotLit    = 1
-    Diffuse   = 2
-    Gouraud   = 3
-
-class TextureMode(IntEnum):
-    Affine               = 0
-    Perspective          = 1
-    PerspectiveUnknown   = 2
-    PerspectiveCorrected = 3 # <- IJIM use only this
-
 @unique
 class FaceType(Flag):
     Normal         = 0x00
@@ -35,12 +16,33 @@ class FaceType(Flag):
     ZWriteDisabled = 0x20,  # Disables ZWrite for the polygon face.
     IjimLedge      = 0x40,  # (IJIM specific) Player can hang on the ledge of this polygon face. (same as surface flag Ledge = 0x1000000 for world surface)
                             #   e.g.: bab_bull_block.3do, olv_statue_lefty.3do, tem_bridge_20mholes.3do
-
     IjimFogEnabled = 0x100, # (IJIM specific) Enables fog rendering for the face polygon.
                             #  Note: This flag is set by default for all surfaces but sky surfaces.
 
-    IjimWhipAim    = 0x200 # (IJIM specific) Applies to polygon face of 3do model and marks the whip aim surface (same as surface flag `WhipAim` = 0x10000000).
+    IjimWhipAim    = 0x200 # (IJIM specific) Marks the whip aim surface (same as surface flag `WhipAim` = 0x10000000).
                            #   e.g.: aet_dais_trio.3do
+
+@unique
+class GeometryMode(IntEnum):
+    NotDrawn   = 0
+    VertexOnly = 1
+    Wireframe  = 2
+    Solid      = 3
+    Texture    = 4
+
+@unique
+class LightMode(IntEnum):
+    FullyLit  = 0
+    NotLit    = 1
+    Diffuse   = 2
+    Gouraud   = 3
+
+@unique
+class TextureMode(IntEnum):
+    Affine               = 0
+    Perspective          = 1
+    PerspectiveUnknown   = 2
+    PerspectiveCorrected = 3 # <- IJIM use only this
 
 @unique
 class MeshNodeFlags(Flag):

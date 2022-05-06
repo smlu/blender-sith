@@ -1,4 +1,4 @@
-import bpy, bmesh
+import bpy
 import os.path
 from .. import bl_info
 
@@ -16,9 +16,6 @@ def assertName(name: str):
 
     if not isASCII(name):
         raise AssertionError("name error: '{}' len does not contain all ASCII chars".format(name))
-
-def getBmeshFaceLayer(faces: bmesh.types.BMFaceSeq, name: str, makeLayer=True):
-    return faces.layers.string.get(name) or (faces.layers.string.new(name) if makeLayer else None)
 
 def getDefaultMatFolders(model_path):
     path1 = os.path.join(os.path.dirname(model_path), 'mat')
