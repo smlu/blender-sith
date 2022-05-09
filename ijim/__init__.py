@@ -1,9 +1,8 @@
-
 bl_info = {
     "name": "Indiana Jones and the Infernal Machine",
     "description": "Import/export game 3D model(s) [.3do], animation(s) [.key] and material(s) [.mat]",
     "author": "Crt Vavros",
-    "version": (0, 9, 2),
+    "version": (0, 9, 3),
     "blender": (2, 79, 0),
     "location": "File > Import-Export",
     "wiki_url": "https://github.com/smlu/blender-ijim",
@@ -78,38 +77,38 @@ def _get_key_flags_enum_list():
     l = []
     for f in reversed(KeyFlag):
         if f != 0x00:
-            l.append((f.name, _make_readable(f.name), "", int(f)))
+            l.append((f.name, _make_readable(f.name), ""))
     return l
 
 def _get_mesh3do_face_type_list():
     return [
-        (FaceType.DoubleSided.name   , 'Double Sided'              , "Polygon face is in game rendered on both sides"                                                                                         , int(FaceType.DoubleSided)   ),
-        (FaceType.Translucent.name   ,  'Translucent'              , "Polygon is in game rendered with alpha blending enabled making transparent polygon texture translucent"                                 , int(FaceType.Translucent)   ),
-        (FaceType.TexClamp_x.name    , 'Clamp Horizontal'          , "Polygon texture is clamped horizontally instead of repeated (Might not be used in JKDF2 & MOTS)"                                        , int(FaceType.TexClamp_x)    ),
-        (FaceType.TexClamp_y.name    , 'Clamp Vertical'            , "Polygon texture is clamped vertically instead of repeated (Might not be used in JKDF2 & MOTS)"                                          , int(FaceType.TexClamp_y)    ),
-        (FaceType.TexFilterNone.name , 'Disable Bilinear Filtering', "Disables texture bilinear interpolation filtering and instead point filtering is used as a texture magnification or minification filter", int(FaceType.TexFilterNone) ),
-        (FaceType.ZWriteDisabled.name, 'Disable ZWrite'            , "Disables writting polygon face to depth buffer"                                                                                         , int(FaceType.ZWriteDisabled)),
-        (FaceType.IjimLedge.name     , '(IJIM)  Ledge'             , "(IJIM only) Polygon face is a ledge that player can grab and hang from"                                                                 , int(FaceType.IjimLedge)     ),
-        (FaceType.IjimFogEnabled.name, '(IJIM)  Enable Fog'        , "(IJIM only) Enables fog rendering for polygon face. Enabled by default by the engine"                                                   , int(FaceType.IjimFogEnabled)),
-        (FaceType.IjimWhipAim.name   , '(IJIM) Whip Aim'           , "(IJIM only) Polygon face is the start point for player to aim at object with whip"                                                      , int(FaceType.IjimWhipAim)   )
+        (FaceType.DoubleSided.name   , 'Double Sided'              , "Polygon face is in game rendered on both sides"                                                                                          ),
+        (FaceType.Translucent.name   ,  'Translucent'              , "Polygon is in game rendered with alpha blending enabled making transparent polygon texture translucent"                                  ),
+        (FaceType.TexClamp_x.name    , 'Clamp Horizontal'          , "Polygon texture is clamped horizontally instead of repeated (Might not be used in JKDF2 & MOTS)"                                         ),
+        (FaceType.TexClamp_y.name    , 'Clamp Vertical'            , "Polygon texture is clamped vertically instead of repeated (Might not be used in JKDF2 & MOTS)"                                           ),
+        (FaceType.TexFilterNone.name , 'Disable Bilinear Filtering', "Disables texture bilinear interpolation filtering and instead point filtering is used as a texture magnification or minification filter" ),
+        (FaceType.ZWriteDisabled.name, 'Disable ZWrite'            , "Disables writting polygon face to depth buffer"                                                                                          ),
+        (FaceType.IjimLedge.name     , '(IJIM)  Ledge'             , "(IJIM only) Polygon face is a ledge that player can grab and hang from"                                                                  ),
+        (FaceType.IjimFogEnabled.name, '(IJIM)  Enable Fog'        , "(IJIM only) Enables fog rendering for polygon face. Enabled by default by the engine"                                                    ),
+        (FaceType.IjimWhipAim.name   , '(IJIM) Whip Aim'           , "(IJIM only) Polygon face is the start point for player to aim at object with whip"                                                       )
     ]
 
 def _get_model3do_geometry_mode_list():
     l = []
     for f in GeometryMode:
-        l.append((f.name, _make_readable(f.name), "", int(f)))
+        l.append((f.name, _make_readable(f.name), ""))
     return l
 
 def _get_model3do_light_mode_list():
     l = []
     for f in LightMode:
-        l.append((f.name, _make_readable(f.name), "", int(f)))
+        l.append((f.name, _make_readable(f.name), ""))
     return l
 
 def _get_model3do_texture_mode_list():
     l = []
     for f in TextureMode:
-        l.append((f.name, _make_readable(f.name), "", int(f)))
+        l.append((f.name, _make_readable(f.name), ""))
     return l
 
 class ImportMat(bpy.types.Operator, ImportHelper):
@@ -576,7 +575,7 @@ class Mesh3doFacePanel(bpy.types.Panel):
         enabled = face is not None
         if enabled:
             fid = self._get_face_id(face)
-            if wm_fl.face_id != fid: # init Mesh3doFaceLayer properties akahack to draw BMFace custom properties
+            if wm_fl.face_id != fid: # init Mesh3doFaceLayer properties aka hack to draw BMFace custom properties
                 wm_fl.face_id      = fid
                 wm_fl.type         = bmFaceGetType(face, bm).toSet()
                 wm_fl.geo_mode     = bmFaceGetGeometryMode(face, bm).name
