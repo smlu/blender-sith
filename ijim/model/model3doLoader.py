@@ -1,7 +1,17 @@
 import os
+from enum import Enum
 from ijim.text.tokenizer import TokenType, Tokenizer
 from .model3do import *
 from ..types.vector import *
+
+class Model3doFileVersion(float, Enum):
+    Version2_1 = 2.1
+    Version2_2 = 2.2
+    Version2_3 = 2.3
+
+    @classmethod
+    def contains(cls, value):
+        return value in cls._value2member_map_
 
 def _skip_to_next_model_section(tok: Tokenizer):
     t = tok.getToken()
@@ -11,15 +21,15 @@ def _skip_to_next_model_section(tok: Tokenizer):
     if t.type != TokenType.EOF:
         tok.assertPunctuator(":")
 
-def _parse_model_header_section(tok: Tokenizer):
+def _parse_model_header_section(tok: Tokenizer) -> Model3doFileVersion:
     file_sig = tok.getSpaceDelimitedString()
     if file_sig.upper() != "3DO":
         raise IOError("Invalid 3DO model file!")
 
     version = tok.getFloatNumber()
-    if not (2.1 <= version <= 2.3):
+    if not Model3doFileVersion.contains(version):
         raise IOError("Invalid file version of 3DO model!")
-    return version
+    return Model3doFileVersion(version)
 
 def _parse_model_resource_section(tok: Tokenizer, model: Model3do):
     tok.assertIdentifier("MATERIALS")
@@ -32,7 +42,7 @@ def _parse_model_resource_section(tok: Tokenizer, model: Model3do):
         tok.assertPunctuator(':')
         model.materials.append(tok.getSpaceDelimitedString())
 
-def _parse_model_geometry_section(tok: Tokenizer, model: Model3do, fileVersion: float):
+def _parse_model_geometry_section(tok: Tokenizer, model: Model3do, fileVersion: Model3doFileVersion):
     tok.assertIdentifier("RADIUS")
     model.radius = tok.getFloatNumber()
 
@@ -86,11 +96,14 @@ def _parse_model_geometry_section(tok: Tokenizer, model: Model3do, fileVersion: 
                 tok.assertPunctuator(':')
 
                 mesh.vertices.append(tok.getVector3f())
-                if fileVersion == 2.3:
-                    mesh.vertexColors.append(tok.getVector4f())
-                else:
+                if fileVersion == Model3doFileVersion.Version2_1:
                     intensity = tok.getFloatNumber()
                     mesh.vertexColors.append(Vector4f(*((intensity, )*4)))
+                elif fileVersion == Model3doFileVersion.Version2_2:
+                    color = Vector4f(*tok.getVector3f(), 1.0) # RGB
+                    mesh.vertexColors.append(color)
+                else: # 2.3
+                    mesh.vertexColors.append(tok.getVector4f()) #RGBA
 
             tok.assertIdentifier("TEXTURE")
             tok.assertIdentifier("VERTICES")
@@ -127,11 +140,13 @@ def _parse_model_geometry_section(tok: Tokenizer, model: Model3do, fileVersion: 
                 face.lightMode    = LightMode(tok.getIntNumber())
                 face.textureMode  = TextureMode(tok.getIntNumber())
 
-                if fileVersion == 2.3:
-                    face.color    = tok.getVector4f()
-                else:
+                if fileVersion == Model3doFileVersion.Version2_1:
                     intensity     = tok.getFloatNumber()
                     face.color    = Vector4f(*((intensity, )*4))
+                elif fileVersion == Model3doFileVersion.Version2_2:
+                    face.color    = Vector4f(*tok.getVector3f(), 1.0)
+                else: # 2.3
+                    face.color    = tok.getVector4f()
 
                 numFaceVerts = tok.getIntNumber()
                 for _ in range(0, numFaceVerts):
@@ -187,7 +202,7 @@ def load(filePath) -> Model3do:
     f = open(filePath, 'r')
     tok = Tokenizer(f)
 
-    file_version = 0.0
+    file_version = Model3doFileVersion.Version2_1
     model = Model3do(os.path.basename(filePath))
 
     while True:
