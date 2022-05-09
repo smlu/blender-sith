@@ -64,7 +64,7 @@ def _make_key_from_obj(key_name, obj: bpy.types.Object, scene: bpy.types.Scene):
             knode.meshName = hnode.name
 
             # Get node's keyframe entries
-            cobj_pivot = getObjPivot(cobj)
+            cobj_pivot = objPivot(cobj)
             kfs = OrderedDict()
             for fc in cobj.animation_data.action.fcurves:
                 if fc.data_path.endswith(('location','rotation_euler','rotation_quaternion')):

@@ -64,7 +64,7 @@ def importKeyToScene(keyPath, scene: bpy.types.Scene):
             _set_obj_location(kobj, keyframe.position)
             kobj.keyframe_insert(data_path="location", frame=keyframe.frame)
 
-            setObjQuaternionRotation(kobj, keyframe.orientation)
+            objSetRotation(kobj, keyframe.orientation)
             kobj.keyframe_insert(data_path="rotation_quaternion", frame=keyframe.frame)
 
     scene.frame_set(0)

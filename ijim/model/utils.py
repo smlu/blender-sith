@@ -124,16 +124,7 @@ def getOrderedNameIdx(name):
 def stripOrderPrefix(name):
     return re.sub("^{}([0-9]+)_".format(kNameOrderPrefix), "", name)
 
-def getRadius(obj, scale: mathutils.Vector = mathutils.Vector((1.0,)*3)):
-    r = 0
-    if obj is not None and obj.type == 'MESH':
-        for v in obj.data.vertices:
-            vl = vectorMultiply(v.co, scale).length
-            if vl > r:
-                r = vl
-    return r
-
-def rot_matrix(pitch, yaw, roll):
+def makeRotationMatrix(pitch, yaw, roll):
     p = math.radians(pitch)
     y = math.radians(yaw)
     r = math.radians(roll)
@@ -141,27 +132,30 @@ def rot_matrix(pitch, yaw, roll):
            mathutils.Matrix.Rotation(p, 3, 'X') * \
            mathutils.Matrix.Rotation(r, 3, 'Y')
 
-def makeEulerRotation(rot: Vector3f):
-    return rot_matrix(rot[0], rot[1], rot[2]).to_euler(kImEulerOrder)
+def makeEulerRotation(pyr: Vector3f):
+    return makeRotationMatrix(pyr[0], pyr[1], pyr[2]).to_euler(kImEulerOrder)
     # p = math.radians(rot[0])
     # y = math.radians(rot[1])
     # r = math.radians(rot[2])
     # return mathutils.Euler((p, r, y), kImEulerOrder)
 
-def setObjEulerRotation(obj: bpy.types.Object, rotation: Vector3f):
+def objSetEulerRotation(obj: bpy.types.Object, rotation: Vector3f):
     obj.rotation_mode  = kImEulerOrder
     obj.rotation_euler = makeEulerRotation(rotation)
 
-def makeQuaternionRotation(rot: Vector3f):
-    return rot_matrix(rot[0], rot[1], rot[2]).to_quaternion()
+def makeQuaternionRotation(pyr: Vector3f):
+    return makeRotationMatrix(pyr[0], pyr[1], pyr[2]).to_quaternion()
     # p = mathutils.Quaternion((1.0, 0.0, 0.0), math.radians(rot[0]))
     # y = mathutils.Quaternion((0.0, 0.0, 1.0), math.radians(rot[1]))
     # r = mathutils.Quaternion((0.0, 1.0, 0.0), math.radians(rot[2]))
     # return   y * p * r
 
-def setObjQuaternionRotation(obj: bpy.types.Object, rotation: Vector3f):
-    obj.rotation_mode = 'QUATERNION'
-    obj.rotation_quaternion = makeQuaternionRotation(rotation)
+def objSetRotation(obj: bpy.types.Object, pyr: Vector3f):
+    """
+    Sets `obj` rotation as quaterion from `pyr` rotation.
+    """
+    obj.rotation_mode       = 'QUATERNION'
+    obj.rotation_quaternion = makeQuaternionRotation(pyr)
 
 def eulerToImEuler(euler, order):
     if order != kImEulerOrder:
@@ -174,11 +168,11 @@ def eulerToImEuler(euler, order):
     return Vector3f(rot[0], rot[2], rot[1])
 
 def quaternionToImEuler(quaternion: mathutils.Quaternion):
-    assert  type(quaternion) is mathutils.Quaternion
+    assert type(quaternion) is mathutils.Quaternion
     qrot = quaternion.normalized()
     return eulerToImEuler(qrot.to_euler(kImEulerOrder), kImEulerOrder)
 
-def getObj_ImEulerOrientation(obj: bpy.types.Object):
+def objOrientationToImEuler(obj: bpy.types.Object):
     erot = None
     eorder = kImEulerOrder
     rmode = obj.rotation_mode
@@ -195,7 +189,7 @@ def getObj_ImEulerOrientation(obj: bpy.types.Object):
 
     return eulerToImEuler(erot, eorder)
 
-def getObjPivot(obj: bpy.types.Object):
+def objPivot(obj: bpy.types.Object):
     for c in obj.constraints:
         if type(c) is bpy.types.PivotConstraint:
             pivot = -c.offset
@@ -203,6 +197,15 @@ def getObjPivot(obj: bpy.types.Object):
                 pivot += -c.target.location
             return mathutils.Vector(pivot)
     return mathutils.Vector((0.0, 0.0, 0.0))
+
+def objRadius(obj, scale: mathutils.Vector = mathutils.Vector((1.0,)*3)):
+    r = 0
+    if obj is not None and obj.type == 'MESH':
+        for v in obj.data.vertices:
+            vl = vectorMultiply(v.co, scale).length
+            if vl > r:
+                r = vl
+    return r
 
 def getDrawType(geo_mode: GeometryMode):
     if geo_mode == GeometryMode.NotDrawn:
@@ -215,7 +218,7 @@ def getDrawType(geo_mode: GeometryMode):
         return 'TEXTURED'
     raise ValueError("Unknown geometry mode {}".format(geo_mode))
 
-def getGeometryMode(obj: bpy.types.Object):
+def objGeometryMode(obj: bpy.types.Object):
     dt = obj.draw_type
     if dt == 'BOUNDS':
         return GeometryMode.NotDrawn
@@ -226,7 +229,6 @@ def getGeometryMode(obj: bpy.types.Object):
     elif dt == 'TEXTURED':
         return GeometryMode.Texture
     raise ValueError("Unknown draw type {}".format(dt))
-
 
 def importMaterials(mat_names: List, search_paths: List):
     for name in mat_names:

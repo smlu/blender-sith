@@ -19,7 +19,7 @@ kHNDefaultType      = 0
 
 def _set_hnode_location(node: MeshHierarchyNode, scale: mathutils.Vector):
     node.position = Vector3f(*vectorMultiply(node.obj.location, scale))
-    node.rotation = getObj_ImEulerOrientation(node.obj)
+    node.rotation = objOrientationToImEuler(node.obj)
     node.pivot    = Vector3f(0.0, 0.0, 0.0)
 
     pc = None
@@ -122,12 +122,12 @@ def _model3do_add_mesh(model: Model3do, mesh: bpy.types.Mesh, scale: mathutils.V
     return mesh_idx
 
 def _set_mesh_properties(mesh: ModelMesh, obj: bpy.types.Object, scale: mathutils.Vector):
-    mesh.geometryMode = getGeometryMode(obj)
+    mesh.geometryMode = objGeometryMode(obj)
 
     radius_obj = getMeshRadiusObj(mesh)
     if radius_obj is None:
         obj = getMeshObjectByName(mesh.name)
-        mesh.radius = getRadius(obj, scale)
+        mesh.radius = objRadius(obj, scale)
     else:
         mesh.radius = radius_obj.dimensions[0] / 2
 
