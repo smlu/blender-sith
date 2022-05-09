@@ -47,6 +47,7 @@ import re
 from ijim.model.model3do import FaceType, GeometryMode, LightMode, TextureMode
 import ijim.model.model3doExporter as model3doExporter
 import ijim.model.model3doImporter as model3doImporter
+from ijim.model.model3doLoader import Model3doFileVersion
 from ijim.model.utils import (
     bmFaceGetGeometryMode,
     bmFaceGetLightMode,
@@ -228,7 +229,18 @@ class ExportModel3do(bpy.types.Operator, ExportHelper):
         options = {"HIDDEN"}
     )
 
-    b_export_vert_colors = bpy.props.BoolProperty(
+    version = bpy.props.EnumProperty(
+        name        = "Version",
+        description = "3DO file version",
+        items       = [
+            (Model3doFileVersion.Version2_1.name, '2.1 - JKDF2 & MOTS', 'Star Wars Jedi Knight: Dark Forces II & Star Wars Jedi Knight: Mysteries of the Sith'),
+            (Model3doFileVersion.Version2_2.name, '2.2 - IJIM (RGB)'  , 'Indiana Jones and the Infernal Machine - RGB color'),
+            (Model3doFileVersion.Version2_3.name, '2.3 - IJIM'        , 'Indiana Jones and the Infernal Machine - RGBA color')
+        ],
+        default= Model3doFileVersion.Version2_3.name
+    )
+
+    export_vert_colors = bpy.props.BoolProperty(
         name        = 'Export vertex colors',
         description = 'Export vertex colors to 3DO file',
         default     = False,
@@ -288,7 +300,8 @@ class ExportModel3do(bpy.types.Operator, ExportHelper):
 
     def execute(self, context):
         try:
-            model3doExporter.exportObject(self.obj, self.filepath, self.b_export_vert_colors)
+            version = Model3doFileVersion[self.version]
+            model3doExporter.exportObject(self.obj, self.filepath, version, self.export_vert_colors)
         except (AssertionError, ValueError) as e:
             print("\nAn exception was encountered while exporting object '{}' to 3DO format!\nError: {}".format(self.obj.name, e))
             self.report({'ERROR'}, "Error: {}".format(e))

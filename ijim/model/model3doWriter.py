@@ -1,11 +1,10 @@
 from .model3do import *
+from .model3doLoader import Model3doFileVersion
 from ijim.types.vector import *
 from ijim.text.serutils import *
 from typing import Tuple, List
-import os
 
 _file_magic = "3DO"
-_file_version = "2.3"
 
 def _vector_to_str(vector: Tuple, compact = True, align_width = 10):
     out = "" if compact else '('
@@ -26,12 +25,12 @@ def _vector_to_str(vector: Tuple, compact = True, align_width = 10):
 def _radius_to_str(radius):
     return "{:>11.6f}".format(radius)
 
-def _write_section_header(file, model: Model3do, headerComment):
+def _write_section_header(file, model: Model3do, headerComment, version: Model3doFileVersion):
     writeCommentLine(file, headerComment)
     writeNewLine(file)
 
     writeSectionTitle(file, "header")
-    writeKeyValue(file, _file_magic, _file_version)
+    writeKeyValue(file, _file_magic, version.value)
     writeNewLine(file)
 
 def _write_section_resources(file, model: Model3do):
@@ -50,7 +49,15 @@ def _write_section_resources(file, model: Model3do):
     writeNewLine(file)
     writeNewLine(file)
 
-def _write_vertices(file, vertices, vertices_color):
+def _color_to_str(color: Vector4f, version: Model3doFileVersion, compact = True, align_width = 0) -> str:
+    if version == Model3doFileVersion.Version2_1:
+        color = tuple([(color.x + color.y + color.z) /3])
+        compact = True
+    elif version == Model3doFileVersion.Version2_2:
+        color = color[0:3]
+    return _vector_to_str(color, compact=compact, align_width=align_width)
+
+def _write_vertices(file, vertices, vertices_color, version: Model3doFileVersion):
     writeKeyValue(file, "vertices", len(vertices))
     writeNewLine(file)
 
@@ -58,7 +65,7 @@ def _write_vertices(file, vertices, vertices_color):
     for idx, vert in enumerate(vertices):
         row = '{:>5}:'.format(idx)
         row += _vector_to_str(vert)
-        row += " " + _vector_to_str(vertices_color[idx], True, 0)
+        row += ' ' + _color_to_str(vertices_color[idx], version, compact=True)
         writeLine(file, row)
 
     writeNewLine(file)
@@ -96,11 +103,11 @@ def _face_vertx_to_str(vert_idxs: List[int], text_vert_idxs: List[int]):
         out += "{:>3}, {:>2} ".format(vert_idxs[i], text_vert_idxs[i])
     return out
 
-def _write_faces(file, faces: List[MeshFace]):
+def _write_faces(file, faces: List[Mesh3doFace], version: Model3doFileVersion):
     writeKeyValue(file, "faces", len(faces))
     writeNewLine(file)
 
-    writeCommentLine(file, " num:  material:   type:  geo:  light:   tex:  R:  G:  B:  A:  verts:")
+    writeCommentLine(file, " num:  material:   type:  geo:  light:   tex:  extralight:  verts:")
     face_normals = []
     for idx, face in enumerate(faces):
         row = '{:>6}:'.format(idx)
@@ -109,7 +116,7 @@ def _write_faces(file, faces: List[MeshFace]):
         row += '{:>6}'.format(face.geometryMode)
         row += '{:>8}'.format(face.lightMode)
         row += '{:>7}'.format(face.textureMode)
-        row += ' ' + _vector_to_str(face.color, False, 0)
+        row += ' ' + _color_to_str(face.color, version, compact=False)
         row += _face_vertx_to_str(face.vertexIdxs, face.uvIdxs)
         writeLine(file, row)
 
@@ -130,7 +137,7 @@ def _write_faces(file, faces: List[MeshFace]):
     writeNewLine(file)
     writeNewLine(file)
 
-def _write_mesh(file, mesh: ModelMesh):
+def _write_mesh(file, mesh: Mesh3do, version: Model3doFileVersion):
     writeCommentLine(file, "Mesh definition")
     writeKeyValue(file, "mesh", mesh.idx)
     writeNewLine(file)
@@ -147,12 +154,12 @@ def _write_mesh(file, mesh: ModelMesh):
     writeNewLine(file)
     writeNewLine(file)
 
-    _write_vertices(file, mesh.vertices, mesh.vertexColors)
+    _write_vertices(file, mesh.vertices, mesh.vertexColors, version)
     _write_tex_vertices(file, mesh.uvs)
     _write_vert_normals(file, mesh.normals)
-    _write_faces(file, mesh.faces)
+    _write_faces(file, mesh.faces, version)
 
-def _write_section_geometry(file, model: Model3do):
+def _write_section_geometry(file, model: Model3do, version: Model3doFileVersion):
     writeSectionTitle(file, "geometrydef")
 
     writeCommentLine(file, "Object radius")
@@ -178,7 +185,7 @@ def _write_section_geometry(file, model: Model3do):
         writeNewLine(file)
 
         for mesh in geoset.meshes:
-            _write_mesh(file, mesh)
+            _write_mesh(file, mesh, version)
 
 def _write_section_hierarchydef(file, model: Model3do):
     writeSectionTitle(file, "hierarchydef")
@@ -205,12 +212,12 @@ def _write_section_hierarchydef(file, model: Model3do):
 
 
 
-def write(model: Model3do, filePath, headerComment):
+def write(model: Model3do, filePath, version: Model3doFileVersion, headerComment):
     f = open(filePath, 'w')
 
-    _write_section_header(f, model, headerComment)
+    _write_section_header(f, model, headerComment, version)
     _write_section_resources(f, model)
-    _write_section_geometry(f, model)
+    _write_section_geometry(f, model, version)
     _write_section_hierarchydef(f, model)
 
     f.flush()
