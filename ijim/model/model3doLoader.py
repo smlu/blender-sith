@@ -3,6 +3,7 @@ from enum import Enum
 from ijim.text.tokenizer import TokenType, Tokenizer
 from .model3do import *
 from ..types.vector import *
+from typing import Tuple
 
 class Model3doFileVersion(float, Enum):
     Version2_1 = 2.1
@@ -198,7 +199,7 @@ def _parse_hierarchy_section(tok: Tokenizer, model: Model3do):
         model.hierarchyNodes.append(node)
 
 
-def load(filePath) -> Model3do:
+def load(filePath) -> Tuple[Model3do, Model3doFileVersion]:
     f = open(filePath, 'r')
     tok = Tokenizer(f)
 
@@ -223,4 +224,4 @@ def load(filePath) -> Model3do:
         elif t.value.upper() == "HIERARCHYDEF":
             _parse_hierarchy_section(tok, model)
 
-    return model
+    return (model, file_version)

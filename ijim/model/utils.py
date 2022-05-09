@@ -244,12 +244,22 @@ def importMaterials(mat_names: List, search_paths: List):
                     print("Warning: Couldn't load material: ", mat_path)
                     print("  Error: {}".format(e))
 
+
+def _vector_component_op(a: mathutils.Vector, b: mathutils.Vector, oopfunc) -> mathutils.Vector:
+    c = a.copy()
+    l = min(len(a), len(b))
+    for i in range(0, l):
+        c[i] = oopfunc(c[i], b[i])
+    return c
+
 def vectorMultiply(a: mathutils.Vector, b: mathutils.Vector) -> mathutils.Vector:
     """
     Multiplies vector by another vector (component-wise, not cross or dot product) and returns result vector.
     """
-    c = a.copy()
-    c.x *= b.x
-    c.y *= b.y
-    c.z *= b.z
-    return c
+    return _vector_component_op(a, b, lambda a,b: a * b)
+
+def vectorDivide(a: mathutils.Vector, b: mathutils.Vector) -> mathutils.Vector:
+    """
+    Divides vector by another vector (component-wise, not cross or dot product) and returns result vector.
+    """
+    return _vector_component_op(a, b, lambda a,b: a / b)

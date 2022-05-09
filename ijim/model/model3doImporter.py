@@ -121,18 +121,22 @@ def _make_mesh(mesh3do: Mesh3do, uvWithImageSize: bool, mat_list: List):
         face.normal = mesh3do.faces[face.index].normal
 
         # Set face material index
-        mat_name = mat_list[face3do.materialIdx]
-        mat = getGlobalMaterial(mat_name)
-        if mat is None:
-            print("\nWarning: Could not find or load material file '{}'".format(mat_name))
-            mat = makeNewGlobalMaterial(mat_name)
+        mat = None
+        if face3do.materialIdx > -1:
+            mat_name = mat_list[face3do.materialIdx]
+            mat = getGlobalMaterial(mat_name)
+            if mat is None:
+                print("\nWarning: Could not find or load material file '{}'".format(mat_name))
+                mat = makeNewGlobalMaterial(mat_name)
 
-        if not mat.name in mesh.materials:
-            mesh.materials.append(mat)
-        face.material_index = mesh.materials.find(mat.name)
+        if mat:
+            if mat.name not in mesh.materials:
+                mesh.materials.append(mat)
+            face.material_index = mesh.materials.find(mat.name)
 
         # Set face texture
-        if not mat.texture_slots[0].texture is None:
+        img = None
+        if mat and mat.texture_slots[0].texture:
             tex = mat.texture_slots[0].texture
             img = tex.image
             tex_layer = bm.faces.layers.tex[uv_layer.name]
@@ -146,12 +150,17 @@ def _make_mesh(mesh3do: Mesh3do, uvWithImageSize: bool, mat_list: List):
 
             # Set UV coordinates
             luv    = loop[uv_layer]
-            uvidx  = face3do.uvIdxs[idx]
-            if uvidx < len(mesh3do.uvs):
-                uv     = mesh3do.uvs[face3do.uvIdxs[idx]]
-                luv.uv = (uv[0], -uv[1]) # Note: Flipped v
-            elif uvidx > -1:
-                print("Warning: UV index out of range. {} >= {} ".format(uvidx, len(mesh3do.uvs)))
+            uvIdx  = face3do.uvIdxs[idx]
+            if uvIdx < len(mesh3do.uvs):
+                uv = mesh3do.uvs[uvIdx]
+                if uvWithImageSize: # Remove image size from uv
+                    if img is not None:
+                        uv = vectorDivide(mathutils.Vector(uv), mathutils.Vector(img.size))
+                    elif face3do.materialIdx > -1:
+                        print(f"\nWarning: Could not remove image size from UV coord due to missing image! mesh:'{mesh3do.name}' face:{face.index} uvIdx:{uvIdx}")
+                luv.uv = (uv.x, -uv.y) # Note: Flipped v
+            elif uvIdx > -1:
+                print(f"Warning: UV index out of range {uvIdx} >= {len(mesh3do.uvs)}! mesh:'{mesh3do.name}' face:{face.index}")
 
     bm.to_mesh(mesh)
     bm.free()
@@ -169,7 +178,7 @@ def getMeshRadiusObj(mesh):
     except:
         return None
 
-def _create_objects_from_model(model: Model3do, geosetNum: int, importRadiusObj:bool, preserveOrder: bool):
+def _create_objects_from_model(model: Model3do, uvWithImageSize: bool, geosetNum: int, importRadiusObj:bool, preserveOrder: bool):
     meshes = model.geosets[geosetNum].meshes
     for node in model.hierarchyNodes:
         meshIdx = node.meshIdx
@@ -180,7 +189,7 @@ def _create_objects_from_model(model: Model3do, geosetNum: int, importRadiusObj:
                 raise IndexError("Mesh index {} out of range ({})!".format(meshIdx, len(meshes)))
 
             mesh3do = meshes[meshIdx]
-            mesh    = _make_mesh(mesh3do, model.materials)
+            mesh    = _make_mesh(mesh3do, uvWithImageSize, model.materials)
             obj     = bpy.data.objects.new(mesh3do.name, mesh)
 
             # Set mesh radius object, draw type, custom property for lighting and texture mode
@@ -227,7 +236,7 @@ def importObject(file_path, mat_paths = [], importRadiusObj = False, preserveOrd
     print("importing 3DO: %r..." % (file_path), end="")
     startTime = time.process_time()
 
-    model = model3doLoader.load(file_path)
+    model, fileVersion = model3doLoader.load(file_path)
     if len(model.geosets) == 0:
         print("Info: Nothing to load because 3DO model doesn't contain any geoset.")
         return
@@ -239,7 +248,8 @@ def importObject(file_path, mat_paths = [], importRadiusObj = False, preserveOrd
     importMaterials(model.materials, getDefaultMatFolders(file_path) + mat_paths)
 
     # Create objects from model
-    _create_objects_from_model(model, geosetNum=0, importRadiusObj=importRadiusObj, preserveOrder=preserveOrder)
+    uvWithImageSize = (fileVersion == model3doLoader.Model3doFileVersion.Version2_1)
+    _create_objects_from_model(model, uvWithImageSize=uvWithImageSize, geosetNum=0, importRadiusObj=importRadiusObj, preserveOrder=preserveOrder)
 
     # Set model's insert offset and radius
     baseObj = bpy.data.objects.new(model.name, None)
