@@ -236,13 +236,13 @@ class Tokenizer:
     def getVector2f(self) -> Vector2f:
         x = self.getFloatNumber()
         y = self.getFloatNumber()
-        return (x,y)
+        return Vector2f(x,y)
 
     def getVector3f(self) -> Vector3f:
         x = self.getFloatNumber()
         y = self.getFloatNumber()
         z = self.getFloatNumber()
-        return (x,y,z)
+        return Vector3f(x,y,z)
 
     def getVector4f(self) -> Vector4f:
         t = self.getToken()
@@ -266,7 +266,7 @@ class Tokenizer:
         if not vecSimple:
             self.assertPunctuator(")")
 
-        return (x,y,z,w)
+        return Vector4f(x,y,z,w)
 
     def assertIdentifier(self, id: str):
         t = self.getToken()
