@@ -8,7 +8,7 @@ from . import model3doLoader
 from .utils import *
 from .model3do import (
     Model3do,
-    ModelMesh
+    Mesh3do
 )
 
 from ijim.material.material import importMatFile
@@ -87,7 +87,7 @@ def _set_model_radius(obj, radius):
 def _set_mesh_radius(obj, radius):
     _make_radius_obj(kMeshRadius + obj.name, obj, radius)
 
-def _make_mesh(mesh3do: ModelMesh, mat_list: List):
+def _make_mesh(mesh3do: Mesh3do, uvWithImageSize: bool, mat_list: List):
     mesh = bpy.data.meshes.new(mesh3do.name)
 
     faces = []

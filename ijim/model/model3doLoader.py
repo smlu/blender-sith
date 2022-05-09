@@ -43,7 +43,7 @@ def _parse_model_geometry_section(tok: Tokenizer, model: Model3do, fileVersion: 
     tok.assertIdentifier("GEOSETS")
     numGeoSets = tok.getIntNumber()
     for i in range(0, numGeoSets):
-        geoset = ModelGeoSet()
+        geoset = Model3doGeoSet()
 
         tok.assertIdentifier("GEOSET")
         geosetIdx = tok.getIntNumber()
@@ -60,7 +60,7 @@ def _parse_model_geometry_section(tok: Tokenizer, model: Model3do, fileVersion: 
 
             tok.assertIdentifier("NAME")
             name = tok.getDelimitedStringToken(lambda c: c == '\n')
-            mesh = ModelMesh(meshIdx, name.value.strip())
+            mesh = Mesh3do(meshIdx, name.value.strip())
 
 
             tok.assertIdentifier("RADIUS")
@@ -120,7 +120,7 @@ def _parse_model_geometry_section(tok: Tokenizer, model: Model3do, fileVersion: 
 
                 tok.assertPunctuator(':')
 
-                face = MeshFace()
+                face = Mesh3doFace()
                 face.materialIdx  = tok.getIntNumber()
                 face.type         = FaceType(tok.getIntNumber())
                 face.geometryMode = GeometryMode(tok.getIntNumber())
@@ -134,7 +134,7 @@ def _parse_model_geometry_section(tok: Tokenizer, model: Model3do, fileVersion: 
                     face.color    = Vector4f(*((intensity, )*4))
 
                 numFaceVerts = tok.getIntNumber()
-                for l in range(0, numFaceVerts):
+                for _ in range(0, numFaceVerts):
                     idxs = tok.getPairOfInts()
                     face.vertexIdxs.append(idxs[0])
                     face.uvIdxs.append(idxs[1])
@@ -164,9 +164,9 @@ def _parse_hierarchy_section(tok: Tokenizer, model: Model3do):
             print("Warning: Seq. number mismatch while loading 3DO hierarchy list. {} != {}".format(nodeIdx, i))
 
         tok.assertPunctuator(':')
-        node               = MeshHierarchyNode()
+        node               = Mesh3doHierarchyNode()
         node.idx           = nodeIdx
-        node.flags         = MeshNodeFlags(tok.getIntNumber())
+        node.flags         = Mesh3doNodeFlags(tok.getIntNumber())
         node.type          = MeshNodeType(tok.getIntNumber())
         node.meshIdx       = tok.getIntNumber()
         node.parentIdx     = tok.getIntNumber()

@@ -45,7 +45,7 @@ class TextureMode(IntEnum):
     PerspectiveCorrected = 3 # <- IJIM use only this
 
 @unique
-class MeshNodeFlags(Flag):
+class Mesh3doNodeFlags(Flag):
     Nothing      = 0x00
     Unknown_01   = 0x01
     Unknown_02   = 0x02
@@ -87,7 +87,7 @@ class MeshNodeType(Flag):
     # BackWheel  = 0x00C00 #Vehicle + BackPart
     # FrontWheel = 0x01400 #Vehicle + FrontWheel
 
-class MeshFace:
+class Mesh3doFace:
     def __init__(self):
         self.material_idx: int      = -1
         self.t: FaceType            = FaceType.Normal
@@ -173,7 +173,7 @@ class MeshFace:
         self.n = normal
 
 
-class ModelMesh:
+class Mesh3do:
     def __init__(self, idx: int = 0, name: str =""):
         self.i: int                 = idx
         self.mesh_name: str         = name
@@ -187,7 +187,7 @@ class ModelMesh:
         self.vn: List[Vector3f] = [] # vertex normals
         self.tv: List[Vector2f] = [] # texture vertices
 
-        self.face_list: List[MeshFace] = []
+        self.face_list: List[Mesh3doFace] = []
 
     @property
     def idx(self) -> int:
@@ -270,31 +270,31 @@ class ModelMesh:
         self.tv = texVert
 
     @property
-    def faces(self) -> List[MeshFace]:
+    def faces(self) -> List[Mesh3doFace]:
         return self.face_list
 
     @faces.setter
-    def faces(self, faces: List[MeshFace]):
+    def faces(self, faces: List[Mesh3doFace]):
         self.face_list = faces
 
 
-class ModelGeoSet:
+class Model3doGeoSet:
     def __init__(self):
-        self.mesh_list: List[ModelMesh] = []
+        self.mesh_list: List[Mesh3do] = []
 
     @property
-    def meshes(self) -> List[ModelMesh]:
+    def meshes(self) -> List[Mesh3do]:
         return self.mesh_list
 
     @meshes.setter
-    def meshes(self, meshes: List[ModelMesh]):
+    def meshes(self, meshes: List[Mesh3do]):
         self.mesh_list = meshes
 
 
-class MeshHierarchyNode:
+class Mesh3doHierarchyNode:
     def __init__(self, name =""):
         self._idx: int           = -1
-        self.f: MeshNodeFlags   = MeshNodeFlags.Nothing
+        self.f: Mesh3doNodeFlags   = Mesh3doNodeFlags.Nothing
         self.t: MeshNodeType    = MeshNodeType.Nothing
         self.n: str             = name
         self.mesh_i: int        = -1
@@ -317,11 +317,11 @@ class MeshHierarchyNode:
         self._idx = idx
 
     @property
-    def flags(self) -> MeshNodeFlags:
+    def flags(self) -> Mesh3doNodeFlags:
         return self.f
 
     @flags.setter
-    def flags(self, flags: MeshNodeFlags):
+    def flags(self, flags: Mesh3doNodeFlags):
         self.f = flags
 
     @property
@@ -422,8 +422,8 @@ class Model3do:
         self.col_radius: float        = 0.0
         self.insert_offset: Vector3f  = [] # x,y, z
 
-        self.geoset_list: List[ModelGeoSet]           = []
-        self.hierarchy_nodes: List[MeshHierarchyNode] = []
+        self.geoset_list: List[Model3doGeoSet]           = []
+        self.hierarchy_nodes: List[Mesh3doHierarchyNode] = []
 
     @property
     def name(self) -> str:
@@ -458,19 +458,19 @@ class Model3do:
         self.insert_offset = offset
 
     @property
-    def geosets(self) -> List[ModelGeoSet]:
+    def geosets(self) -> List[Model3doGeoSet]:
         return self.geoset_list
 
     @geosets.setter
-    def geosets(self, geosets: List[ModelGeoSet]):
+    def geosets(self, geosets: List[Model3doGeoSet]):
         self.geoset_list = geosets
 
     @property
-    def hierarchyNodes(self) -> List[MeshHierarchyNode]:
+    def hierarchyNodes(self) -> List[Mesh3doHierarchyNode]:
         return self.hierarchy_nodes
 
     @hierarchyNodes.setter
-    def hierarchyNodes(self, nodes: List[MeshHierarchyNode]):
+    def hierarchyNodes(self, nodes: List[Mesh3doHierarchyNode]):
         self.hierarchy_nodes = nodes
 
     def reorderNodes(self) -> None:

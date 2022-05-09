@@ -17,7 +17,7 @@ kHNDefaultFlags     = 0
 kHNDefaultType      = 0
 
 
-def _set_hnode_location(node: MeshHierarchyNode, scale: mathutils.Vector):
+def _set_hnode_location(node: Mesh3doHierarchyNode, scale: mathutils.Vector):
     node.position = Vector3f(*vectorMultiply(node.obj.location, scale))
     node.rotation = objOrientationToImEuler(node.obj)
     node.pivot    = Vector3f(0.0, 0.0, 0.0)
@@ -55,10 +55,10 @@ def _model3do_add_mesh(model: Model3do, mesh: bpy.types.Mesh, scale: mathutils.V
     if len(model.geosets) > 0:
         mesh_idx = len(model.geosets[0].meshes)
     else:
-        model.geosets.append(ModelGeoSet())
+        model.geosets.append(Model3doGeoSet())
 
     assertName(mesh.name)
-    mesh3do = ModelMesh(mesh_idx, mesh.name)
+    mesh3do = Mesh3do(mesh_idx, mesh.name)
 
     # Set model resources
     for mat in mesh.materials:
@@ -81,7 +81,7 @@ def _model3do_add_mesh(model: Model3do, mesh: bpy.types.Mesh, scale: mathutils.V
     uv_layer   = bm.loops.layers.uv.verify()
 
     for face in bm.faces:
-        face3do = MeshFace()
+        face3do = Mesh3doFace()
         face3do.materialIdx = -1
         if face.material_index >= 0 and face.material_index < len(mesh.materials):
             mat_name = _get_mat_name(mesh.materials[face.material_index])
@@ -121,7 +121,7 @@ def _model3do_add_mesh(model: Model3do, mesh: bpy.types.Mesh, scale: mathutils.V
     model.geosets[0].meshes.append(mesh3do)
     return mesh_idx
 
-def _set_mesh_properties(mesh: ModelMesh, obj: bpy.types.Object, scale: mathutils.Vector):
+def _set_mesh_properties(mesh: Mesh3do, obj: bpy.types.Object, scale: mathutils.Vector):
     mesh.geometryMode = objGeometryMode(obj)
 
     radius_obj = getMeshRadiusObj(mesh)
@@ -151,14 +151,14 @@ def _get_obj_hnode_name(obj: bpy.types.Object):
     assertName(name)
     return name
 
-def _get_obj_hnode_idx(nodes: List[MeshHierarchyNode], obj: bpy.types.Object):
+def _get_obj_hnode_idx(nodes: List[Mesh3doHierarchyNode], obj: bpy.types.Object):
     if obj is not None:
         for idx, n in enumerate(nodes):
             if n.obj == obj:
                 return idx
     return -1
 
-def _get_hnode_last_sibling(first_child: MeshHierarchyNode, nodes: List[MeshHierarchyNode]):
+def _get_hnode_last_sibling(first_child: Mesh3doHierarchyNode, nodes: List[Mesh3doHierarchyNode]):
     sidx = first_child.siblingIdx
     if sidx > -1:
         return _get_hnode_last_sibling(nodes[sidx], nodes)
@@ -169,9 +169,9 @@ def _model3do_add_hnode(model: Model3do, mesh_idx: int, obj: bpy.types.Object, p
     # if name in model.hierarchyNodes:
     #     return
 
-    node               = MeshHierarchyNode(name)
+    node               = Mesh3doHierarchyNode(name)
     node.idx           = obj.model3do_hnode_num
-    node.flags         = MeshNodeFlags.fromHex(obj.model3do_hnode_flags)
+    node.flags         = Mesh3doNodeFlags.fromHex(obj.model3do_hnode_flags)
     node.type          = MeshNodeType.fromHex(obj.model3do_hnode_type)
     node.meshIdx       = mesh_idx
     node.parentIdx     = _get_obj_hnode_idx(model.hierarchyNodes, parent)
@@ -245,7 +245,7 @@ def _get_model_radius(obj, scale: mathutils.Vector = mathutils.Vector((1.0,)*3))
 
 def makeModel3doFromObj(name, obj: bpy.types.Object, exportVertexColors: bool = False):
     model = Model3do(name)
-    model.geosets.append(ModelGeoSet())
+    model.geosets.append(Model3doGeoSet())
 
     model.insertOffset = Vector3f(*obj.location)
     radius_obj = getModelRadiusObj(obj)
