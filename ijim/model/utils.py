@@ -210,6 +210,8 @@ def objRadius(obj, scale: mathutils.Vector = mathutils.Vector((1.0,)*3)):
 def getDrawType(geo_mode: GeometryMode):
     if geo_mode == GeometryMode.NotDrawn:
         return 'BOUNDS'
+    if geo_mode == GeometryMode.VertexOnly:
+        return 'WIRE'
     if geo_mode == GeometryMode.Wireframe:
         return 'WIRE'
     if geo_mode == GeometryMode.Solid:
