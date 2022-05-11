@@ -1,5 +1,6 @@
 import bpy
 import os.path
+from pathlib import Path
 from .. import bl_info
 
 maxNameLen = 64
@@ -16,6 +17,30 @@ def assertName(name: str):
 
     if not isASCII(name):
         raise AssertionError("name error: '{}' len does not contain all ASCII chars".format(name))
+
+def getDefaultCmpFilePath(model_path):
+    cmpFile = Path('dflt.cmp')
+    modelDir = Path(os.path.dirname(model_path))
+
+    # try model folder
+    path = modelDir/ cmpFile
+    if path.exists() and path.is_file():
+        return path
+
+    # try model folder / misc/cmp
+    path = modelDir / Path('misc/cmp') / cmpFile
+    if path.exists() and path.is_file():
+        return path
+
+    # try parent folder
+    path = modelDir.parent / cmpFile
+    if path.exists() and path.is_file():
+        return path
+
+    # try parent folder / misc/cmp
+    path = modelDir.parent / Path('misc/cmp') / cmpFile
+    if path.exists() and path.is_file():
+        return path
 
 def getDefaultMatFolders(model_path):
     path1 = os.path.join(os.path.dirname(model_path), 'mat')

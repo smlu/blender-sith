@@ -19,7 +19,7 @@ def _set_obj_location(obj: bpy.types.Object, location: Vector3f):
             break
 
 
-def importKeyToScene(keyPath, scene: bpy.types.Scene):
+def importKey(keyPath, scene: bpy.types.Scene):
     print("importing KEY: %r..." % (keyPath), end="")
     startTime = time.process_time ()
 

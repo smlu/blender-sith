@@ -1,9 +1,11 @@
 import mathutils
 import bpy, bmesh
-
 import time
+
+from pathlib import Path
 from typing import List
 
+from ijim.material.cmp import ColorMap
 from . import model3doLoader
 from .utils import *
 from .model3do import (
@@ -11,7 +13,6 @@ from .model3do import (
     Mesh3do
 )
 
-from ijim.material.material import importMatFile
 from ijim.utils.utils import *
 
 def getObjByName(name):
@@ -232,24 +233,38 @@ def _create_objects_from_model(model: Model3do, uvWithImageSize: bool, geosetNum
             node.obj.parent      = model.hierarchyNodes[node.parentIdx].obj
     bpy.context.scene.update()
 
-def importObject(file_path, mat_paths = [], importRadiusObj = False, preserveOrder = True, clearScene = True):
+def importColormap(cmp_file: str):
+    try:
+        return ColorMap.load(cmp_file)
+    except Exception as e:
+        raise ImportError(f"Failed to load colormap '{cmp_file}'") from e
+
+def import3do(file_path, mat_dirs = [], cmp_file = '', importRadiusObj = False, preserveOrder = True, clearScene = True):
     print("importing 3DO: %r..." % (file_path), end="")
     startTime = time.process_time()
 
     model, fileVersion = model3doLoader.load(file_path)
+    isJkdf2 = (fileVersion == model3doLoader.Model3doFileVersion.Version2_1)
     if len(model.geosets) == 0:
         print("Info: Nothing to load because 3DO model doesn't contain any geoset.")
         return
+
+    cmp = None
+    if isJkdf2:
+        # Load ColorMap
+        if len(cmp_file) == 0:
+            print('\nInfo: ColorMap path not set, loading default...')
+            cmp_file = getDefaultCmpFilePath(file_path)
+        cmp = importColormap(cmp_file)
 
     if clearScene:
         clearAllScenes()
 
     # Load model's textures
-    importMaterials(model.materials, getDefaultMatFolders(file_path) + mat_paths)
+    importMaterials(model.materials, getDefaultMatFolders(file_path) + mat_dirs, cmp)
 
     # Create objects from model
-    uvWithImageSize = (fileVersion == model3doLoader.Model3doFileVersion.Version2_1)
-    _create_objects_from_model(model, uvWithImageSize=uvWithImageSize, geosetNum=0, importRadiusObj=importRadiusObj, preserveOrder=preserveOrder)
+    _create_objects_from_model(model, uvWithImageSize=isJkdf2, geosetNum=0, importRadiusObj=importRadiusObj, preserveOrder=preserveOrder)
 
     # Set model's insert offset and radius
     baseObj = bpy.data.objects.new(model.name, None)

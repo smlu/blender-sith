@@ -1,4 +1,5 @@
-from ijim.material.material import importMatFile
+from ijim.material.cmp import ColorMap
+from ijim.material.material import importMat
 from ijim.types.vector import Vector3f
 from ijim.utils.utils import *
 from .model3do import FaceType, GeometryMode, LightMode, TextureMode
@@ -232,7 +233,7 @@ def objGeometryMode(obj: bpy.types.Object):
         return GeometryMode.Texture
     raise ValueError("Unknown draw type {}".format(dt))
 
-def importMaterials(mat_names: List, search_paths: List):
+def importMaterials(mat_names: List, search_paths: List, cmp: ColorMap):
     for name in mat_names:
         if name in bpy.data.materials:
             continue
@@ -240,12 +241,11 @@ def importMaterials(mat_names: List, search_paths: List):
             mat_path = getFilePathInDir(name, path)
             if mat_path is not None:
                 try:
-                    importMatFile(mat_path)
+                    importMat(mat_path, cmp)
                     break
                 except Exception as e:
                     print("Warning: Couldn't load material: ", mat_path)
                     print("  Error: {}".format(e))
-
 
 def _vector_component_op(a: mathutils.Vector, b: mathutils.Vector, oopfunc) -> mathutils.Vector:
     c = a.copy()

@@ -145,7 +145,7 @@ def _make_key_from_obj(key_name, obj: bpy.types.Object, scene: bpy.types.Scene):
     key.numJoints = len(key.nodes)
     return key
 
-def exportObjectAnim(obj: bpy.types.Object, scene: bpy.types.Scene, path: str):
+def exportKey(obj: bpy.types.Object, scene: bpy.types.Scene, path: str):
     print("exporting KEY: {} for obj: '{}'...".format(path, obj.name), end="")
     start_time = time.process_time()
 

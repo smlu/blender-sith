@@ -10,7 +10,7 @@ bl_info = {
     "support": "COMMUNITY",
     "category": "Import-Export"
 }
-import sys
+
 # Reload imported submodules if script is reloaded
 if "bpy" in locals():
     import importlib
@@ -22,6 +22,8 @@ if "bpy" in locals():
         importlib.reload(keyExporter)
     if "material" in locals():
         importlib.reload(material)
+    if "ijim.material" in locals():
+        importlib.reload(ijim.material)
     if "model" in locals():
         importlib.reload(model)
     if "model3do" in locals():
@@ -34,15 +36,20 @@ if "bpy" in locals():
         importlib.reload(text)
     if "utils" in locals():
         importlib.reload(utils)
-    if "HexProperty" in locals():
-        importlib.reload(sys.modules['ijim.types.props'])
+
+import os.path, re
 
 import bpy, bmesh
 from bpy_extras.io_utils import ImportHelper
 from bpy_extras.io_utils import ExportHelper
 
-import os.path
-import re
+from ijim.key.key import KeyFlag
+import ijim.key.keyImporter as keyImporter
+import ijim.key.keyExporter as keyExporter
+
+from ijim.material.material import importMat
+from ijim.utils.utils import *
+from ijim.types.props import *
 
 from ijim.model.model3do import FaceType, GeometryMode, LightMode, TextureMode
 import ijim.model.model3doExporter as model3doExporter
@@ -61,14 +68,6 @@ from ijim.model.utils import (
     kGModel3do,
     kNameOrderPrefix
 )
-
-from ijim.key.key import KeyFlag
-import ijim.key.keyImporter as keyImporter
-import ijim.key.keyExporter as keyExporter
-
-from .material.material import importMatFile
-from .utils.utils import *
-from .types.props import *
 
 
 def _make_readable(str):
@@ -126,7 +125,7 @@ class ImportMat(bpy.types.Operator, ImportHelper):
     )
 
     def execute(self, context):
-        importMatFile(self.filepath)
+        importMat(self.filepath)
         return {'FINISHED'}
 
 
@@ -167,9 +166,15 @@ class ImportModel3do(bpy.types.Operator, ImportHelper):
         default     = False,
     )
 
-    mat_path = bpy.props.StringProperty(
-        name        = 'Materials Directory',
-        description = "Path to the directory to search for material files (.mat) of 3DO model.\n\nBy default addon tries to find required material files in the 'mat' directory of the model path and the parent directory",
+    mat_dir = bpy.props.StringProperty(
+        name        = 'Material(s) Directory',
+        description = "Path to the directory to search for material files (.mat) of 3DO model.\n\nBy default addon tries to find required material files in the 'mat' directory of the model path and parent directory",
+        #subtype='DIR_PATH'
+    )
+
+    cmp_file = bpy.props.StringProperty(
+        name        = 'ColorMap Directory',
+        description = "Path to the ColorMap file (.cmp) of mat textures of imported 3DO model (JKDF2 & MOTS only).\n\nBy default addon tries to load 'dflt.cmp' from the model path and parent directory",
         #subtype='DIR_PATH'
     )
 
@@ -179,12 +184,17 @@ class ImportModel3do(bpy.types.Operator, ImportHelper):
         layout.prop(self, 'clear_scene')
         layout.prop(self, 'import_radius_objects')
         layout.prop(self, 'preserve_order')
-        mat_path_layout = layout.box().column()
-        mat_path_layout.label(text='Material Directory')
-        mat_path_layout.prop(self, "mat_path", text='')
+        mat_layout = layout.box().column()
+        mat_layout.label(text='Texture(s)')
+        mat_dir_layout = mat_layout.box().column()
+        mat_dir_layout.label(text='Material(s) Directory')
+        mat_dir_layout.prop(self, "mat_dir", text='')
+        cmp_file_layout = mat_layout.box().column()
+        cmp_file_layout.label(text='ColorMap File (JKDF2 & MOTS)')
+        cmp_file_layout.prop(self, "cmp_file", text='')
 
     def execute(self, context):
-        obj = model3doImporter.importObject(self.filepath, [self.mat_path], self.import_radius_objects, self.preserve_order, self.clear_scene)
+        obj = model3doImporter.import3do(self.filepath, [self.mat_dir], self.cmp_file, self.import_radius_objects, self.preserve_order, self.clear_scene)
 
         if self.set_3d_view:
             area = next(area for area in bpy.context.screen.areas if area.type == 'VIEW_3D')
@@ -301,7 +311,7 @@ class ExportModel3do(bpy.types.Operator, ExportHelper):
     def execute(self, context):
         try:
             version = Model3doFileVersion[self.version]
-            model3doExporter.exportObject(self.obj, self.filepath, version, self.export_vert_colors)
+            model3doExporter.export3do(self.obj, self.filepath, version, self.export_vert_colors)
         except (AssertionError, ValueError) as e:
             print("\nAn exception was encountered while exporting object '{}' to 3DO format!\nError: {}".format(self.obj.name, e))
             self.report({'ERROR'}, "Error: {}".format(e))
@@ -328,7 +338,7 @@ class ImportKey(bpy.types.Operator, ImportHelper):
     def execute(self, context):
         try:
             scene = bpy.context.scene
-            keyImporter.importKeyToScene(self.filepath, scene)
+            keyImporter.importKey(self.filepath, scene)
         except Exception as e:
             print("\nAn exception was encountered while importing keyframe '{}'!\nError: {}".format(os.path.basename(self.filepath), e))
             self.report({'ERROR'}, "Error: {}".format(e))
@@ -469,7 +479,7 @@ class ExportKey(bpy.types.Operator, ExportHelper):
             self.scene.key_animation_flags = self.animation_flags
             self.scene.key_animation_type  = self.animation_type
             self.scene.render.fps          = float(self.fps)
-            keyExporter.exportObjectAnim(self.obj, self.scene, self.filepath)
+            keyExporter.exportKey(self.obj, self.scene, self.filepath)
 
             self.report({'INFO'}, "KEY '{}' was successfully exported".format(os.path.basename(self.filepath)))
             return {'FINISHED'}

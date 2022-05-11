@@ -285,7 +285,7 @@ def makeModel3doFromObj(name, obj: bpy.types.Object, uvWithImageSize: bool = Fal
     model.reorderNodes()
     return model
 
-def exportObject(obj: bpy.types.Object, path: str, version: Model3doFileVersion, exportVertexColors: bool):
+def export3do(obj: bpy.types.Object, path: str, version: Model3doFileVersion, exportVertexColors: bool):
     bpy.path.ensure_ext(path, '.3do')
     print("exporting 3DO: %r..." % (path), end="")
     start_time = time.process_time()
