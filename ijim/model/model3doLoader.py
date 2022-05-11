@@ -90,9 +90,9 @@ def _parse_model_geometry_section(tok: Tokenizer, model: Model3do, fileVersion: 
             tok.assertIdentifier("VERTICES")
             numVertices = tok.getIntNumber()
             for k in range(0, numVertices):
-                vertIdx = tok.getIntNumber()
-                if vertIdx != k:
-                    print("Warning: Index mismatch while loading 3DO vertices. {} != {}".format(vertIdx, k))
+                uvIdx = tok.getIntNumber()
+                if uvIdx != k:
+                    print("Warning: Index mismatch while loading 3DO vertices. {} != {}".format(uvIdx, k))
 
                 tok.assertPunctuator(':')
 
@@ -108,11 +108,11 @@ def _parse_model_geometry_section(tok: Tokenizer, model: Model3do, fileVersion: 
 
             tok.assertIdentifier("TEXTURE")
             tok.assertIdentifier("VERTICES")
-            numTexVertices = tok.getIntNumber()
-            for k in range(0, numTexVertices):
-                vertIdx = tok.getIntNumber()
-                if vertIdx != k:
-                    print("Warning: Index mismatch while loading 3DO UV list. {} != {}".format(vertIdx, k))
+            numUVs = tok.getIntNumber()
+            for k in range(0, numUVs):
+                uvIdx = tok.getIntNumber()
+                if uvIdx != k:
+                    print("Warning: Index mismatch while loading 3DO UV list. {} != {}".format(uvIdx, k))
                 tok.assertPunctuator(':')
                 mesh.uvs.append(tok.getVector2f())
 
