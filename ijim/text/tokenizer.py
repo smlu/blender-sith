@@ -166,12 +166,12 @@ class Tokenizer:
             t = self._read_numeric_literal(t)
 
         elif ispunct(self.current_ch):
-            if self.current_ch == '-' and (self.next_ch == '.' or self.next_ch.isdigit()):
+            if self.current_ch == '.' and self.next_ch.isdigit():
                 t = self._read_numeric_literal(t)
-
+            elif self.current_ch == '-' and (self.next_ch == '.' or self.next_ch.isdigit()):
+                t = self._read_numeric_literal(t)
             elif self.current_ch == '-' and self.next_ch.isdigit():
                 t = self._read_numeric_literal(t)
-
             else:
                 t.type = TokenType.Punctuator
                 t.value += self.current_ch
@@ -198,7 +198,6 @@ class Tokenizer:
         t.endLine = self.line
         t.endColumn = self.column
         return t
-
 
     def getIdentifier(self) -> str:
         t = self.getToken()
@@ -370,7 +369,7 @@ class Tokenizer:
         token.type = TokenType.Integer
         token = self._read_integral_numeric_literal(token)
 
-        if self.current_ch == '.' and self.next_ch.isdigit():
+        if self.current_ch == '.' and (self.next_ch.isdigit() or self.next_ch == '#'): # checking for # fixes problems with '.#QNAN0'
             if not token.value or not token.value[-1:].isdigit():
                 token.value += '0' # Prepend 0 to poorly formatted floating point number
 
