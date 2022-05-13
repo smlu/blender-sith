@@ -1,7 +1,7 @@
 import bpy, bmesh, mathutils, math, re
 
 from ijim.material import ColorMap, importMat
-from ijim.types.vector import Vector3f
+from ijim.types.vector import Vector3f, Vector4f
 from ijim.utils import *
 from typing import List
 
@@ -12,35 +12,48 @@ from .model3do import (
     TextureMode
 )
 
-kImEulerOrder     = "YXZ"        # Infernal machine euler orientation order
-kGModel3do        = "Model3do"
-kModelRadius      = "MODEL_RADIUS_"
-kMeshRadius       = "MESH_RADIUS_"
-k3doGeometryMode  = "3do_geometry_mode"
-k3doLightingMode  = "3do_lighting_mode"
-k3doTextureMode   = "3do_texture_mode"
-k3doFaceType      = "3do_face_type"
-kNameOrderPrefix  = "no"
+k3doFaceExtraLight = "3do_face_extra_light"
+k3doFaceType       = "3do_face_type"
+k3doGeometryMode   = "3do_geometry_mode"
+k3doLightingMode   = "3do_lighting_mode"
+k3doTextureMode    = "3do_texture_mode"
+kDefaultFaceColor  = Vector4f(0.0, 0.0, 0.0, 1.0)
+kGModel3do         = "Model3do"
+kImEulerOrder      = "YXZ"                 # Infernal machine euler orientation order
+kMeshRadius        = "MESH_RADIUS_"
+kModelRadius       = "MODEL_RADIUS_"
+kNameOrderPrefix   = "no"
 
 
 def bmFaceSeqGetLayerString(faces: bmesh.types.BMFaceSeq, name: str, makeLayer=True) -> bmesh.types.BMLayerItem:
     return faces.layers.string.get(name) or (faces.layers.string.new(name) if makeLayer else None)
 
-def __bmface_get_property(face: bmesh.types.BMFace, tag: bmesh.types.BMLayerItem, default) -> int:
+def __bmface_get_int_property(face: bmesh.types.BMFace, tag: bmesh.types.BMLayerItem, default: int) -> int:
     if tag:
         v = face[tag]
         if len(v) > 0:
             return int(v)
     return default
 
-def __bmface_set_property(face: bmesh.types.BMFace, tag: bmesh.types.BMLayerItem, value: int):
+def __bmface_set_int_property(face: bmesh.types.BMFace, tag: bmesh.types.BMLayerItem, value: int):
     face[tag] = str(int(value)).encode('utf-8')
 
+def __bmface_get_vector4_property(face: bmesh.types.BMFace, tag: bmesh.types.BMLayerItem, default: Vector4f) -> Vector4f:
+    if tag:
+        v = face[tag]
+        if len(v) > 0:
+            return Vector4f(*[float(c) for c in v.decode('utf8').split(',')])
+    return default
+
+def __bmface_set_vector4_property(face: bmesh.types.BMFace, tag: bmesh.types.BMLayerItem, vector: Vector4f):
+    face[tag] = str(','.join(str(c) for c in vector)).encode('utf-8')
+
 def bmMeshInit3doLayers(bm: bmesh.types.BMesh):
-    bmFaceSeqGetLayerString(bm.faces, k3doFaceType,     makeLayer=True)
-    bmFaceSeqGetLayerString(bm.faces, k3doGeometryMode, makeLayer=True)
-    bmFaceSeqGetLayerString(bm.faces, k3doLightingMode, makeLayer=True)
-    bmFaceSeqGetLayerString(bm.faces, k3doTextureMode,  makeLayer=True)
+    bmFaceSeqGetLayerString(bm.faces, k3doFaceType,       makeLayer=True)
+    bmFaceSeqGetLayerString(bm.faces, k3doGeometryMode,   makeLayer=True)
+    bmFaceSeqGetLayerString(bm.faces, k3doLightingMode,   makeLayer=True)
+    bmFaceSeqGetLayerString(bm.faces, k3doTextureMode,    makeLayer=True)
+    bmFaceSeqGetLayerString(bm.faces, k3doFaceExtraLight, makeLayer=True)
     bm.faces.layers.int.verify()
 
 def bmFaceGetType(face: bmesh.types.BMFace, bm: bmesh.types.BMesh) -> FaceType:
@@ -49,7 +62,7 @@ def bmFaceGetType(face: bmesh.types.BMFace, bm: bmesh.types.BMesh) -> FaceType:
     If type layer doesn't exists it returns 0.
     """
     tag = bmFaceSeqGetLayerString(bm.faces, k3doFaceType, makeLayer=False)
-    return FaceType(__bmface_get_property(face, tag, 0))
+    return FaceType(__bmface_get_int_property(face, tag, 0))
 
 def bmFaceSetType(face: bmesh.types.BMFace, bm: bmesh.types.BMesh, t: FaceType):
     """
@@ -58,7 +71,7 @@ def bmFaceSetType(face: bmesh.types.BMFace, bm: bmesh.types.BMesh, t: FaceType):
           Invoke `bmMeshInit3doLayers` to initialize layer prior to modify any face of `bm`
     """
     tag = bmFaceSeqGetLayerString(bm.faces, k3doFaceType, makeLayer=False)
-    __bmface_set_property(face, tag, t)
+    __bmface_set_int_property(face, tag, t)
 
 def bmFaceGetGeometryMode(face: bmesh.types.BMFace, bmesh: bmesh.types.BMesh) -> GeometryMode:
     """
@@ -66,7 +79,7 @@ def bmFaceGetGeometryMode(face: bmesh.types.BMFace, bmesh: bmesh.types.BMesh) ->
     If type layer doesn't exists it returns `GeometryMode.Texture`.
     """
     tag = bmFaceSeqGetLayerString(bmesh.faces, k3doGeometryMode, makeLayer=False)
-    return GeometryMode(__bmface_get_property(face, tag, GeometryMode.Texture))
+    return GeometryMode(__bmface_get_int_property(face, tag, GeometryMode.Texture))
 
 def bmFaceSetGeometryMode(face: bmesh.types.BMFace, bmesh: bmesh.types.BMesh, geo: GeometryMode):
     """
@@ -75,7 +88,7 @@ def bmFaceSetGeometryMode(face: bmesh.types.BMFace, bmesh: bmesh.types.BMesh, ge
           Invoke `bmMeshInit3doLayers` to initialize layer prior to modify any face of `bm`.
     """
     tag = bmFaceSeqGetLayerString(bmesh.faces, k3doGeometryMode, makeLayer=False)
-    __bmface_set_property(face, tag, geo)
+    __bmface_set_int_property(face, tag, geo)
 
 def bmFaceGetLightMode(face: bmesh.types.BMFace, bmesh: bmesh.types.BMesh) -> LightMode:
     """
@@ -83,7 +96,7 @@ def bmFaceGetLightMode(face: bmesh.types.BMFace, bmesh: bmesh.types.BMesh) -> Li
     If type layer doesn't exists it returns `LightMode.Gouraud`.
     """
     tag = bmFaceSeqGetLayerString(bmesh.faces, k3doLightingMode, makeLayer=False)
-    return LightMode(__bmface_get_property(face, tag, LightMode.Gouraud))
+    return LightMode(__bmface_get_int_property(face, tag, LightMode.Gouraud))
 
 def bmFaceSetLightMode(face: bmesh.types.BMFace, bmesh: bmesh.types.BMesh, lm: LightMode):
     """
@@ -92,7 +105,7 @@ def bmFaceSetLightMode(face: bmesh.types.BMFace, bmesh: bmesh.types.BMesh, lm: L
           Invoke `bmMeshInit3doLayers` to initialize layer prior to modify any face of `bm`.
     """
     tag = bmFaceSeqGetLayerString(bmesh.faces, k3doLightingMode, makeLayer=False)
-    __bmface_set_property(face, tag, lm)
+    __bmface_set_int_property(face, tag, lm)
 
 def bmFaceGetTextureMode(face: bmesh.types.BMFace, bmesh: bmesh.types.BMesh) -> TextureMode:
     """
@@ -100,7 +113,7 @@ def bmFaceGetTextureMode(face: bmesh.types.BMFace, bmesh: bmesh.types.BMesh) -> 
     If type layer doesn't exists it returns `TextureMode.PerspectiveCorrected`.
     """
     tag = bmFaceSeqGetLayerString(bmesh.faces, k3doTextureMode, makeLayer=False)
-    return TextureMode(__bmface_get_property(face, tag, TextureMode.PerspectiveCorrected))
+    return TextureMode(__bmface_get_int_property(face, tag, TextureMode.PerspectiveCorrected))
 
 def bmFaceSetTextureMode(face: bmesh.types.BMFace, bmesh: bmesh.types.BMesh, tex: TextureMode):
     """
@@ -109,7 +122,25 @@ def bmFaceSetTextureMode(face: bmesh.types.BMFace, bmesh: bmesh.types.BMesh, tex
           Invoke `bmMeshInit3doLayers` to initialize layer prior to modify any face of `bm`.
     """
     tag = bmFaceSeqGetLayerString(bmesh.faces, k3doTextureMode, makeLayer=False)
-    __bmface_set_property(face, tag, tex)
+    __bmface_set_int_property(face, tag, tex)
+
+def bmFaceGetExtraLight(face: bmesh.types.BMFace, bmesh: bmesh.types.BMesh) -> Vector4f:
+    """
+    Returns the extra light color of 3DO polygon face stored in layer of `BMFace`.
+    If type layer doesn't exists it returns `kDefaultFaceColor`.
+    """
+    tag = bmFaceSeqGetLayerString(bmesh.faces, k3doFaceExtraLight, makeLayer=False)
+    return __bmface_get_vector4_property(face, tag, kDefaultFaceColor)
+
+def bmFaceSetExtraLight(face: bmesh.types.BMFace, bmesh: bmesh.types.BMesh, color: Vector4f):
+    """
+    Stores the new extra light color of 3DO polygon face in layer of `BMFace`.
+    Note: Layer must be already initialized at this point.
+          Invoke `bmMeshInit3doLayers` to initialize layer prior to modify any face of `bm`.
+    """
+    tag = bmFaceSeqGetLayerString(bmesh.faces, k3doFaceExtraLight, makeLayer=False)
+    __bmface_set_vector4_property(face, tag, color)
+
 
 def makeOrderedName(name, order, maxOrder):
     padding = len(str(maxOrder))

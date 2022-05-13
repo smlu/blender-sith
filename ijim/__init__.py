@@ -52,10 +52,12 @@ from ijim.model import (
 
 from ijim.model.model3doLoader import Model3doFileVersion
 from ijim.model.utils import (
+    bmFaceGetExtraLight,
     bmFaceGetGeometryMode,
     bmFaceGetLightMode,
     bmFaceGetTextureMode,
     bmFaceGetType,
+    bmFaceSetExtraLight,
     bmFaceSetGeometryMode,
     bmFaceSetLightMode,
     bmFaceSetTextureMode,
@@ -66,6 +68,7 @@ from ijim.model.utils import (
 )
 
 from ijim.utils import *
+from ijim.types.vector import Vector4f
 from ijim.types.props import *
 
 
@@ -569,6 +572,15 @@ class Mesh3doFaceLayer(bpy.types.PropertyGroup):
         options     = {'HIDDEN', 'LIBRARY_EDITABLE'}
     )
 
+    extra_light = bpy.props.FloatVectorProperty(
+        name        = "Extra Light",
+        description = "Face extra light color",
+        size        = 4,
+        subtype     ='COLOR',
+        default     = [0.0, 0.0, 0.0, 1.0],
+        min         = 0.0,
+        max         = 1.0
+    )
 
 class Mesh3doFacePanel(bpy.types.Panel):
     """
@@ -605,12 +617,14 @@ class Mesh3doFacePanel(bpy.types.Panel):
                 wm_fl.geo_mode     = bmFaceGetGeometryMode(face, bm).name
                 wm_fl.light_mode   = bmFaceGetLightMode(face, bm).name
                 wm_fl.texture_mode = bmFaceGetTextureMode(face, bm).name
+                wm_fl.extra_light  = bmFaceGetExtraLight(face, bm)
 
             # Copy 3DO properties of BMFace from Mesh3doFaceLayer properties
             bmFaceSetType(face, bm, FaceType.fromSet(wm_fl.type))
             bmFaceSetGeometryMode(face, bm, GeometryMode[wm_fl.geo_mode])
             bmFaceSetLightMode(face, bm, LightMode[wm_fl.light_mode])
             bmFaceSetTextureMode(face, bm, TextureMode[wm_fl.texture_mode])
+            bmFaceSetExtraLight(face, bm, Vector4f(*wm_fl.extra_light))
         else:
             wm_fl.face = -1
 
@@ -623,6 +637,7 @@ class Mesh3doFacePanel(bpy.types.Panel):
         box.prop(wm_fl, "geo_mode", text="Geometry")
         box.prop(wm_fl, "light_mode", text="Lighting")
         box.prop(wm_fl, "texture_mode", text="Texture")
+        box.prop(wm_fl, "extra_light", text="Extra Light")
 
 
 classes = (

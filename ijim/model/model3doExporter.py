@@ -11,7 +11,6 @@ from .utils import *
 kDefaultLightMode   = 3
 kDefaultTexMode     = 3
 kDefaultVertexColor = Vector4f(0.0, 0.0, 0.0, 1.0)
-kDefaultFaceColor   = Vector4f(0.0, 0.0, 0.0, 1.0)
 kHNDefaultFlags     = 0
 kHNDefaultType      = 0
 
@@ -101,7 +100,7 @@ def _model3do_add_mesh(model: Model3do, mesh: bpy.types.Mesh, scale: mathutils.V
         face3do.geometryMode = bmFaceGetGeometryMode(face, bm)
         face3do.lightMode    = bmFaceGetLightMode(face, bm)
         face3do.textureMode  = bmFaceGetTextureMode(face, bm)
-        face3do.color        = kDefaultFaceColor
+        face3do.color        = bmFaceGetExtraLight(face, bm)
         face3do.normal       = Vector3f(*face.normal)
 
         # Set face vertex and texture index

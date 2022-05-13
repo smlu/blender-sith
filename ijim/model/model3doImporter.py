@@ -71,6 +71,7 @@ def _make_mesh(mesh3do: Mesh3do, uvWithImageSize: bool, mat_list: List):
         bmFaceSetGeometryMode(face, bm, face3do.geometryMode)
         bmFaceSetLightMode(face, bm, face3do.lightMode)
         bmFaceSetTextureMode(face, bm, face3do.textureMode)
+        bmFaceSetExtraLight(face, bm, face3do.color)
 
         # Set face normal
         face.normal = mesh3do.faces[face.index].normal
