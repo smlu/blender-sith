@@ -3,7 +3,7 @@ from .cmp import (
     ColorMap
 )
 
-from .material import importMat
+from .mat import importMat
 
 __all__ = [
     "CmpPaletteRGB",
