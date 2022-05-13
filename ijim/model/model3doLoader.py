@@ -100,7 +100,7 @@ def _parse_model_geometry_section(tok: Tokenizer, model: Model3do, fileVersion: 
                 mesh.vertices.append(tok.getVector3f())
                 if fileVersion == Model3doFileVersion.Version2_1:
                     intensity = tok.getFloatNumber()
-                    mesh.vertexColors.append(Vector4f(*((intensity, )*4)))
+                    mesh.vertexColors.append(Vector4f(*((intensity, )*3), 1.0))
                 elif fileVersion == Model3doFileVersion.Version2_2:
                     color = Vector4f(*tok.getVector3f(), 1.0) # RGB
                     mesh.vertexColors.append(color)
@@ -144,7 +144,7 @@ def _parse_model_geometry_section(tok: Tokenizer, model: Model3do, fileVersion: 
 
                 if fileVersion == Model3doFileVersion.Version2_1:
                     intensity     = tok.getFloatNumber()
-                    face.color    = Vector4f(*((intensity, )*4))
+                    face.color    = Vector4f(*((intensity, )*3), 1.0)
                 elif fileVersion == Model3doFileVersion.Version2_2:
                     face.color    = Vector4f(*tok.getVector3f(), 1.0)
                 else: # 2.3
