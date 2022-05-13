@@ -233,11 +233,11 @@ def _create_objects_from_model(model: Model3do, uvWithImageSize: bool, geosetNum
             node.obj.parent      = model.hierarchyNodes[node.parentIdx].obj
     bpy.context.scene.update()
 
-def importColormap(cmp_file: str):
+def _import_colormap(cmp_file: str) -> Optional[ColorMap]:
     try:
         return ColorMap.load(cmp_file)
     except Exception as e:
-        raise ImportError(f"Failed to load colormap '{cmp_file}'") from e
+        print(f"Warning: Failed to load ColorMap '{cmp_file}': {e}")
 
 def import3do(file_path, mat_dirs = [], cmp_file = '', importRadiusObj = False, preserveOrder = True, clearScene = True):
     print("importing 3DO: %r..." % (file_path), end="")
@@ -255,7 +255,10 @@ def import3do(file_path, mat_dirs = [], cmp_file = '', importRadiusObj = False, 
         if len(cmp_file) == 0:
             print('\nInfo: ColorMap path not set, loading default...')
             cmp_file = getDefaultCmpFilePath(file_path)
-        cmp = importColormap(cmp_file)
+        if cmp_file:
+            cmp = _import_colormap(cmp_file)
+        else:
+            print("Warning: No ColorMap was found!")
 
     if clearScene:
         clearAllScenes()

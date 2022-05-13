@@ -3,7 +3,7 @@ import numpy as np
 
 from collections import namedtuple
 from enum import IntEnum
-from struct import *
+from struct import Struct
 from typing import List, Optional, Tuple
 from .cmp import ColorMap
 
@@ -175,17 +175,19 @@ def _read_pixel_data(f, width, height, ci: color_format, cmp: Optional[ColorMap]
     # RGB(A)
     return _decode_rgba_pixel_data(pd, width, height, ci)
 
-def _read_mipmap(f, ci: color_format, cmp: Optional[ColorMap] = None):
+def _read_mipmap(f, ci: color_format, cmp: Optional[ColorMap] = None): # If cmp is required and is None then no pixel data is set
     # Read texture header
     mmh_raw = mmm_serf.unpack(bytearray(f.read(mmm_serf.size)))
     mmh     = mat_mipmap_header._make(mmh_raw)
 
-    # Read MipMap pixel data
-    pd = []
-    for i in range(0, mmh.levels):
-        w = mmh.width >> i
-        h = mmh.height >> i
-        pd += [_read_pixel_data(f, w, h, ci, cmp)]
+    pd = None
+    if (ci.color_mode != ColorMode.Indexed and ci.bpp != 8) or cmp:
+        # Read MipMap pixel data
+        pd = []
+        for i in range(0, mmh.levels):
+            w = mmh.width >> i
+            h = mmh.height >> i
+            pd += [_read_pixel_data(f, w, h, ci, cmp)]
 
     return mipmap(mmh.width, mmh.height, ci, pd)
 
@@ -195,7 +197,7 @@ def _get_tex_name(idx, mat_name):
         name += '_cel_' + str(idx)
     return name
 
-def _mat_add_new_texture(mat: bpy.types.Material, width: int, height: int, texIdx: int, pixdata: List[Tuple], hasTransparency: bool):
+def _mat_add_new_texture(mat: bpy.types.Material, width: int, height: int, texIdx: int, pixdata: Optional[List[Tuple]], hasTransparency: bool):
     img_name   = _get_tex_name(texIdx, mat.name)
     if not img_name in bpy.data.images:
         img = bpy.data.images.new(
@@ -207,7 +209,8 @@ def _mat_add_new_texture(mat: bpy.types.Material, width: int, height: int, texId
         img = bpy.data.images[img_name]
         img.scale(width, height)
 
-    img.pixels = pixdata
+    if pixdata is not None:
+        img.pixels = pixdata
     img.update()
     img.pack(as_png=True)
 
@@ -224,14 +227,16 @@ def _mat_add_new_texture(mat: bpy.types.Material, width: int, height: int, texId
 def _max_cels(len: int) -> int:
     return min(len, max_texture_slots)
 
-def _make_color_textures(mat: bpy.types.Material, records: List[mat_color_record], cmp: ColorMap):
+def _make_color_textures(mat: bpy.types.Material, records: List[mat_color_record], cmp: Optional[ColorMap]): # cmp is None then blank 64x64 textures is created
     # Creates 1 palette pixel color texture of size color_tex_height * color_tex_width
     for idx, r in zip(range(_max_cels(len(records))), records):
-        pixel = np.empty((), dtype=[('', np.float)] * 4)
-        pixel[()] = tuple([float(c/255) for c in cmp.palette[r.color_index]]) + tuple([1.0])
-        pixmap = np.full((color_tex_height, color_tex_width), pixel, dtype=pixel.dtype) \
-            .flatten() \
-            .view(np.float)
+        pixmap = None
+        if cmp:
+            pixel = np.empty((), dtype=[('', np.float)] * 4)
+            pixel[()] = tuple([float(c/255) for c in cmp.palette[r.color_index]]) + tuple([1.0])
+            pixmap = np.full((color_tex_height, color_tex_width), pixel, dtype=pixel.dtype) \
+                .flatten() \
+                .view(np.float)
         # Make new texture from pixelmap
         _mat_add_new_texture(mat, color_tex_width, color_tex_height, idx, pixmap, hasTransparency=False)
 
@@ -243,8 +248,6 @@ def importMat(filePath, cmp: Optional[ColorMap] = None):
 
     f = open(filePath, 'rb')
     h = _read_header(f)
-    if cmp is None and h.color_info.color_mode == ColorMode.Indexed:
-        raise ImportError("Cannot import indexed MAT file due to missing 'cmp' argument")
     records = _read_records(f, h)
 
     mat_name = os.path.basename(filePath)
@@ -253,7 +256,6 @@ def importMat(filePath, cmp: Optional[ColorMap] = None):
     mat.use_shadeless    = True
     mat.use_object_color = True
     mat.use_face_texture = True
-
     if h.type == MatType.Color:
         _make_color_textures(mat, records, cmp)
     else: # MAT contains textures
@@ -263,5 +265,5 @@ def importMat(filePath, cmp: Optional[ColorMap] = None):
         mat.alpha               = 0.0
         for i in range(0, _max_cels(h.texture_count)):
             mm = _read_mipmap(f, h.color_info, cmp)
-            _mat_add_new_texture(mat, mm.width, mm.height, i, mm.pixel_data_array[0], hasTransparency=use_transparency)
+            _mat_add_new_texture(mat, mm.width, mm.height, i, mm.pixel_data_array[0] if mm.pixel_data_array else None, hasTransparency=use_transparency)
     return mat
