@@ -1,5 +1,6 @@
 import bpy
 import os.path
+import bpy, os.path
 from pathlib import Path
 from . import bl_info
 
@@ -18,9 +19,9 @@ def assertName(name: str):
     if not isASCII(name):
         raise AssertionError("name error: '{}' len does not contain all ASCII chars".format(name))
 
-def getDefaultCmpFilePath(model_path):
-    cmpFile = Path('dflt.cmp')
-    modelDir = Path(os.path.dirname(model_path))
+def getDefaultCmpFilePath(model3doPath):
+    cmpFile  = Path('dflt.cmp')
+    modelDir = Path(os.path.dirname(model3doPath))
 
     # try model folder
     path = modelDir/ cmpFile
@@ -42,9 +43,9 @@ def getDefaultCmpFilePath(model_path):
     if path.exists() and path.is_file():
         return path
 
-def getDefaultMatFolders(model_path):
-    path1 = os.path.join(os.path.dirname(model_path), 'mat')
-    path2 = os.path.abspath(os.path.join(os.path.dirname(model_path), os.pardir))
+def getDefaultMatFolders(model3doPath):
+    path1 = os.path.join(os.path.dirname(model3doPath), 'mat')
+    path2 = os.path.abspath(os.path.join(os.path.dirname(model3doPath), os.pardir))
     path2 = os.path.join(path2, 'mat')
     return [path1, path2]
 
@@ -54,27 +55,27 @@ def getFilePathInDir(fileName: str, dirPath: str, insensitive=True):
     if not os.path.isdir(dirPath) or len(fileName) < 1:
         return None
 
-    def file_exists(file_path):
-        return os.path.isfile(file_path) and os.access(file_path, os.R_OK)
+    def file_exists(filePath):
+        return os.path.isfile(filePath) and os.access(filePath, os.R_OK)
 
-    file_path = os.path.join(dirPath, fileName)
-    if file_exists(file_path):
-        return file_path
+    filePath = os.path.join(dirPath, fileName)
+    if file_exists(filePath):
+        return filePath
 
     if insensitive:
         # Try to find the file by lower-cased name
         fileName = fileName.lower()
-        file_path = os.path.join(dirPath, fileName)
-        if file_exists(file_path):
-            return file_path
+        filePath = os.path.join(dirPath, fileName)
+        if file_exists(filePath):
+            return filePath
 
         # Ok, now let's go through all files in folder and
         # try to find file by case insensitive comparing it.
         # to other file names.
         for f in os.listdir(dirPath):
-            file_path = os.path.join(dirPath, f)
-            if file_exists(file_path) and f.lower() == fileName:
-                return file_path
+            filePath = os.path.join(dirPath, f)
+            if file_exists(filePath) and f.lower() == fileName:
+                return filePath
 
 def getGlobalMaterial(name: str):
     if name in bpy.data.materials:
