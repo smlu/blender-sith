@@ -1,14 +1,12 @@
-import bpy, bmesh, mathutils
-import time
-import os
+import bpy, bmesh, mathutils, os, time
+
+from ijim.utils import *
+from typing import List
 
 from .model3do import *
-from .model3doImporter import getMeshObjectByName, getModelRadiusObj, getMeshRadiusObj
 from .model3doLoader import Model3doFileVersion
 from . import model3doWriter
 from .utils import *
-from ijim.utils.utils import *
-from typing import List
 
 kDefaultLightMode   = 3
 kDefaultTexMode     = 3
@@ -187,14 +185,11 @@ def _get_hnode_last_sibling(first_child: Mesh3doHierarchyNode, nodes: List[Mesh3
     return first_child
 
 def _model3do_add_hnode(model: Model3do, mesh_idx: int, obj: bpy.types.Object, parent: bpy.types.Object, scale: mathutils.Vector):
-    name = _get_obj_hnode_name(obj)
-    # if name in model.hierarchyNodes:
-    #     return
-
+    name               = _get_obj_hnode_name(obj)
     node               = Mesh3doHierarchyNode(name)
     node.idx           = obj.model3do_hnode_num
     node.flags         = Mesh3doNodeFlags.fromHex(obj.model3do_hnode_flags)
-    node.type          = MeshNodeType.fromHex(obj.model3do_hnode_type)
+    node.type          = Mesh3doNodeType.fromHex(obj.model3do_hnode_type)
     node.meshIdx       = mesh_idx
     node.parentIdx     = _get_obj_hnode_idx(model.hierarchyNodes, parent)
     node.firstChildIdx = -1

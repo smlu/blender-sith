@@ -277,7 +277,3 @@ class Key:
     @nodes.setter
     def nodes(self, nodes: List[KeyNode]):
         self.n = nodes
-
-
-
-

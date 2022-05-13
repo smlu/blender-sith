@@ -14,46 +14,42 @@ bl_info = {
 # Reload imported submodules if script is reloaded
 if "bpy" in locals():
     import importlib
-    if "key" in locals():
-        importlib.reload(key)
-    if "keyImporter" in locals():
-        importlib.reload(keyImporter)
-    if "keyExporter" in locals():
-        importlib.reload(keyExporter)
-    if "material" in locals():
-        importlib.reload(material)
+    if "ijim.key" in locals():
+        importlib.reload(ijim.key)
     if "ijim.material" in locals():
         importlib.reload(ijim.material)
-    if "model" in locals():
-        importlib.reload(model)
-    if "model3do" in locals():
-        importlib.reload(model3do)
-    if "model3doImporter" in locals():
-        importlib.reload(model3doImporter)
-    if "model3doExporter" in locals():
-        importlib.reload(model3doExporter)
+    if "ijim.material" in locals():
+        importlib.reload(ijim.material)
+    if "ijim.model" in locals():
+        importlib.reload(ijim.model)
+    if "ijim.model.utils" in locals():
+        importlib.reload(ijim.model.utils)
     if "text" in locals():
         importlib.reload(text)
     if "utils" in locals():
         importlib.reload(utils)
 
-import os.path, re
-
-import bpy, bmesh
+import bpy, bmesh, os.path, re
 from bpy_extras.io_utils import ImportHelper
 from bpy_extras.io_utils import ExportHelper
 
-from ijim.key.key import KeyFlag
-import ijim.key.keyImporter as keyImporter
-import ijim.key.keyExporter as keyExporter
+from ijim.key import (
+    exportKey,
+    importKey,
+    KeyFlag
+)
 
-from ijim.material.material import importMat
-from ijim.utils.utils import *
-from ijim.types.props import *
+from ijim.material import importMat
 
-from ijim.model.model3do import FaceType, GeometryMode, LightMode, TextureMode
-import ijim.model.model3doExporter as model3doExporter
-import ijim.model.model3doImporter as model3doImporter
+from ijim.model import (
+    export3do,
+     import3do,
+     FaceType,
+     GeometryMode,
+     LightMode,
+     TextureMode
+)
+
 from ijim.model.model3doLoader import Model3doFileVersion
 from ijim.model.utils import (
     bmFaceGetGeometryMode,
@@ -69,6 +65,10 @@ from ijim.model.utils import (
     kNameOrderPrefix
 )
 
+from ijim.utils import *
+from ijim.types.props import *
+
+
 
 def _make_readable(str):
     return re.sub(r"(\w)([A-Z])", r"\1 \2", str)
@@ -83,7 +83,7 @@ def _get_key_flags_enum_list():
 def _get_mesh3do_face_type_list():
     return [
         (FaceType.DoubleSided.name   , 'Double Sided'              , "Polygon face is in game rendered on both sides"                                                                                          ),
-        (FaceType.Translucent.name   ,  'Translucent'              , "Polygon is in game rendered with alpha blending enabled making transparent polygon texture translucent"                                  ),
+        (FaceType.Translucent.name   , 'Translucent'               , "Polygon is in game rendered with alpha blending enabled making transparent polygon texture translucent"                                  ),
         (FaceType.TexClamp_x.name    , 'Clamp Horizontal'          , "Polygon texture is clamped horizontally instead of repeated (Might not be used in JKDF2 & MOTS)"                                         ),
         (FaceType.TexClamp_y.name    , 'Clamp Vertical'            , "Polygon texture is clamped vertically instead of repeated (Might not be used in JKDF2 & MOTS)"                                           ),
         (FaceType.TexFilterNone.name , 'Disable Bilinear Filtering', "Disables texture bilinear interpolation filtering and instead point filtering is used as a texture magnification or minification filter" ),
@@ -110,6 +110,7 @@ def _get_model3do_texture_mode_list():
     for f in TextureMode:
         l.append((f.name, _make_readable(f.name), ""))
     return l
+
 
 class ImportMat(bpy.types.Operator, ImportHelper):
     """
@@ -194,16 +195,16 @@ class ImportModel3do(bpy.types.Operator, ImportHelper):
         cmp_file_layout.prop(self, "cmp_file", text='')
 
     def execute(self, context):
-        obj = model3doImporter.import3do(self.filepath, [self.mat_dir], self.cmp_file, self.import_radius_objects, self.preserve_order, self.clear_scene)
+        obj = import3do(self.filepath, [self.mat_dir], self.cmp_file, self.import_radius_objects, self.preserve_order, self.clear_scene)
 
         if self.set_3d_view:
             area = next(area for area in bpy.context.screen.areas if area.type == 'VIEW_3D')
             region = next(region for region in area.regions if region.type == 'WINDOW')
             space = next(space for space in area.spaces if space.type == 'VIEW_3D')
             space.viewport_shade = "MATERIAL"
-            space.lens = 100.0
-            space.clip_start = 0.001
-            space.lock_object = obj
+            space.lens           = 100.0
+            space.clip_start     = 0.001
+            space.lock_object    = obj
 
             space.show_floor  = True
             space.show_axis_x = True
@@ -311,7 +312,7 @@ class ExportModel3do(bpy.types.Operator, ExportHelper):
     def execute(self, context):
         try:
             version = Model3doFileVersion[self.version]
-            model3doExporter.export3do(self.obj, self.filepath, version, self.export_vert_colors)
+            export3do(self.obj, self.filepath, version, self.export_vert_colors)
         except (AssertionError, ValueError) as e:
             print("\nAn exception was encountered while exporting object '{}' to 3DO format!\nError: {}".format(self.obj.name, e))
             self.report({'ERROR'}, "Error: {}".format(e))
@@ -338,7 +339,7 @@ class ImportKey(bpy.types.Operator, ImportHelper):
     def execute(self, context):
         try:
             scene = bpy.context.scene
-            keyImporter.importKey(self.filepath, scene)
+            importKey(self.filepath, scene)
         except Exception as e:
             print("\nAn exception was encountered while importing keyframe '{}'!\nError: {}".format(os.path.basename(self.filepath), e))
             self.report({'ERROR'}, "Error: {}".format(e))
@@ -479,7 +480,7 @@ class ExportKey(bpy.types.Operator, ExportHelper):
             self.scene.key_animation_flags = self.animation_flags
             self.scene.key_animation_type  = self.animation_type
             self.scene.render.fps          = float(self.fps)
-            keyExporter.exportKey(self.obj, self.scene, self.filepath)
+            exportKey(self.obj, self.scene, self.filepath)
 
             self.report({'INFO'}, "KEY '{}' was successfully exported".format(os.path.basename(self.filepath)))
             return {'FINISHED'}

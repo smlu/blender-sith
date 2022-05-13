@@ -1,18 +1,13 @@
+import bpy, mathutils, os.path, time
+
+from collections import OrderedDict
+
 from ijim.key.key import *
 import ijim.key.keyWriter as keyWriter
 
 from ijim.model.utils import *
-from ijim.model.model3doExporter import makeModel3doFromObj
-
-from ijim.utils.utils import *
-
-
-import bpy
-import mathutils
-
-import os.path
-import time
-from collections import OrderedDict
+from ijim.model import makeModel3doFromObj
+from ijim.utils import *
 
 def _set_keyframe_delta(dtype: KeyframeFlag, kf1: Keyframe, kf2: Keyframe):
     assert dtype == KeyframeFlag.PositionChange or dtype == KeyframeFlag.OrientationChange

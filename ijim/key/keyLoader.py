@@ -1,6 +1,6 @@
+import os
 from ijim.text.tokenizer import TokenType, Tokenizer
 from .key import *
-import os
 
 def _skip_to_next_key_section(tok: Tokenizer):
     t = tok.getToken()

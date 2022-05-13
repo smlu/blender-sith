@@ -1,10 +1,8 @@
-from .keyLoader import load as loadKey
-from .key import *
-
 from ijim.types.vector import *
 from ijim.text.serutils import *
-from typing import Tuple, List
-import os
+from typing import Tuple
+
+from .key import *
 
 max_markers = 16
 

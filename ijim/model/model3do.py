@@ -65,7 +65,7 @@ class Mesh3doNodeFlags(Flag):
     Unknown_8000 = 0x8000
 
 @unique
-class MeshNodeType(Flag):
+class Mesh3doNodeType(Flag):
     Nothing       = 0x00000
     Torso         = 0x00001
     LeftArm       = 0x00002
@@ -294,15 +294,15 @@ class Model3doGeoSet:
 class Mesh3doHierarchyNode:
     def __init__(self, name =""):
         self._idx: int           = -1
-        self.f: Mesh3doNodeFlags   = Mesh3doNodeFlags.Nothing
-        self.t: MeshNodeType    = MeshNodeType.Nothing
-        self.n: str             = name
-        self.mesh_i: int        = -1
-        self.parent_i: int      = -1
-        self.first_child_i: int = -1
-        self.sibling_i: int     = -1
-        self.num_children: int  = -1
-        self._o                 = None
+        self.f: Mesh3doNodeFlags = Mesh3doNodeFlags.Nothing
+        self.t: Mesh3doNodeType  = Mesh3doNodeType.Nothing
+        self.n: str              = name
+        self.mesh_i: int         = -1
+        self.parent_i: int       = -1
+        self.first_child_i: int  = -1
+        self.sibling_i: int      = -1
+        self.num_children: int   = -1
+        self._o                  = None
 
         self.pos: Vector3f = [] # x,y,z
         self.rot: Vector3f = [] # pitch, yaw, roll:
@@ -325,11 +325,11 @@ class Mesh3doHierarchyNode:
         self.f = flags
 
     @property
-    def type(self) -> MeshNodeType:
+    def type(self) -> Mesh3doNodeType:
         return self.t
 
     @type.setter
-    def type(self, type: MeshNodeType):
+    def type(self, type: Mesh3doNodeType):
         self.t = type
 
     @property

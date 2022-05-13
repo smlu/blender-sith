@@ -1,7 +1,7 @@
 import bpy
 import os.path
 from pathlib import Path
-from .. import bl_info
+from . import bl_info
 
 maxNameLen = 64
 

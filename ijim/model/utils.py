@@ -1,15 +1,16 @@
-from ijim.material.cmp import ColorMap
-from ijim.material.material import importMat
-from ijim.types.vector import Vector3f
-from ijim.utils.utils import *
-from .model3do import FaceType, GeometryMode, LightMode, TextureMode
+import bpy, bmesh, mathutils, math, re
 
-import math
-import re
+from ijim.material import ColorMap, importMat
+from ijim.types.vector import Vector3f
+from ijim.utils import *
 from typing import List
 
-import bpy, bmesh
-import mathutils
+from .model3do import (
+    FaceType,
+    GeometryMode,
+    LightMode,
+    TextureMode
+)
 
 kImEulerOrder     = "YXZ"        # Infernal machine euler orientation order
 kGModel3do        = "Model3do"
@@ -124,6 +125,32 @@ def getOrderedNameIdx(name):
 
 def stripOrderPrefix(name):
     return re.sub("^{}([0-9]+)_".format(kNameOrderPrefix), "", name)
+
+def _get_scene_obj(name):
+    try:
+        return bpy.context.scene.objects[name]
+    except:
+        return None
+
+def getModelRadiusObj(obj):
+    return _get_scene_obj(kModelRadius + stripOrderPrefix(obj.name))
+
+def getMeshObjectByName(meshName: str):
+    if meshName in bpy.context.scene.objects:
+        return bpy.context.scene.objects[meshName]
+    for o in bpy.context.scene.objects:
+        if meshName == stripOrderPrefix(o.name):
+            return o
+        if o.data is not None and o.data.name == meshName:
+            return o
+    raise ValueError("Could not find mesh object with name '{}'".format(meshName))
+
+def getMeshRadiusObj(mesh):
+    try:
+        obj = getMeshObjectByName(mesh.name)
+        return _get_scene_obj(kMeshRadius + stripOrderPrefix(obj.name))
+    except:
+        return None
 
 def makeRotationMatrix(pitch, yaw, roll):
     p = math.radians(pitch)

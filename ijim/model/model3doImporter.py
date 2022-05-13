@@ -1,11 +1,9 @@
-import mathutils
-import bpy, bmesh
-import time
+import bpy, bmesh, mathutils, time
 
-from pathlib import Path
-from typing import List
+from ijim.material import ColorMap
+from ijim.utils import *
+from typing import List, Optional
 
-from ijim.material.cmp import ColorMap
 from . import model3doLoader
 from .utils import *
 from .model3do import (
@@ -13,57 +11,13 @@ from .model3do import (
     Mesh3do
 )
 
-from ijim.utils.utils import *
-
-def getObjByName(name):
-    if name in bpy.context.scene.objects:
-        return bpy.context.scene.objects[name]
-    for o in bpy.context.scene.objects:
-        if name.lower() == stripOrderPrefix(o.name).lower():
-            return o
-    raise ValueError("Could not find object '{}'".format(name))
-
-def getMeshObjectByName(meshName: str):
-    if meshName in bpy.context.scene.objects:
-        return bpy.context.scene.objects[meshName]
-    for o in bpy.context.scene.objects:
-        if meshName == stripOrderPrefix(o.name):
-            return o
-        if o.data is not None and o.data.name == meshName:
-            return o
-    raise ValueError("Could not find mesh object with name '{}'".format(meshName))
-
-def _get_encoded_face_prop(prop):
-    return str(int(prop)).encode('utf-8')
-
-def _get_radius_obj(name):
-    try:
-        return bpy.context.scene.objects[name]
-    except:
-        return None
-
 def _set_obj_rotation(obj, rotation):
     objSetRotation(obj, rotation)
 
 def _set_obj_pivot(obj, pivot):
-    # note: this function might be wrong. for example load gen_chicken.3do
-    # if pivot[0] == 0 and  pivot[1] == 0 and pivot[2] == 0:
-    #     return
-
-    # pc = obj.constraints.new('PIVOT')
-    # pc.rotation_range = 'ALWAYS_ACTIVE'
-    # pc.use_relative_location = True
-    # pc.owner_space = 'LOCAL'
-    # pc.offset     =  -mathutils.Vector(pivot)
-
-    # New way 1
-
-    # Removes Pivot constrain by translating mesh by pivot vector
-    # Note: in key exporter/importer and 3do exporter scripts, the code that calculates and translates object for pivot can be removed
     pvec = mathutils.Vector(pivot)
-    data = obj.data
-    if  obj.type == 'MESH' and data is not None and pvec.length > 0 :
-        data.transform(mathutils.Matrix.Translation(pvec))
+    if  obj.type == 'MESH' and obj.data is not None and pvec.length > 0:
+        obj.data.transform(mathutils.Matrix.Translation(pvec))
 
 def _make_radius_obj(name, parent, radius):
     if name in bpy.data.meshes:
@@ -168,16 +122,6 @@ def _make_mesh(mesh3do: Mesh3do, uvWithImageSize: bool, mat_list: List):
 
     mesh.update()
     return mesh
-
-def getModelRadiusObj(obj):
-    return _get_radius_obj(kModelRadius + stripOrderPrefix(obj.name))
-
-def getMeshRadiusObj(mesh):
-    try:
-        obj = getMeshObjectByName(mesh.name)
-        return _get_radius_obj(kMeshRadius + stripOrderPrefix(obj.name))
-    except:
-        return None
 
 def _create_objects_from_model(model: Model3do, uvWithImageSize: bool, geosetNum: int, importRadiusObj:bool, preserveOrder: bool):
     meshes = model.geosets[geosetNum].meshes

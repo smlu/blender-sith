@@ -1,10 +1,10 @@
+import bpy, mathutils, time
+
+from ijim.model.utils import *
+from ijim.utils import *
+
 from .key import *
 from . import keyLoader
-from ijim.model.utils import *
-from ijim.utils.utils import *
-
-import mathutils
-import time
 
 def _set_obj_location(obj: bpy.types.Object, location: Vector3f):
     obj.location = location
@@ -17,7 +17,6 @@ def _set_obj_location(obj: bpy.types.Object, location: Vector3f):
                 pivot += -c.target.location
             obj.location += mathutils.Vector(pivot)
             break
-
 
 def importKey(keyPath, scene: bpy.types.Scene):
     print("importing KEY: %r..." % (keyPath), end="")

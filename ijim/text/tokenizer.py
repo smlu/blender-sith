@@ -114,7 +114,6 @@ class Token:
             raise TypeError("Token type is not float number")
         return float(self.value)
 
-
 def _ctoi(c):
     if type(c) == type(""):
         return ord(c)

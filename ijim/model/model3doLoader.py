@@ -1,9 +1,10 @@
 import os
 from enum import Enum
 from ijim.text.tokenizer import TokenType, Tokenizer
-from .model3do import *
-from ..types.vector import *
+from ijim.types.vector import *
 from typing import Tuple
+
+from .model3do import *
 
 class Model3doFileVersion(float, Enum):
     Version2_1 = 2.1
@@ -183,7 +184,7 @@ def _parse_hierarchy_section(tok: Tokenizer, model: Model3do):
         node               = Mesh3doHierarchyNode()
         node.idx           = nodeIdx
         node.flags         = Mesh3doNodeFlags(tok.getIntNumber())
-        node.type          = MeshNodeType(tok.getIntNumber())
+        node.type          = Mesh3doNodeType(tok.getIntNumber())
         node.meshIdx       = tok.getIntNumber()
         node.parentIdx     = tok.getIntNumber()
         node.firstChildIdx = tok.getIntNumber()
