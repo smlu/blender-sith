@@ -158,6 +158,12 @@ class ImportModel3do(bpy.types.Operator, ImportHelper):
         default     = True,
     )
 
+    uv_absolute_3do_2_1 = bpy.props.BoolProperty(
+        name        = '3DO 2.1 - Absolute UV',
+        description = 'Remove texture size from associated UV coordinates If imported 3DO file is version 2.1 (Required for JKDF2 & MOTS)',
+        default     = True,
+    )
+
     import_radius_objects = bpy.props.BoolProperty(
         name        = 'Import Radius Objects',
         description = 'Import mesh radius as wireframe sphere object',
@@ -186,6 +192,7 @@ class ImportModel3do(bpy.types.Operator, ImportHelper):
         layout = self.layout
         layout.prop(self, 'set_3d_view')
         layout.prop(self, 'clear_scene')
+        layout.prop(self, 'uv_absolute_3do_2_1')
         layout.prop(self, 'import_radius_objects')
         layout.prop(self, 'preserve_order')
         mat_layout = layout.box().column()
@@ -198,7 +205,7 @@ class ImportModel3do(bpy.types.Operator, ImportHelper):
         cmp_file_layout.prop(self, "cmp_file", text='')
 
     def execute(self, context):
-        obj = import3do(self.filepath, [self.mat_dir], self.cmp_file, self.import_radius_objects, self.preserve_order, self.clear_scene)
+        obj = import3do(self.filepath, [self.mat_dir], self.cmp_file, self.uv_absolute_3do_2_1, self.import_radius_objects, self.preserve_order, self.clear_scene)
 
         if self.set_3d_view:
             area = next(area for area in bpy.context.screen.areas if area.type == 'VIEW_3D')
@@ -254,13 +261,26 @@ class ExportModel3do(bpy.types.Operator, ExportHelper):
         default= Model3doFileVersion.Version2_3.name
     )
 
+    absolute_uv = bpy.props.BoolProperty(
+        name        = 'Absolute UV',
+        description = 'Exported UV coordinates will be fixed to associated texture image size (Required for JKDF2 & MOTS)',
+        default     = True,
+    )
+
     export_vert_colors = bpy.props.BoolProperty(
-        name        = 'Export vertex colors',
+        name        = 'Export Vertex Colors',
         description = 'Export vertex colors to 3DO file',
         default     = False,
     )
 
     obj = None
+
+    def draw(self, context):
+        layout = self.layout
+        layout.prop(self, 'version')
+        if self.version == Model3doFileVersion.Version2_1.name:
+            layout.prop(self, 'absolute_uv')
+        layout.prop(self, 'export_vert_colors')
 
     def invoke(self, context, event):
         eobj = None
@@ -315,7 +335,9 @@ class ExportModel3do(bpy.types.Operator, ExportHelper):
     def execute(self, context):
         try:
             version = Model3doFileVersion[self.version]
-            export3do(self.obj, self.filepath, version, self.export_vert_colors)
+            if version != Model3doFileVersion.Version2_1:
+                self.absolute_uv = False
+            export3do(self.obj, self.filepath, version, self.absolute_uv, self.export_vert_colors)
         except (AssertionError, ValueError) as e:
             print("\nAn exception was encountered while exporting object '{}' to 3DO format!\nError: {}".format(self.obj.name, e))
             self.report({'ERROR'}, "Error: {}".format(e))
