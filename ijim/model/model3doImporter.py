@@ -42,7 +42,7 @@ def _set_model_radius(obj, radius):
 def _set_mesh_radius(obj, radius):
     _make_radius_obj(kMeshRadius + obj.name, obj, radius)
 
-def _make_mesh(mesh3do: Mesh3do, uvAbsolute: bool, mat_list: List):
+def _make_mesh(mesh3do: Mesh3do, uvAbsolute: bool, vertexColors: bool, mat_list: List):
     mesh = bpy.data.meshes.new(mesh3do.name)
 
     faces = []
@@ -102,7 +102,8 @@ def _make_mesh(mesh3do: Mesh3do, uvAbsolute: bool, mat_list: List):
         for idx, loop in enumerate(face.loops): # update vertices
             vidx             = loop.vert.index
             loop.vert.normal = mesh3do.normals[vidx]
-            loop[vert_color] = mesh3do.vertexColors[vidx]
+            if vertexColors:
+                loop[vert_color] = mesh3do.vertexColors[vidx]
 
             # Set UV coordinates
             luv    = loop[uv_layer]
@@ -124,7 +125,7 @@ def _make_mesh(mesh3do: Mesh3do, uvAbsolute: bool, mat_list: List):
     mesh.update()
     return mesh
 
-def _create_objects_from_model(model: Model3do, uvAbsolute: bool, geosetNum: int, importRadiusObj:bool, preserveOrder: bool):
+def _create_objects_from_model(model: Model3do, uvAbsolute: bool, geosetNum: int, vertexColors: bool, importRadiusObj:bool, preserveOrder: bool):
     meshes = model.geosets[geosetNum].meshes
     for node in model.hierarchyNodes:
         meshIdx = node.meshIdx
@@ -135,7 +136,7 @@ def _create_objects_from_model(model: Model3do, uvAbsolute: bool, geosetNum: int
                 raise IndexError("Mesh index {} out of range ({})!".format(meshIdx, len(meshes)))
 
             mesh3do = meshes[meshIdx]
-            mesh    = _make_mesh(mesh3do, uvAbsolute, model.materials)
+            mesh    = _make_mesh(mesh3do, uvAbsolute, vertexColors, model.materials)
             obj     = bpy.data.objects.new(mesh3do.name, mesh)
 
             # Set mesh radius object, draw type, custom property for lighting and texture mode
@@ -184,7 +185,7 @@ def _import_colormap(cmp_file: str) -> Optional[ColorMap]:
     except Exception as e:
         print(f"Warning: Failed to load ColorMap '{cmp_file}': {e}")
 
-def import3do(file_path, mat_dirs = [], cmp_file = '', uvAbsolute_2_1 = True, importRadiusObj = False, preserveOrder = True, clearScene = True):
+def import3do(file_path, mat_dirs = [], cmp_file = '', uvAbsolute_2_1 = True, importVertexColors = True, importRadiusObj = False, preserveOrder = True, clearScene = True):
     print("importing 3DO: %r..." % (file_path), end="")
     startTime = time.process_time()
 
@@ -212,7 +213,7 @@ def import3do(file_path, mat_dirs = [], cmp_file = '', uvAbsolute_2_1 = True, im
     importMaterials(model.materials, getDefaultMatFolders(file_path) + mat_dirs, cmp)
 
     # Create objects from model
-    _create_objects_from_model(model, uvAbsolute=(isJkdf2 and uvAbsolute_2_1), geosetNum=0, importRadiusObj=importRadiusObj, preserveOrder=preserveOrder)
+    _create_objects_from_model(model, uvAbsolute=(isJkdf2 and uvAbsolute_2_1), geosetNum=0, vertexColors=importVertexColors, importRadiusObj=importRadiusObj, preserveOrder=preserveOrder)
 
     # Set model's insert offset and radius
     baseObj = bpy.data.objects.new(model.name, None)

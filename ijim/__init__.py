@@ -164,6 +164,12 @@ class ImportModel3do(bpy.types.Operator, ImportHelper):
         default     = True,
     )
 
+    vertex_colors = bpy.props.BoolProperty(
+        name        = 'Import Vertex Colors',
+        description = 'Import mesh vertex colors from 3DO',
+        default     = True,
+    )
+
     import_radius_objects = bpy.props.BoolProperty(
         name        = 'Import Radius Objects',
         description = 'Import mesh radius as wireframe sphere object',
@@ -193,6 +199,7 @@ class ImportModel3do(bpy.types.Operator, ImportHelper):
         layout.prop(self, 'set_3d_view')
         layout.prop(self, 'clear_scene')
         layout.prop(self, 'uv_absolute_3do_2_1')
+        layout.prop(self, 'vertex_colors')
         layout.prop(self, 'import_radius_objects')
         layout.prop(self, 'preserve_order')
         mat_layout = layout.box().column()
@@ -205,7 +212,7 @@ class ImportModel3do(bpy.types.Operator, ImportHelper):
         cmp_file_layout.prop(self, "cmp_file", text='')
 
     def execute(self, context):
-        obj = import3do(self.filepath, [self.mat_dir], self.cmp_file, self.uv_absolute_3do_2_1, self.import_radius_objects, self.preserve_order, self.clear_scene)
+        obj = import3do(self.filepath, [self.mat_dir], self.cmp_file, self.uv_absolute_3do_2_1, self.vertex_colors, self.import_radius_objects, self.preserve_order, self.clear_scene)
 
         if self.set_3d_view:
             area = next(area for area in bpy.context.screen.areas if area.type == 'VIEW_3D')
