@@ -1,82 +1,75 @@
-# Indiana Jones and The Infernal Machine Add-on for Blender 2.79
-The add-on provides import/export scripts for game resources e.g. models (.3do) and animations (.key).  
-In addition, it can also import game materials (.mat).
+# Blender 2.79 addon for the games based on Sith game engine
+[<img src="demo/blsthbn_sm.png"/>](demo/blsthbn.png)
 
+Addon provides Blender game assets import/export scripts for the games based on Sith game engine:
+  - Star Wars Jedi Knight: Dark Forces II
+  - Star Wars Jedi Knight: Mysteries of the Sith
+  - Star Wars: DroidWorks
+  - Indiana Jones and the Infernal Machine
 
-<img src="https://github.com/smlu/blender-ijim/blob/master/demo/inmcar.png" width="80%"/>
-<img src="https://github.com/smlu/blender-ijim/blob/master/demo/gif/in_hat2.gif" width="80%"/>
+## Features
+  - Import/Export .3do models
+  - Edit 3DO mesh & polygon properties in Blender
+  - Import/Export .key animations
+  - Import .mat textures
+
+<img src="demo/gif/in_hat2.gif" width="50%"/>
+<img src="demo/gif/kych.gif" width="50%"/><img src="demo/gif/diswim.gif" width="50%"/>
 
 ## Requirements
-Blender 2.79, you can download it [here](https://download.blender.org/release/Blender2.79/latest/).  
-To import game resources into blender they need to be extracted from `*.GOB` and `*.CND` files first. Use `gobext` and `cndtool` from [this](https://github.com/smlu/ProjectMarduk) repo.
+Blender 2.79, you can download it [here](https://download.blender.org/release/Blender2.79/latest/). 
 
 ## Installation
-   1. Download `ijim.zip` file from the [Releases](https://github.com/smlu/blender-ijim/releases) page.
-   2. Open Blender and select `File > User Preferences > Add-ons > Install Add-on from File`   
-   and select the downloaded `ijim.zip` file.
-   3. Enable the add-on by clicking the checkbox next to the add-on name.
-   4. Select `Save User Settings` in the lower left and close the window.
+   1. Download `sith.zip` file from the [Releases](https://github.com/smlu/blender-sith/releases) page.
+   2. Open Blender and select `File > User Preferences > Add-ons > Install Add-on from File`  
+      and select the downloaded `sith.zip` file.
+   3. Enable the addon by clicking the checkbox next to the add-on name.
+   4. Click the `Save User Settings` button in the lower left and close the preferences window.
    
 ## Usage
-### File naming convention
-The maximum file name length, including the file extension in Jones3d engine is limited to 64 characters.  
-Therefore all longer file names have to be abbreviated.  
-Some of general abbreviations:  
-   &nbsp;&nbsp;&nbsp;&nbsp; **dflt** - default  
-   &nbsp;&nbsp;&nbsp;&nbsp; **bk**   - back  
-   &nbsp;&nbsp;&nbsp;&nbsp; **by**   - boy  
-   &nbsp;&nbsp;&nbsp;&nbsp; **com**  - commy    
-   &nbsp;&nbsp;&nbsp;&nbsp; **fr**   - front    
-   &nbsp;&nbsp;&nbsp;&nbsp; **ib**   - ice boss   
-   &nbsp;&nbsp;&nbsp;&nbsp; **ij**   - indy jeep  
-   &nbsp;&nbsp;&nbsp;&nbsp; **in**   - indy  
-   &nbsp;&nbsp;&nbsp;&nbsp; **inv**  - inventory  
-   &nbsp;&nbsp;&nbsp;&nbsp; **ir**   - indy raft  
-   &nbsp;&nbsp;&nbsp;&nbsp; **lb**   - lava boss  
-   &nbsp;&nbsp;&nbsp;&nbsp; **mc**   - mine car  
-   &nbsp;&nbsp;&nbsp;&nbsp; **mo**   - monkey  
-   &nbsp;&nbsp;&nbsp;&nbsp; **by**   - boy  
-   &nbsp;&nbsp;&nbsp;&nbsp; **ol**   - old lady  
-   &nbsp;&nbsp;&nbsp;&nbsp; **rft**  - raft  
-   &nbsp;&nbsp;&nbsp;&nbsp; **sn**   - snake  
-   &nbsp;&nbsp;&nbsp;&nbsp; **sp**   - spider  
-   &nbsp;&nbsp;&nbsp;&nbsp; **so**   - sophia  
-   &nbsp;&nbsp;&nbsp;&nbsp; **tu**   - turner  
-   &nbsp;&nbsp;&nbsp;&nbsp; **uw**   - under water  
-   &nbsp;&nbsp;&nbsp;&nbsp; **vo**   - volodnikov  
-   &nbsp;&nbsp;&nbsp;&nbsp; **yl**   - young lady  
-   
-   &nbsp;&nbsp;&nbsp;&nbsp; Also, every file which refers to specific game level is prefixed with 3 letters of abbreviated lavel name eg.: pyr_, pru_...  
+### Importing 3DO model
+   1. Go to `File > Import > Sith Game Engine 3D Model (.3do)`
+   2. Find and select `*.3do` model file  
+   3. Import options  
+      In the opened import dialog window you have import options under `Import 3DO` section (bottom left). Here you can check/uncheck different options and set path to the folder containing texture files (.mat) and ColorMap file (.cmp)  
+      ![iopt](demo/iopt.png)  
+      *Note: By default addon tries to find required texture(s) and ColorMap file of the imported model at the location of it's file.  
+      I.e.: <model_path>/mat, <model_path>/misc/cmp, <model_path>/../mat, <model_path>/../misc/cmp, <model_path>/../../misc/cmp*
+   4. Then click the `Import 3DO` button to import model into Blender.  
 
-### Importing 3do model
-   1. Go to `File > Import > Import Idiana Jones IM model (.3do)`
-   2. In the opened dialog, set the path to the folder containing material files (.mat) of model.  
-    <img src="https://github.com/smlu/blender-ijim/blob/master/demo/dlg_imp3doprop.png" width="28%"/>  
-    (Bottom left, `Materials folder` property under `Import 3DO` section)  
-   *Note: Which material files are used by model can be viewed under `MATERIALS` section at the begining of a `3do` file.*
-   
-   3. Select the `*.3do` model file and click `Import 3DO`   
-   *Note: If you are later planning to export imported model make sure that the importing property `Preserve Mesh Hierarchy` is turned on. This will make sure that animations depending on the model won't break in the game.*
-   
-### Exporting 3do model
-   1. Go to `File > Export > Import Idiana Jones IM model (.3do)`
-   2. Select path, name the file and click `Export 3DO`  
-   *Note: The file name must not be longer then 64 characters. See section [File naming convention](#file-naming-convention).*
-   
-### Importing animation
-   1. First import 3do model that animation is for.   
-   *Note: Which key file belongs to which 3do model cannot be figured out easely because one model can have many animations.
-   One thing to do is opening puppet file (`.pup`) located in misc/pup folder and see which animations belongs to the same game "actor". Another way is to open up `3do` and `key` file and see if `3do` file contains all mesh names used by `key` file.*
-   
-   1. Go to `File > Import > Import Idiana Jones IM animation (.key)`
-   2. Select the `*.key` file and click `Import KEY`
-   
-### Exporting animation
-   1. Go to `File > Export > Import Idiana Jones IM animation (.key)`
-   2. (Optional) Change properties of the `Export KEY` section (bottom left)
+### Exporting 3DO model
+   1. Go to `File > Export > Sith Game Engine 3D Model (.3do)`
+   2. Select path, name the file  
+      *Note: The file name must not be longer then 64 characters.*
+   3. In the export options section select the 3DO file version  
+      ![eopt](demo/eopt.png)
+   4. Then click the `Export 3DO` button to export object(s) to 3DO file.
+
+### Importing KEY animation
+   1. First import 3DO model that animation is for  
+      *Note: Which key file belongs to which 3DO model cannot be easy to figured out because single model can have many different animations.
+      One thing to do is opening puppet file (`.pup`) located in misc/pup folder and see which animations belongs to the same game "actor". Another way is to open up `.3do` and `.key` file and see if `.3do` file contains all mesh names used by the `.key` file.*
+   2. Go to `File > Import > Sith Game Engine Animation (.key)`
+   3. Select the `*.key` file and click the `Import KEY` button
+
+### Exporting KEY animation
+   1. Go to `File > Export > Sith Game Engine Animation (.key)`
+   2. (Optional) Set additional export options in the `Export KEY` section (bottom left)  
+      ![ekopt](demo/ekopt.png)
    3. Select path, name the file and click `Export KEY`  
-   *Note: The file name must not be longer then 64 characters. See section [File naming convention](#file-naming-convention).*
+      *Note: The file name must not be longer then 64 characters*
 
-### Importing material
-   1. Go to `File > Import > Import Idiana Jones IM material (.mat)`
-   3. Select the `*.mat` file and click `Import MAT`      
+### Importing MAT texture
+   1. Go to `File > Import > Sith Game Engine Texture (.mat)`
+   3. Select the `*.mat` file and click the `Import MAT` button  
+
+### Editing
+Additional from importing and exporting Sith engine formats addon adds extra UI panels for editing 3DO file specific data.
+
+#### 1. Object 3DO Properties  
+   ![o3dop](demo/o3dop.png)
+   The Sequence number is the node position number in the mesh node hierarchy list in the 3DO file. 
+   When creating the new model by default this number is `-1` and addon will auto-set the node position in the hierarchy list based on the object's hierarchy in Blender when exporting to 3DO file. If the node name is not set addon will take the object mesh name from Blender when exporting to 3DO file.  
+
+#### 2. Mesh Face Properties   
+   ![3dofp](demo/3dofp.png)
