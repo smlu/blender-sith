@@ -128,8 +128,26 @@ class ImportMat(bpy.types.Operator, ImportHelper):
         options = {"HIDDEN"}
     )
 
+    cmp_file = bpy.props.StringProperty(
+        name        = 'ColorMap Directory',
+        description = "Path to the ColorMap file (.cmp) of mat texture (JKDF2 & MOTS only).\n\nBy default addon tries to load 'dflt.cmp' from the texture path and parent directory",
+        #subtype='DIR_PATH'
+    )
+
+    def draw(self, context):
+        layout = self.layout
+        cmp_file_layout = layout.box().column()
+        cmp_file_layout.label(text='ColorMap File (JKDF2 & MOTS)')
+        cmp_file_layout.prop(self, "cmp_file", text='')
+
     def execute(self, context):
-        importMat(self.filepath)
+        cmp_file = Path(self.cmp_file)
+        if not cmp_file.is_file():
+            cmp_file = getDefaultCmpFilePath(self.filepath)
+        cmp = None
+        if cmp_file is not None and cmp_file.is_file():
+            cmp = ColorMap.load(cmp_file)
+        importMat(self.filepath, cmp)
         return {'FINISHED'}
 
 
