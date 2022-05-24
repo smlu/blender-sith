@@ -20,6 +20,7 @@
 # SOFTWARE.
 
 import bpy, bmesh, mathutils, os, time
+import numpy as np
 
 from sith.utils import *
 from typing import List
@@ -72,6 +73,14 @@ def _uv_add_image_size(uv: mathutils.Vector, mat) -> mathutils.Vector:
             return vectorMultiply(uv, mathutils.Vector(s.texture.image.size))
     return uv
 
+def _find_vertex(vlist: List[Vector3f], v: Vector3f, vcolors: List[Vector4f], vcolor: Vector4f) -> int:
+    def np_array(o):
+        return np.array(o, dtype="f,f,f")
+    for vidx in np.where(np_array(vlist) == np_array(v))[0]:
+        if vidx < len(vcolors) and vcolors[vidx] == vcolor:
+            return vidx
+    return -1
+
 def _model3do_add_mesh(model: Model3do, mesh: bpy.types.Mesh, scale: mathutils.Vector, uvAbsolute: bool, exportVertexColors: bool) -> int:
     if mesh is None:
         return -1
@@ -102,8 +111,8 @@ def _model3do_add_mesh(model: Model3do, mesh: bpy.types.Mesh, scale: mathutils.V
     bm.from_mesh(mesh)
     bm.verts.ensure_lookup_table()
     bm.faces.ensure_lookup_table()
-    vert_color = bm.loops.layers.color.verify()
-    uv_layer   = bm.loops.layers.uv.verify()
+    vcolor_layer = bm.loops.layers.color.verify()
+    uv_layer     = bm.loops.layers.uv.verify()
 
     for face in bm.faces:
         face3do = Mesh3doFace()
@@ -126,15 +135,15 @@ def _model3do_add_mesh(model: Model3do, mesh: bpy.types.Mesh, scale: mathutils.V
 
         # Set face vertex and texture index
         for loop in face.loops:
-            vertx = Vector3f(*vectorMultiply(loop.vert.co, scale))
-            if not mesh3do.vertices.count(vertx):
+            vertx  = Vector3f(*vectorMultiply(loop.vert.co, scale))
+            vcolor = Vector4f(*loop[vcolor_layer]) if exportVertexColors else kDefaultVertexColor
+            vidx   = _find_vertex(mesh3do.vertices, vertx, mesh3do.vertexColors, vcolor)
+            if vidx < 0:
+                vidx = len(mesh3do.vertices)
                 mesh3do.vertices.append(vertx)
-                vertColor = Vector4f(*loop[vert_color]) if exportVertexColors else kDefaultVertexColor
-                mesh3do.vertexColors.append(vertColor)
+                mesh3do.vertexColors.append(vcolor)
                 mesh3do.normals.append(Vector3f(*loop.vert.normal))
-
-            vertx_idx = mesh3do.vertices.index(vertx)
-            face3do.vertexIdxs.append(vertx_idx)
+            face3do.vertexIdxs.append(vidx)
 
             # Set UV coordinates
             uv = loop[uv_layer].uv
