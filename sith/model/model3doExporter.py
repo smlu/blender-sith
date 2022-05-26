@@ -293,18 +293,18 @@ def makeModel3doFromObj(name, obj: bpy.types.Object, uvAbsolute: bool = False, e
     model = Model3do(name)
     model.geosets.append(Model3doGeoSet())
 
-    model.insertOffset = Vector3f(*obj.location)
     radius_obj = getModelRadiusObj(obj)
     if radius_obj is None:
         model.radius = _get_model_radius(obj)
     else:
         model.radius = radius_obj.dimensions[0] / 2
 
-    if len(obj.children):
+    if obj.type == 'MESH' or len(obj.children) == 0:
+        _model3do_add_obj(model, obj, uvAbsolute=uvAbsolute, exportVertexColors=exportVertexColors)
+    else:
+        model.insertOffset = Vector3f(*obj.location)
         for child in obj.children:
             _model3do_add_obj(model, child, parent=obj, scale=obj.scale, uvAbsolute=uvAbsolute, exportVertexColors=exportVertexColors)
-    else:
-        _model3do_add_obj(model, obj, uvAbsolute=uvAbsolute, exportVertexColors=exportVertexColors)
 
     model.reorderNodes()
     return model
