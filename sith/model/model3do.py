@@ -501,8 +501,10 @@ class Model3do:
             return -1
 
         from functools import cmp_to_key
-        nodes = sorted(self. hierarchyNodes, key=cmp_to_key(lambda n1, n2: n1.idx - n2.idx))
+        nodes = sorted(self.hierarchyNodes, key=cmp_to_key(lambda n1, n2: n1.idx - n2.idx))
         for idx, node in enumerate(nodes):
+            node.idx = idx
+
             # Update parent
             if node.parentIdx > -1:
                 # Set parent num
