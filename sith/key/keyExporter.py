@@ -154,7 +154,7 @@ def _make_key_from_obj(key_name, obj: bpy.types.Object, scene: bpy.types.Scene):
             # Append keyframe node if node has keyframes
             if len(knode.keyframes):
                 key.nodes.append(knode)
-    key.numJoints = len(key.nodes)
+    key.numJoints = len(model3do.hierarchyNodes)
     return key
 
 def exportKey(obj: bpy.types.Object, scene: bpy.types.Scene, path: str):
