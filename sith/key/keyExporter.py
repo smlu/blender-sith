@@ -111,14 +111,13 @@ def _make_key_from_obj(key_name, obj: bpy.types.Object, scene: bpy.types.Scene):
                 frame = item[0]
                 entry = item[1]
 
-                keyframe = Keyframe()
-                keyframe.frame = int(frame)
-                keyframe.flags = entry["flags"]
+                kf       = Keyframe()
+                kf.frame = int(frame)
+                kf.flags = entry["flags"]
 
                 previous_kf = knode.keyframes[idx - 1] if idx > 0 else None
 
                 # Set location
-                keyframe.position = Vector3f(0.0, 0.0, 0.0)
                 if "location" in entry:
                     def get_scale(o):
                         scale = o.scale
@@ -129,31 +128,28 @@ def _make_key_from_obj(key_name, obj: bpy.types.Object, scene: bpy.types.Scene):
                         return scale
                     loc = mathutils.Vector(entry['location'])
                     loc = vectorMultiply(loc, get_scale(cobj))
-                    keyframe.position =  Vector3f(*loc)
+                    kf.position =  Vector3f(*loc)
                 elif previous_kf:
-                    keyframe.position = previous_kf.position
+                    kf.position = previous_kf.position
 
                 # Set delta position
-                keyframe.deltaPosition = Vector3f(0.0, 0.0, 0.0)
                 if previous_kf:
-                    _set_keyframe_delta(KeyframeFlag.PositionChange, previous_kf, keyframe)
+                    _set_keyframe_delta(KeyframeFlag.PositionChange, previous_kf, kf)
 
                 # Set orientation
-                keyframe.orientation = Vector3f(0.0, 0.0, 0.0)
                 if 'rotation_euler' in entry:
-                    keyframe.orientation   = eulerToImEuler(entry["rotation_euler"], cobj.rotation_mode)
+                    kf.orientation   = eulerToImEuler(entry["rotation_euler"], cobj.rotation_mode)
                 elif "rotation_quaternion" in entry:
                     orient = mathutils.Quaternion(entry["rotation_quaternion"])
-                    keyframe.orientation = quaternionToImEuler(orient)
+                    kf.orientation = quaternionToImEuler(orient)
                 elif previous_kf:
-                    keyframe.orientation = previous_kf.orientation
+                    kf.orientation = previous_kf.orientation
 
                 # Set delta rotation
-                keyframe.deltaRotation = Vector3f(0.0, 0.0, 0.0)
                 if previous_kf:
-                    _set_keyframe_delta(KeyframeFlag.OrientationChange, previous_kf, keyframe)
+                    _set_keyframe_delta(KeyframeFlag.OrientationChange, previous_kf, kf)
 
-                knode.keyframes.append(keyframe)
+                knode.keyframes.append(kf)
 
             # Append keyframe node if node has keyframes
             if len(knode.keyframes):

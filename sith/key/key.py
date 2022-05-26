@@ -139,11 +139,11 @@ class KeyMarker:
 class Keyframe:
     def __init__(self):
         self.f: KeyframeFlag = KeyframeFlag.NoChange
-        self.frme : int = 0
-        self.pos: Vector3f = [] # x,y,z
-        self.orien: Vector3f = [] # pitch, yaw, roll:
-        self.dpos: Vector3f = [] # x,y,z
-        self.drot: Vector3f = [] # pitch, yaw, roll:
+        self.frme : int      = 0
+        self.pos: Vector3f   = Vector3f(0.0, 0.0, 0.0) # x,y,z
+        self.orien: Vector3f = Vector3f(0.0, 0.0, 0.0) # pitch, yaw, roll:
+        self.dpos: Vector3f  = Vector3f(0.0, 0.0, 0.0) # x,y,z
+        self.drot: Vector3f  = Vector3f(0.0, 0.0, 0.0) # pitch, yaw, roll:
 
     @property
     def flags(self) -> KeyframeFlag:
@@ -226,14 +226,14 @@ class KeyNode:
 class Key:
     def __init__(self, name: str):
         self.n = name
-        self.f: KeyFlag = KeyFlag.Loop
-        self.t: KeyType = KeyType.Unknown_00
+        self.f: KeyFlag  = KeyFlag.Loop
+        self.t: KeyType  = KeyType.Unknown_00
         self.frames: int = 0
-        self.nfps: float  = 0.0
+        self.nfps: float = 0.0
         self.joints: int = 0
 
         self.m : List[KeyMarker] = []
-        self.n : List[KeyNode] = []
+        self.n : List[KeyNode]   = []
 
     @property
     def name(self) -> str:

@@ -116,10 +116,10 @@ class Mesh3doFace:
         self.light_mode: LightMode  = LightMode.FullyLit
         self.tex_mode: TextureMode  = TextureMode.Affine
 
-        self.c: Vector4f    = (0.000000, 0.000000, 0.000000, 0.000000) # RGBA color
+        self.c: Vector4f    = Vector4f(0.0, 0.0, 0.0, 0.0) # RGBA color
         self.vi: List[int]  = []  # List of indexes to the mesh list of vertices (vertex idx)
         self.tvi: List[int] = []  # List of indexes to the mesh list of texture vertices (tex vertex idx)
-        self.n: Vector3f    = (0.000000, 0.000000, 0.000000) # face normal(x, y, z)
+        self.n: Vector3f    = Vector3f(0.0, 0.0, 0.0) # face normal(x, y, z)
 
     @property
     def materialIdx(self) -> int:
@@ -192,7 +192,6 @@ class Mesh3doFace:
     @normal.setter
     def normal(self, normal: Vector3f):
         self.n = normal
-
 
 class Mesh3do:
     def __init__(self, idx: int = 0, name: str =""):
@@ -298,7 +297,6 @@ class Mesh3do:
     def faces(self, faces: List[Mesh3doFace]):
         self.face_list = faces
 
-
 class Model3doGeoSet:
     def __init__(self):
         self.mesh_list: List[Mesh3do] = []
@@ -310,7 +308,6 @@ class Model3doGeoSet:
     @meshes.setter
     def meshes(self, meshes: List[Mesh3do]):
         self.mesh_list = meshes
-
 
 class Mesh3doHierarchyNode:
     def __init__(self, name =""):
@@ -325,9 +322,9 @@ class Mesh3doHierarchyNode:
         self.num_children: int   = -1
         self._o                  = None
 
-        self.pos: Vector3f = [] # x,y,z
-        self.rot: Vector3f = [] # pitch, yaw, roll:
-        self.piv: Vector3f = [] # pivotx, pivoty, pivotz
+        self.pos: Vector3f = Vector3f(0.0, 0.0, 0.0)# x,y,z
+        self.rot: Vector3f = Vector3f(0.0, 0.0, 0.0) # pitch, yaw, roll:
+        self.piv: Vector3f = Vector3f(0.0, 0.0, 0.0) # pivotx, pivoty, pivotz
 
     @property
     def idx(self) -> int:
@@ -435,13 +432,12 @@ class Mesh3doHierarchyNode:
         """ Sets associated blender object """
         self._o = obj
 
-
 class Model3do:
     def __init__(self, name: str = ""):
         self.model_name: str          = name
         self.material_list: List[str] = []
         self.col_radius: float        = 0.0
-        self.insert_offset: Vector3f  = [] # x,y, z
+        self.insert_offset: Vector3f  = Vector3f(0.0, 0.0, 0.0) # x,y, z
 
         self.geoset_list: List[Model3doGeoSet]           = []
         self.hierarchy_nodes: List[Mesh3doHierarchyNode] = []
