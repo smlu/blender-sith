@@ -225,7 +225,7 @@ def import3do(file_path, mat_dirs = [], cmp_file = '', uvAbsolute_2_1 = True, im
         if cmp_file:
             cmp = _import_colormap(cmp_file)
         else:
-            print("Warning: No ColorMap was found!")
+            print("Warning: Loading 3DO version 2.1 and no ColorMap was found!")
 
     if clearScene:
         clearAllScenes()

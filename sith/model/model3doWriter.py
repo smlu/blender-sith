@@ -230,8 +230,7 @@ def _write_section_hierarchydef(file, model: Model3do):
         row += _vector_to_str(node.pivot)
         row += '  ' + node.name
         writeLine(file, row)
-
-
+        
 
 def write(model: Model3do, filePath, version: Model3doFileVersion, headerComment):
     f = open(filePath, 'w')
