@@ -94,7 +94,8 @@ def _parse_key_section_keyframe_nodes(tok: Tokenizer, key: Key):
         key.nodes.append(node)
 
 
-def load(filePath) -> Key:
+def loadKey(filePath) -> Key:
+    """ Loads Key from .key file """
     f = open(filePath, 'r')
     tok = Tokenizer(f)
     key = Key(os.path.basename(filePath))

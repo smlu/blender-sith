@@ -231,8 +231,8 @@ def _write_section_hierarchydef(file, model: Model3do):
         row += '  ' + node.name
         writeLine(file, row)
 
-
-def write(model: Model3do, filePath, version: Model3doFileVersion, headerComment):
+def save3do(model: Model3do, filePath, version: Model3doFileVersion, headerComment):
+    """ Saves `model` to 3DO file """
     f = open(filePath, 'w')
 
     _write_section_header(f, model, headerComment, version)

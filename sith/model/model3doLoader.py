@@ -221,7 +221,7 @@ def _parse_hierarchy_section(tok: Tokenizer, model: Model3do):
         model.meshHierarchy.append(node)
 
 
-def load(filePath) -> Tuple[Model3do, Model3doFileVersion]:
+def load3do(filePath) -> Tuple[Model3do, Model3doFileVersion]:
     f = open(filePath, 'r')
     tok = Tokenizer(f)
 

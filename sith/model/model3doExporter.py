@@ -320,6 +320,6 @@ def export3do(obj: bpy.types.Object, path: str, version: Model3doFileVersion, uv
 
     model3do = makeModel3doFromObj(model_name, obj, uvAbsolute=uvAbsolute, exportVertexColors=exportVertexColors)
     header   = getExportFileHeader("3DO model '{}'".format(os.path.basename(path)))
-    model3doWriter.write(model3do, path, version, header)
+    model3doWriter.save3do(model3do, path, version, header)
 
     print(" done in %.4f sec." % (time.process_time() - start_time))

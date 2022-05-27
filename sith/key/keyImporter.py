@@ -43,7 +43,7 @@ def importKey(keyPath, scene: bpy.types.Scene):
     print("importing KEY: %r..." % (keyPath), end="")
     startTime = time.process_time ()
 
-    key = keyLoader.load(keyPath)
+    key = keyLoader.loadKey(keyPath)
     clearSceneAnimData(scene)
 
     scene.frame_start     = 0

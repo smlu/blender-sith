@@ -210,7 +210,7 @@ def import3do(file_path, mat_dirs = [], cmp_file = '', uvAbsolute_2_1 = True, im
     print("importing 3DO: %r..." % (file_path), end="")
     startTime = time.process_time()
 
-    model, fileVersion = model3doLoader.load(file_path)
+    model, fileVersion = model3doLoader.load3do(file_path)
     isJkdf2 = (fileVersion == model3doLoader.Model3doFileVersion.Version2_1)
     if len(model.geosets) == 0:
         print("Info: Nothing to load because 3DO model doesn't contain any geoset.")

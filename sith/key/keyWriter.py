@@ -91,7 +91,8 @@ def _write_section_keyframe_nodes(file, key: Key):
             writeLine(file, row2)
         writeNewLine(file)
 
-def write(key: Key, filePath, headerComment):
+def saveKey(key: Key, filePath, headerComment):
+    """ Saves `key` to .key file """
     f = open(filePath, 'w')
 
     _write_section_header(f, key, headerComment)

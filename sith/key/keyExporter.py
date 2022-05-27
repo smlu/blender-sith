@@ -169,6 +169,6 @@ def exportKey(obj: bpy.types.Object, scene: bpy.types.Scene, path: str):
     if len(key.nodes) == 0:
         print("\nWarning: The object doesn't have any animation data to export!")
     header  = getExportFileHeader("Keyframe '{}'".format(os.path.basename(path)))
-    keyWriter.write(key, path, header)
+    keyWriter.saveKey(key, path, header)
 
     print(" done in %.4f sec." % (time.process_time() - start_time))
