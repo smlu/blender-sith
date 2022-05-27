@@ -137,6 +137,53 @@ def _get_model3do_texture_mode_list():
         l.append((f.name, _make_readable(f.name), ""))
     return l
 
+def _get_export_obj(context, report, data_type: str):
+    """ Returns obj by searching for top object which represents 3DO model """
+    eobj = None
+    if kGModel3do not in bpy.data.groups or len(bpy.data.groups[kGModel3do].objects) == 0:
+        # Get one selected object
+        if len(context.selected_objects) == 0:
+            print(f"Error: Could not determine which object to export {data_type} data from. Select 1 object or put object into '{kGModel3do}' group!")
+            report({'ERROR'}, f"No object selected! Select 1 object or put object into '{kGModel3do}' group!")
+            return None
+        if len(context.selected_objects) > 1:
+            print(f"Error: Could not determine which object to export {data_type} data from, more than 1 object selected!")
+            report({'ERROR'}, 'Too many objects selected!')
+            return None
+
+        eobj = context.selected_objects[0]
+    else: # Model3do group
+        objs = bpy.data.groups[kGModel3do].objects
+        if len(objs) == 0:
+            print(f"Error: No object in '{kGModel3do}' group. Add object to the group or delete the group!")
+            report({'ERROR'}, f"Group '{kGModel3do}' is empty! Add object to the group or delete the group!")
+            return None
+        elif len(objs) > 1:
+            for obj in objs:
+                if obj.select:
+                    if not eobj is None:
+                        print(f"Error: Could not determine from which object to export {data_type} data from. Too many objects selected in '{kGModel3do}' group!")
+                        report({'ERROR'}, f"Too many objects selected in group '{kGModel3do}'. Select only 1 object in that group!")
+                        return None
+                    eobj = obj
+            if eobj is None:
+                print(f"Error: Could not determine which object to export {data_type} data from. No object selected in '{kGModel3do}' group!")
+                report({'ERROR'}, f"No object selected in group '{kGModel3do}'!")
+                return None
+        else:
+            eobj = objs[0]
+
+    if 'EMPTY' != eobj.type != 'MESH':
+        print(f"Error: Selected object is of type '{eobj.type}', can only export {data_type} data from an object of type 'MESH' or 'EMPTY'!")
+        report({'ERROR'}, f"Cannot export {data_type} data from selected object of a type '{eobj.type}'!")
+        return None
+
+    # Get the top obj
+    while eobj.parent != None and \
+        (eobj.parent.type == 'MESH' or eobj.parent.type == 'EMPTY'):
+        eobj = eobj.parent
+    return eobj
+
 
 class ImportMat(bpy.types.Operator, ImportHelper):
     """Import Sith game engine texture (.mat)"""
@@ -252,32 +299,31 @@ class ImportModel3do(bpy.types.Operator, ImportHelper):
         obj = import3do(self.filepath, [self.mat_dir], self.cmp_file, self.uv_absolute_3do_2_1, self.vertex_colors, self.import_radius_objects, self.preserve_order, self.clear_scene)
 
         if self.set_3d_view:
-            area = next(area for area in bpy.context.screen.areas if area.type == 'VIEW_3D')
+            area   = next(area for area in context.screen.areas if area.type == 'VIEW_3D')
             region = next(region for region in area.regions if region.type == 'WINDOW')
-            space = next(space for space in area.spaces if space.type == 'VIEW_3D')
-            space.viewport_shade = "MATERIAL"
-            space.lens           = 100.0
-            space.clip_start     = 0.001
-            space.lock_object    = obj
-
-            space.show_floor  = True
-            space.show_axis_x = True
-            space.show_axis_y = True
-            space.grid_lines  = 10
-            space.grid_scale  = 1.0
+            space  = next(space for space in area.spaces if space.type == 'VIEW_3D')
+            space.viewport_shade    = "MATERIAL"
+            space.lens              = 100.0
+            space.clip_start        = 0.001
+            space.lock_object       = obj
+            space.show_floor        = True
+            space.show_axis_x       = True
+            space.show_axis_y       = True
+            space.grid_lines        = 10
+            space.grid_scale        = 1.0
             space.grid_subdivisions = 10
 
-            active_obj = bpy.context.scene.objects.active
-            bpy.context.scene.objects.active = obj
+            active_obj = context.scene.objects.active
+            context.scene.objects.active = obj
             bpy.ops.object.select_grouped(type='CHILDREN_RECURSIVE')
 
-            override = {'area': area, 'region': region, 'edit_object': bpy.context.edit_object}
+            override = {'area': area, 'region': region, 'edit_object': context.edit_object}
             bpy.ops.view3d.view_center_lock(override)
             bpy.ops.view3d.viewnumpad(override, type='BACK', align_active=True)
             bpy.ops.view3d.view_selected(override)
 
             bpy.ops.object.select_all(action='DESELECT')
-            bpy.context.scene.objects.active = active_obj
+            context.scene.objects.active = active_obj
 
         return {'FINISHED'}
 
@@ -325,52 +371,9 @@ class ExportModel3do(bpy.types.Operator, ExportHelper):
         layout.prop(self, 'export_vert_colors')
 
     def invoke(self, context, event):
-        eobj = None
-        if not kGModel3do in bpy.data.groups or len(bpy.data.groups[kGModel3do].objects) == 0:
-            # Get one selected object
-            if len(bpy.context.selected_objects) == 0:
-                print("Error: could not determine which objects to export. Put into '{}' group or select (1) top object in hierarchy!".format(kGModel3do))
-                self.report({'ERROR'}, 'No object selected to export')
-                return {'CANCELLED'}
-
-            if len(bpy.context.selected_objects) > 1:
-                print("Error: could not determine which objects to export, more then 1 object selected!")
-                self.report({'ERROR'}, 'Too many objects selected to export')
-                return {'CANCELLED'}
-
-            eobj = bpy.context.selected_objects[0]
-
-        else: # Model3do goup
-            objs = bpy.data.groups[kGModel3do].objects
-            if len(objs) == 0:
-                print("Error: could not determine which objects to export, no object in '{}' group!".format(kGModel3do))
-                self.report({'ERROR'}, "No object in group '{}' to export".format(kGModel3do))
-                return {'CANCELLED'}
-            elif len(objs) > 1:
-                for obj in objs:
-                    if obj.select:
-                        if not eobj is None:
-                            print("Error: could not determine which objects to export, too many objects selected in '{}' group!".format(kGModel3do))
-                            self.report({'ERROR'}, "Too many objects selected in group '{}' to export".format(kGModel3do))
-                            return {'CANCELLED'}
-                        eobj = obj
-                if eobj is None:
-                    print("Error: could not determine which objects to export, no object selected in '{}' group!".format(kGModel3do))
-                    self.report({'ERROR'}, "No object selected in group '{}' to export".format(kGModel3do))
-                    return {'CANCELLED'}
-            else:
-                eobj = objs[0]
-
-        if 'EMPTY' != eobj.type != 'MESH':
-            print("Error: selected object is of type '{}', can only export an object with type 'MESH' or 'EMPTY'!".format(eobj.type))
-            self.report({'ERROR'}, "Cannot export selected object of a type '{}'".format(eobj.type ))
+        self.obj = _get_export_obj(context, self.report, 'mesh')
+        if self.obj is None:
             return {'CANCELLED'}
-
-        while eobj.parent != None and \
-            (eobj.parent.type == 'MESH' or eobj.parent.type == 'EMPTY'):
-            eobj = eobj.parent
-
-        self.obj = eobj
         self.filepath = bpy.path.ensure_ext(self.obj.name , self.filename_ext)
         return ExportHelper.invoke(self, context, event)
 
@@ -403,14 +406,13 @@ class ImportKey(bpy.types.Operator, ImportHelper):
 
     def execute(self, context):
         try:
-            scene = bpy.context.scene
+            scene = context.scene
             importKey(self.filepath, scene)
         except Exception as e:
-            print("\nAn exception was encountered while importing keyframe '{}'!\nError: {}".format(os.path.basename(self.filepath), e))
+            print("\nError: An exception was encountered while importing keyframe '{}'!\nError: {}".format(os.path.basename(self.filepath), e))
             self.report({'ERROR'}, "Error: {}".format(e))
             return {'CANCELLED'}
         return {'FINISHED'}
-
 
 class ExportKey(bpy.types.Operator, ExportHelper):
     """Export animation to Sith game engine KEY file format (.key)"""
@@ -453,10 +455,9 @@ class ExportKey(bpy.types.Operator, ExportHelper):
     )
 
     obj   = None
-    scene = None
 
     def draw(self, context):
-        layout = self.layout
+        layout       = self.layout
         flags_layout = layout.box().column()
         flags_layout.label(text='Flags')
         flags_layout.prop(self, "animation_flags")
@@ -464,86 +465,31 @@ class ExportKey(bpy.types.Operator, ExportHelper):
         layout.prop(self, 'fps')
 
     def invoke(self, context, event):
-        # Initializes self.scene and self.obj by searching for a top object which represents 3DO model
-        try:
-            self.scene           = bpy.context.scene.copy()
-            self.animation_flags = self.scene.key_animation_flags
-            self.animation_type  = self.scene.key_animation_type
-            fps                  = self.scene.render.fps
-            for e in reversed(ExportKey._get_fps_enum_list()):
-                if e[0] == str(fps):
-                    self.fps = str(e[0])
-                    break
-                elif fps < float(e[0]):
-                    self.fps = str(e[0])
-                    break
+        self.animation_flags = context.scene.key_animation_flags
+        self.animation_type  = context.scene.key_animation_type
+        fps                  = context.scene.render.fps
+        for e in reversed(ExportKey._get_fps_enum_list()):
+            if e[0] == str(fps):
+                self.fps = str(e[0])
+                break
+            elif fps < float(e[0]):
+                self.fps = str(e[0])
+                break
 
-            eobj = None
-            if not kGModel3do in bpy.data.groups or len(bpy.data.groups[kGModel3do].objects) == 0:
-                # Get one selected object
-                if len(bpy.context.selected_objects) == 0:
-                    print("Error: could not determine which objects to export. Put into '{}' group or select (1) top object in hierarchy!".format(kGModel3do))
-                    self.report({'ERROR'}, 'No object selected to export')
-                    bpy.data.scenes.remove(self.scene, True)
-                    return {'CANCELLED'}
-
-                if len(bpy.context.selected_objects) > 1:
-                    print("Error: could not determine which objects to export, more then 1 object selected!")
-                    self.report({'ERROR'}, 'Too many objects selected to export')
-                    bpy.data.scenes.remove(self.scene, True)
-                    return {'CANCELLED'}
-
-                eobj = bpy.context.selected_objects[0]
-            else: # Model3do group
-                objs = bpy.data.groups[kGModel3do].objects
-                if len(objs) == 0:
-                    print("Error: could not determine which objects to export animation data from. No object in '{}' group!".format(kGModel3do))
-                    self.report({'ERROR'}, "No object in group '{}' to export animation data from".format(kGModel3do))
-                    bpy.data.scenes.remove(self.scene, True)
-                    return {'CANCELLED'}
-                elif len(objs) > 1:
-                    for obj in objs:
-                        if obj.select:
-                            if not eobj is None:
-                                print("Error: could not determine from which objects to export animation data. Too many objects selected in '{}' group!".format(kGModel3do))
-                                self.report({'ERROR'}, "Too many objects selected in group '{}' to export animation data from".format(kGModel3do))
-                                bpy.data.scenes.remove(self.scene, True)
-                                return {'CANCELLED'}
-                            eobj = obj
-                    if eobj is None:
-                        print("Error: could not determine which from objects to export animation data from. No object selected in '{}' group!".format(kGModel3do))
-                        self.report({'ERROR'}, "No object selected in group '{}' to export animation data from".format(kGModel3do))
-                        bpy.data.scenes.remove(self.scene, True)
-                        return {'CANCELLED'}
-                else:
-                    eobj = objs[0]
-
-            if 'EMPTY' != eobj.type != 'MESH':
-                print("Error: selected object is of type '{}', can only export the animation data from an object with type 'MESH' or 'EMPTY'!".format(eobj.type))
-                self.report({'ERROR'}, "Cannot export animation data from selected object of a type '{}'".format(eobj.type ))
-                bpy.data.scenes.remove(self.scene, True)
-                return {'CANCELLED'}
-
-            # Get the top obj
-            while eobj.parent != None and \
-                (eobj.parent.type == 'MESH' or eobj.parent.type == 'EMPTY'):
-                eobj = eobj.parent
-
-            self.obj = eobj
-            kfname = bpy.path.display_name_from_filepath(self.obj.name )
-            self.filepath = bpy.path.ensure_ext(kfname, self.filename_ext)
-            return ExportHelper.invoke(self, context, event)
-        except:
-            if self.scene:
-                bpy.data.scenes.remove(self.scene, True)
-            raise
+        self.obj = _get_export_obj(context, self.report, 'animation')
+        if self.obj is None:
+            return {'CANCELLED'}
+        kfname = bpy.path.display_name_from_filepath(self.obj.name )
+        self.filepath = bpy.path.ensure_ext(kfname, self.filename_ext)
+        return ExportHelper.invoke(self, context, event)
 
     def execute(self, context):
+        scene = context.scene.copy()
         try:
-            self.scene.key_animation_flags = self.animation_flags
-            self.scene.key_animation_type  = self.animation_type
-            self.scene.render.fps          = float(self.fps)
-            exportKey(self.obj, self.scene, self.filepath)
+            scene.key_animation_flags = self.animation_flags
+            scene.key_animation_type  = self.animation_type
+            scene.render.fps          = float(self.fps)
+            exportKey(self.obj, scene, self.filepath)
 
             self.report({'INFO'}, "KEY '{}' was successfully exported".format(os.path.basename(self.filepath)))
             return {'FINISHED'}
@@ -552,11 +498,8 @@ class ExportKey(bpy.types.Operator, ExportHelper):
             self.report({'ERROR'}, "Error: {}".format(e))
             return {'CANCELLED'}
         finally:
-            bpy.data.scenes.remove(self.scene, True)
-
-    def cancel(self, context):
-        if self.scene:
-            bpy.data.scenes.remove(self.scene, True)
+            if scene:
+                bpy.data.scenes.remove(scene, True)
 
 
 class Model3doPanel(bpy.types.Panel):
@@ -578,7 +521,7 @@ class Model3doPanel(bpy.types.Panel):
             ('EMPTY' == context.object.type or context.object.type == 'MESH')
 
     def draw(self, context):
-        obj = context.object
+        obj    = context.object
         layout = self.layout
 
         mesh_properties = layout.box()
@@ -667,7 +610,8 @@ class Mesh3doFacePanel(bpy.types.Panel):
 
         bm = bmesh.from_edit_mesh(context.edit_object.data)
         bmMeshInit3doLayers(bm)
-        face = bm.faces.active
+
+        face    = bm.faces.active
         enabled = face is not None
         if enabled:
             fid = self._get_face_id(face)
@@ -720,7 +664,6 @@ def menu_func_import(self, context):
     self.layout.operator(ImportKey.bl_idname, text="Sith Game Engine Animation (.key)")
     self.layout.operator(ImportMat.bl_idname, text="Sith Game Engine Texture (.mat)")
     self.layout.operator(ImportModel3do.bl_idname, text="Sith Game Engine 3D Model (.3do)")
-
 
 def register():
     # Register classes
@@ -801,7 +744,6 @@ def register():
         pad         = True,
         options     = {'HIDDEN', 'LIBRARY_EDITABLE'}
     )
-
 
 def unregister():
     del bpy.types.Scene.key_animation_flags
