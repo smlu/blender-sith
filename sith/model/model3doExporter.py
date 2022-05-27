@@ -37,7 +37,7 @@ kHNDefaultFlags     = 0
 kHNDefaultType      = 0
 
 
-def _set_hnode_location(node: Mesh3doHierarchyNode, scale: mathutils.Vector):
+def _set_hnode_location(node: Mesh3doNode, scale: mathutils.Vector):
     node.position = Vector3f(*vectorMultiply(node.obj.location, scale))
     node.rotation = objOrientationToImEuler(node.obj)
     node.pivot    = Vector3f(0.0, 0.0, 0.0)
@@ -200,14 +200,14 @@ def _get_obj_hnode_name(obj: bpy.types.Object):
     assertName(name)
     return name
 
-def _get_obj_hnode_idx(nodes: List[Mesh3doHierarchyNode], obj: bpy.types.Object):
+def _get_obj_hnode_idx(nodes: List[Mesh3doNode], obj: bpy.types.Object):
     if obj is not None:
         for idx, n in enumerate(nodes):
             if n.obj == obj:
                 return idx
     return -1
 
-def _get_hnode_last_sibling(first_child: Mesh3doHierarchyNode, nodes: List[Mesh3doHierarchyNode]):
+def _get_hnode_last_sibling(first_child: Mesh3doNode, nodes: List[Mesh3doNode]):
     sidx = first_child.siblingIdx
     if sidx > -1:
         return _get_hnode_last_sibling(nodes[sidx], nodes)
@@ -215,30 +215,30 @@ def _get_hnode_last_sibling(first_child: Mesh3doHierarchyNode, nodes: List[Mesh3
 
 def _model3do_add_hnode(model: Model3do, mesh_idx: int, obj: bpy.types.Object, parent: bpy.types.Object, scale: mathutils.Vector):
     name               = _get_obj_hnode_name(obj)
-    node               = Mesh3doHierarchyNode(name)
+    node               = Mesh3doNode(name)
     node.idx           = obj.model3do_hnode_num
     node.flags         = Mesh3doNodeFlags.fromHex(obj.model3do_hnode_flags)
     node.type          = Mesh3doNodeType.fromHex(obj.model3do_hnode_type)
     node.meshIdx       = mesh_idx
-    node.parentIdx     = _get_obj_hnode_idx(model.hierarchyNodes, parent)
+    node.parentIdx     = _get_obj_hnode_idx(model.meshHierarchy, parent)
     node.firstChildIdx = -1
     node.siblingIdx    = -1
     node.numChildren   = 0
     node.obj           = obj
 
-    node_idx = len(model.hierarchyNodes)
+    node_idx = len(model.meshHierarchy)
     if node.parentIdx > -1:
-        pnode = model.hierarchyNodes[node.parentIdx]
+        pnode = model.meshHierarchy[node.parentIdx]
         if pnode.firstChildIdx < 0:
            pnode.firstChildIdx = node_idx
         else:
-            snode = model.hierarchyNodes[pnode.firstChildIdx]
-            snode = _get_hnode_last_sibling(snode,  model.hierarchyNodes)
+            snode = model.meshHierarchy[pnode.firstChildIdx]
+            snode = _get_hnode_last_sibling(snode,  model.meshHierarchy)
             snode.siblingIdx = node_idx
         pnode.numChildren += 1
 
     _set_hnode_location(node, scale)
-    model.hierarchyNodes.append(node)
+    model.meshHierarchy.append(node)
 
 def _model3do_add_obj(model: Model3do, obj: bpy.types.Object, parent: bpy.types.Object = None, scale: mathutils.Vector = mathutils.Vector((1.0,)*3), uvAbsolute: bool = False, exportVertexColors: bool = False):
     if 'EMPTY' != obj.type != 'MESH' or _is_aux_obj(obj):

@@ -202,7 +202,7 @@ def _parse_hierarchy_section(tok: Tokenizer, model: Model3do):
             print("Warning: Seq. number mismatch while loading 3DO hierarchy list. {} != {}".format(nodeIdx, i))
 
         tok.assertPunctuator(':')
-        node               = Mesh3doHierarchyNode()
+        node               = Mesh3doNode()
         node.idx           = nodeIdx
         node.flags         = Mesh3doNodeFlags(tok.getIntNumber())
         node.type          = Mesh3doNodeType(tok.getIntNumber())
@@ -218,7 +218,7 @@ def _parse_hierarchy_section(tok: Tokenizer, model: Model3do):
 
         node.name          = tok.getSpaceDelimitedString()
 
-        model.hierarchyNodes.append(node)
+        model.meshHierarchy.append(node)
 
 
 def load(filePath) -> Tuple[Model3do, Model3doFileVersion]:

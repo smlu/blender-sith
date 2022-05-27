@@ -148,7 +148,7 @@ def _make_mesh(mesh3do: Mesh3do, uvAbsolute: bool, vertexColors: bool, mat_list:
 
 def _create_objects_from_model(model: Model3do, uvAbsolute: bool, geosetNum: int, vertexColors: bool, importRadiusObj:bool, preserveOrder: bool):
     meshes = model.geosets[geosetNum].meshes
-    for node in model.hierarchyNodes:
+    for node in model.meshHierarchy:
         meshIdx = node.meshIdx
 
         # Get node's mesh
@@ -176,7 +176,7 @@ def _create_objects_from_model(model: Model3do, uvAbsolute: bool, geosetNum: int
 
         # Make obj name prefixed by idx num.
         # This will make the hierarchy of model 3do ordered by index instead by name in Blender.
-        obj.name = makeOrderedName(obj.name, node.idx, len(model.hierarchyNodes)) if preserveOrder else obj.name
+        obj.name = makeOrderedName(obj.name, node.idx, len(model.meshHierarchy)) if preserveOrder else obj.name
 
         # Set hierarchy node flags, type and name
         obj.model3do_hnode_num   = node.idx
@@ -194,10 +194,10 @@ def _create_objects_from_model(model: Model3do, uvAbsolute: bool, geosetNum: int
     bpy.context.scene.update()
 
     # Set parent hierarchy
-    for node in model.hierarchyNodes:
+    for node in model.meshHierarchy:
         if node.parentIdx != -1:
             node.obj.parent_type = 'OBJECT'
-            node.obj.parent      = model.hierarchyNodes[node.parentIdx].obj
+            node.obj.parent      = model.meshHierarchy[node.parentIdx].obj
     bpy.context.scene.update()
 
 def _import_colormap(cmp_file: str) -> Optional[ColorMap]:
@@ -245,7 +245,7 @@ def import3do(file_path, mat_dirs = [], cmp_file = '', uvAbsolute_2_1 = True, im
     if importRadiusObj:
         _set_model_radius(baseObj, model.radius)
 
-    firstChild             = model.hierarchyNodes[0].obj
+    firstChild             = model.meshHierarchy[0].obj
     firstChild.parent_type = 'OBJECT'
     firstChild.parent      = baseObj
 

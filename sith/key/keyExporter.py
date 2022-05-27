@@ -72,7 +72,7 @@ def _make_key_from_obj(key_name, obj: bpy.types.Object, scene: bpy.types.Scene):
 
     # Make model3do from object to get ordered hierarchy nodes
     model3do = makeModel3doFromObj(key_name, obj)
-    for hnode in model3do.hierarchyNodes:
+    for hnode in model3do.meshHierarchy:
         cobj = hnode.obj
         if cobj.animation_data:
             knode          = KeyNode()
@@ -154,7 +154,7 @@ def _make_key_from_obj(key_name, obj: bpy.types.Object, scene: bpy.types.Scene):
             # Append keyframe node if node has keyframes
             if len(knode.keyframes):
                 key.nodes.append(knode)
-    key.numJoints = len(model3do.hierarchyNodes)
+    key.numJoints = len(model3do.meshHierarchy)
     return key
 
 def exportKey(obj: bpy.types.Object, scene: bpy.types.Scene, path: str):

@@ -87,26 +87,26 @@ class Mesh3doNodeFlags(Flag):
 
 @unique
 class Mesh3doNodeType(Flag):
-    Nothing       = 0x00000
-    Torso         = 0x00001
-    LeftArm       = 0x00002
-    RightArm      = 0x00004
-    Head          = 0x00008
-    Hip           = 0x00010
-    LeftLeg       = 0x00020
-    RightLeg      = 0x00040
-    LeftHand      = 0x00080
-    #LeftHand2    = 0x00082
-    RightHand     = 0x00100
-    #RightHand2   = 0x00104
-    Vehicle       = 0x00400
-    BackPart      = 0x00800
-    FrontPart     = 0x01000
-    Unknown_2000  = 0x02000
-    Unknown_4000  = 0x04000
-    Unknown_8000  = 0x08000
-    # BackWheel  = 0x00C00 #Vehicle + BackPart
-    # FrontWheel = 0x01400 #Vehicle + FrontWheel
+    Nothing       = 0x00
+    Torso         = 0x01
+    LeftArm       = 0x02
+    RightArm      = 0x04
+    Head          = 0x08
+    Hip           = 0x10
+    LeftLeg       = 0x20
+    RightLeg      = 0x40
+    LeftHand      = 0x80
+    #LeftHand2    = 0x82
+    RightHand     = 0x100
+    #RightHand2   = 0x104
+    Vehicle       = 0x400
+    BackPart      = 0x800
+    FrontPart     = 0x1000
+    Unknown_2000  = 0x2000
+    Unknown_4000  = 0x4000
+    Unknown_8000  = 0x8000
+    # BackWheel  = 0xC00 #Vehicle + BackPart
+    # FrontWheel = 0x1400 #Vehicle + FrontWheel
 
 class Mesh3doFace:
     def __init__(self):
@@ -309,7 +309,7 @@ class Model3doGeoSet:
     def meshes(self, meshes: List[Mesh3do]):
         self.mesh_list = meshes
 
-class Mesh3doHierarchyNode:
+class Mesh3doNode:
     def __init__(self, name =""):
         self._idx: int           = -1
         self.f: Mesh3doNodeFlags = Mesh3doNodeFlags.Nothing
@@ -440,7 +440,7 @@ class Model3do:
         self.insert_offset: Vector3f  = Vector3f(0.0, 0.0, 0.0) # x,y, z
 
         self.geoset_list: List[Model3doGeoSet]           = []
-        self.hierarchy_nodes: List[Mesh3doHierarchyNode] = []
+        self.mesh_nodes: List[Mesh3doNode] = []
 
     @property
     def name(self) -> str:
@@ -483,12 +483,12 @@ class Model3do:
         self.geoset_list = geosets
 
     @property
-    def hierarchyNodes(self) -> List[Mesh3doHierarchyNode]:
-        return self.hierarchy_nodes
+    def meshHierarchy(self) -> List[Mesh3doNode]:
+        return self.mesh_nodes
 
-    @hierarchyNodes.setter
-    def hierarchyNodes(self, nodes: List[Mesh3doHierarchyNode]):
-        self.hierarchy_nodes = nodes
+    @meshHierarchy.setter
+    def meshHierarchy(self, nodes: List[Mesh3doNode]):
+        self.mesh_nodes = nodes
 
     def reorderNodes(self) -> None:
         """
@@ -501,30 +501,30 @@ class Model3do:
             return -1
 
         from functools import cmp_to_key
-        nodes = sorted(self.hierarchyNodes, key=cmp_to_key(lambda n1, n2: n1.idx - n2.idx))
+        nodes = sorted(self.meshHierarchy, key=cmp_to_key(lambda n1, n2: n1.idx - n2.idx))
         for idx, node in enumerate(nodes):
             node.idx = idx
 
             # Update parent
             if node.parentIdx > -1:
                 # Set parent num
-                pnode = self.hierarchyNodes[node.parentIdx]
+                pnode = self.meshHierarchy[node.parentIdx]
                 pnum  = pnode.idx
                 if pnum < 0:
                     pnum = get_node_seq(pnode, nodes)
                 node.parentIdx = pnum
 
                 # Set parent first child
-                if self.hierarchyNodes[pnode.firstChildIdx] == node:
+                if self.meshHierarchy[pnode.firstChildIdx] == node:
                     pnode.firstChildIdx = idx
 
             # Update sibling
             if node.siblingIdx > -1:
-                snode = self.hierarchyNodes[node.siblingIdx]
+                snode = self.meshHierarchy[node.siblingIdx]
                 snum  = snode.idx
                 if snum < 0:
                     snum = get_node_seq(snode, nodes)
                 node.siblingIdx = snum
 
         # set new hierarchy list
-        self.hierarchyNodes = nodes
+        self.meshHierarchy = nodes

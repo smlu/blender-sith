@@ -212,11 +212,11 @@ def _write_section_hierarchydef(file, model: Model3do):
     writeSectionTitle(file, "hierarchydef")
 
     writeCommentLine(file, "Hierarchy node list")
-    writeKeyValue(file, "hierarchy nodes", len(model.hierarchyNodes))
+    writeKeyValue(file, "hierarchy nodes", len(model.meshHierarchy))
     writeNewLine(file)
 
     writeCommentLine(file, " num:   flags:   type:    mesh:  parent:  child:  sibling:  numChildren:        x:         y:         z:     pitch:       yaw:      roll:    pivotx:    pivoty:    pivotz:  hnodename:")
-    for idx, node in enumerate(model.hierarchyNodes):
+    for idx, node in enumerate(model.meshHierarchy):
         row = '{:>6}:'.format(idx)
         row += '  0x{:04x}'.format(node.flags)
         row += ' 0x{:05x}'.format(node.type)
@@ -230,7 +230,7 @@ def _write_section_hierarchydef(file, model: Model3do):
         row += _vector_to_str(node.pivot)
         row += '  ' + node.name
         writeLine(file, row)
-        
+
 
 def write(model: Model3do, filePath, version: Model3doFileVersion, headerComment):
     f = open(filePath, 'w')
