@@ -36,7 +36,7 @@ def _parse_key_section_header(tok: Tokenizer, key: Key):
     key.flags  = KeyFlag(tok.getIntNumber())
 
     tok.assertIdentifier("TYPE")
-    key.type   = KeyType(tok.getIntNumber())
+    key.nodeTypes = Mesh3doNodeType(tok.getIntNumber())
 
     tok.assertIdentifier("FRAMES")
     key.frames = tok.getIntNumber()
@@ -51,11 +51,11 @@ def _parse_key_section_markers(tok: Tokenizer, key: Key):
     tok.assertIdentifier("MARKERS")
 
     numMarkers = tok.getIntNumber()
-    for i in range(0, numMarkers):
-        m = KeyMarker()
+    for _ in range(0, numMarkers):
+        m       = KeyMarker()
         m.frame = tok.getFloatNumber()
         m.type  = KeyMarkerType.Marker
-        mt = tok.getIntNumber()
+        mt      = tok.getIntNumber()
         try:
             m.type  = KeyMarkerType(mt)
         except:
@@ -65,7 +65,7 @@ def _parse_key_section_markers(tok: Tokenizer, key: Key):
 def _parse_key_section_keyframe_nodes(tok: Tokenizer, key: Key):
     tok.assertIdentifier("NODES")
     numNodes = tok.getIntNumber()
-    for i in range(0, numNodes):
+    for _ in range(0, numNodes):
         node = KeyNode()
 
         tok.assertIdentifier("NODE")
@@ -85,8 +85,8 @@ def _parse_key_section_keyframe_nodes(tok: Tokenizer, key: Key):
             keyframe.frame = tok.getIntNumber()
             keyframe.flags = KeyframeFlag(tok.getIntNumber())
 
-            keyframe.position = tok.getVector3f()
-            keyframe.orientation = tok.getVector3f()
+            keyframe.position      = tok.getVector3f()
+            keyframe.orientation   = tok.getVector3f()
             keyframe.deltaPosition = tok.getVector3f()
             keyframe.deltaRotation = tok.getVector3f()
 

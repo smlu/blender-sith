@@ -440,10 +440,10 @@ class ExportKey(bpy.types.Operator, ExportHelper):
         options     = {'ENUM_FLAG'}
     )
 
-    animation_type = HexProperty(
-        'animation_type',
-        name        = "Type",
-        description = "Animation type. Unknown what role does the type have in the game",
+    node_types = HexProperty(
+        'node_types',
+        name        = 'High Priority Node(s)',
+        description = '3DO hierarchy node types which have higher animation priority set by the associated puppet file.\n\nBy default all 3DO joint nodes have low animation priority assigned in the associated puppet file (.pup). When the node type is defined here then this node will have high priority value assigned. Set this field to `FFFF` in order to assign all node types to high priority',
         default     = '0xFFFF',
         maxlen      = 4,
         pad         = True
@@ -461,12 +461,14 @@ class ExportKey(bpy.types.Operator, ExportHelper):
         flags_layout = layout.box().column()
         flags_layout.label(text='Flags')
         flags_layout.prop(self, "animation_flags")
-        layout.prop(self, 'animation_type')
+        types_layout = layout.box().column()
+        types_layout.label(text='High Priority Node(s)')
+        types_layout.prop(self, "node_types", text='')
         layout.prop(self, 'fps')
 
     def invoke(self, context, event):
         self.animation_flags = context.scene.key_animation_flags
-        self.animation_type  = context.scene.key_animation_type
+        self.node_types      = context.scene.key_node_types
         fps                  = context.scene.render.fps
         for e in reversed(ExportKey._get_fps_enum_list()):
             if e[0] == str(fps):
@@ -735,10 +737,10 @@ def register():
         options     = {'ENUM_FLAG', 'HIDDEN', 'LIBRARY_EDITABLE'},
     )
 
-    bpy.types.Scene.key_animation_type = HexProperty(
-        'key_animation_type',
-        name        = 'KEY Type',
-        description = "KEY animation type. Unknown what role does the type have in the game.",
+    bpy.types.Scene.key_node_types = HexProperty(
+        'key_node_types',
+        name        = 'High Priority Node(s)',
+        description = '3DO hierarchy node types which have higher animation priority set by the associated puppet file.\n\nBy default all 3DO joint nodes have low animation priority assigned in the associated puppet file (.pup). When the node type is defined here then this node will have high priority value assigned. Set this field to `FFFF` in order to assign all node types to high priority',
         default     = '0xFFFF',
         maxlen      = 4,
         pad         = True,
@@ -747,7 +749,7 @@ def register():
 
 def unregister():
     del bpy.types.Scene.key_animation_flags
-    del bpy.types.Scene.key_animation_type
+    del bpy.types.Scene.key_node_types
 
     del bpy.types.WindowManager.mesh3do_face_layer
 

@@ -21,6 +21,7 @@
 
 from enum import IntEnum, unique
 from typing import List
+from sith.model import Mesh3doNodeType
 from sith.types.enum import Flag
 from sith.types.vector import *
 
@@ -33,41 +34,6 @@ class KeyFlag(Flag):
     RestartIfPlaying    = 0x8
     FinishInGivenTime   = 0x10
     EndSmoothly         = 0x20
-
-@unique
-class KeyType(Flag):
-    Unknown_00   = 0x00
-    Unknown_01   = 0x01
-    Unknown_02   = 0x02
-    Unknown_04   = 0x04
-    Unknown_08   = 0x08
-    Unknown_10   = 0x10
-    Unknown_20   = 0x20
-    Unknown_40   = 0x40
-    Unknown_80   = 0x80
-    Unknown_100  = 0x100
-    Unknown_200  = 0x200
-    Unknown_400  = 0x400
-    Unknown_800  = 0x800
-    Unknown_1000 = 0x1000
-    Unknown_2000 = 0x2000
-    Unknown_4000 = 0x4000
-    Unknown_8000 = 0x8000
-
-    # Unknown1  = 0x0001    #tu_hit_shoulderl.key
-    # Unknown2  = 0x0004    #tu_attack_ready.key
-    # Unknown3  = 0x0008    #tu_hit_headl
-    # Unknown4  = 0x000F    #0so_armsmid_3_3.key
-    # Unknown5  = 0x0070    #vo_rotate_left.key
-    # Unknown6  = 0x0104    #in_attack_put_gun.key
-    # Unknown7  = 0x010D    #in_attack_put_whip.key, in_attack_put_machete.key
-    # Unknown8  = 0x0186    #0vo_bothup_3_3.key
-    # Unknown9  = 0x018F    #in_attack_unaim_rifle.key, in_attack_unaim_shotgun.key, in_attack_put_imp.key
-    # Unknown10 = 0x04FB    #in_activate_medium_left.key
-    # Unknown11 = 0x0904    #in_attack_pull_whip.key, in_attack_pull_satchel.key, in_attack_pull_imp.key
-    # Unknown12 = 0x0986    #in_attack_pull_rifle.key
-    # Unknown13 = 0x090D    #in_attack_pull_machete.key
-    # Unknown14 = 0x098F    #in_attack_pull_fists.key
 
 @unique
 class KeyMarkerType(IntEnum):
@@ -226,8 +192,8 @@ class KeyNode:
 class Key:
     def __init__(self, name: str):
         self.n = name
-        self.f: KeyFlag  = KeyFlag.Loop
-        self.t: KeyType  = KeyType.Unknown_00
+        self.f: KeyFlag = KeyFlag.Loop
+        self.t: Mesh3doNodeType = Mesh3doNodeType.Nothing
         self.frames: int = 0
         self.nfps: float = 0.0
         self.joints: int = 0
@@ -252,11 +218,13 @@ class Key:
         self.f = flags
 
     @property
-    def type(self) -> KeyType:
+    def nodeTypes(self) -> Mesh3doNodeType:
+        """ Returns high animation priority node types """
         return self.t
 
-    @type.setter
-    def type(self, type: KeyType):
+    @nodeTypes.setter
+    def nodeTypes(self, type: Mesh3doNodeType):
+        """ Sets high animation priority node types """
         self.t = type
 
     @property

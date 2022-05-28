@@ -20,14 +20,12 @@
 # SOFTWARE.
 
 import bpy, mathutils, os.path, time
-
+import sith.key.keyWriter as keyWriter
 from collections import OrderedDict
 
-from sith.key.key import *
-import sith.key.keyWriter as keyWriter
-
+from sith.key import *
 from sith.model.utils import *
-from sith.model import makeModel3doFromObj
+from sith.model import makeModel3doFromObj, Mesh3doNodeType
 from sith.utils import *
 
 def _set_keyframe_delta(dtype: KeyframeFlag, kf1: Keyframe, kf2: Keyframe):
@@ -55,7 +53,7 @@ def _set_keyframe_delta(dtype: KeyframeFlag, kf1: Keyframe, kf2: Keyframe):
 def _make_key_from_obj(key_name, obj: bpy.types.Object, scene: bpy.types.Scene):
     key           = Key(key_name)
     key.flags     = KeyFlag.fromSet(scene.key_animation_flags)
-    key.type      = KeyType.fromHex(scene.key_animation_type)
+    key.nodeTypes = Mesh3doNodeType.fromHex(scene.key_node_types)
     key.numFrames = scene.frame_end + 1
     key.fps       = scene.render.fps
     for marker in scene.timeline_markers:

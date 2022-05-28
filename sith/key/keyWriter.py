@@ -43,7 +43,7 @@ def _write_section_header(file, key: Key, headerComment: str):
 
     writeSectionTitle(file, "header")
     writeKeyValue(file, "flags"  , _flags2str(key.flags)   , 6)
-    writeKeyValue(file, "type"   , _flags2str(key.type)    , 6)
+    writeKeyValue(file, "type"   , _flags2str(key.nodeTypes), 6)
     writeKeyValue(file, "frames" , key.numFrames           , 6)
     writeKeyValue(file, "fps"    , "{:.3f}".format(key.fps), 6)
     writeKeyValue(file, "joints" , int(key.numJoints)      , 6)

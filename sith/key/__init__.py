@@ -26,8 +26,7 @@ from .key import (
     KeyframeFlag,
     KeyMarker,
     KeyMarkerType,
-    KeyNode,
-    KeyType
+    KeyNode
 )
 
 from .keyExporter import exportKey
@@ -42,6 +41,5 @@ __all__ = [
     "KeyframeFlag",
     "KeyMarker",
     "KeyMarkerType",
-    "KeyNode",
-    "KeyType"
+    "KeyNode"
 ]
