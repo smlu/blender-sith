@@ -24,8 +24,8 @@ bl_info = {
     "description": "Import/export 3D model(s), animation(s) and texture(s) for the games based on Sith game engine",
     "author": "Crt Vavros",
     "version": (1, 0, 0),
-    "pre_release": "rc1",
-    "warning": "Pre-release RC1",
+    "pre_release": "rc2",
+    "warning": "Pre-release RC2",
     "blender": (2, 79, 0),
     "location": "File > Import-Export",
     "wiki_url": "https://github.com/smlu/blender-sith",
@@ -67,11 +67,11 @@ from sith.material import ColorMap, importMat
 
 from sith.model import (
     export3do,
-     import3do,
-     FaceType,
-     GeometryMode,
-     LightMode,
-     TextureMode
+    import3do,
+    FaceType,
+    GeometryMode,
+    LightMode,
+    TextureMode
 )
 
 from sith.model.model3doLoader import Model3doFileVersion
@@ -113,7 +113,7 @@ def _get_mesh3do_face_type_list():
         (FaceType.TexClamp_x.name    , 'Clamp Horizontal'          , "Polygon texture is clamped horizontally instead of repeated (Might not be used in JKDF2 & MOTS)"                                         ),
         (FaceType.TexClamp_y.name    , 'Clamp Vertical'            , "Polygon texture is clamped vertically instead of repeated (Might not be used in JKDF2 & MOTS)"                                           ),
         (FaceType.TexFilterNone.name , 'Disable Bilinear Filtering', "Disables texture bilinear interpolation filtering and instead point filtering is used as a texture magnification or minification filter" ),
-        (FaceType.ZWriteDisabled.name, 'Disable ZWrite'            , "Disables writting polygon face to depth buffer"                                                                                          ),
+        (FaceType.ZWriteDisabled.name, 'Disable ZWrite'            , "Disables writing polygon face to depth buffer"                                                                                           ),
         (FaceType.IjimLedge.name     , '(IJIM) Ledge'              , "(IJIM only) Polygon face is a ledge that player can grab and hang from"                                                                  ),
         (FaceType.IjimFogEnabled.name, '(IJIM) Enable Fog'         , "(IJIM only) Enables fog rendering for polygon face. Enabled by default by the engine"                                                    ),
         (FaceType.IjimWhipAim.name   , '(IJIM) Whip Aim'           , "(IJIM only) Polygon face is the start point for player to aim at object with whip"                                                       )
@@ -343,7 +343,7 @@ class ExportModel3do(bpy.types.Operator, ExportHelper):
         description = "3DO file version",
         items       = [
             (Model3doFileVersion.Version2_1.name, '2.1 - JKDF2 & MOTS', 'Star Wars Jedi Knight: Dark Forces II & Star Wars Jedi Knight: Mysteries of the Sith'),
-            (Model3doFileVersion.Version2_2.name, '2.2 - IJIM (RGB)'  , 'Indiana Jones and the Infernal Machine - RGB color'),
+            (Model3doFileVersion.Version2_2.name, '2.2 - IJIM (RGB)'  , 'Indiana Jones and the Infernal Machine - RGB color' ),
             (Model3doFileVersion.Version2_3.name, '2.3 - IJIM'        , 'Indiana Jones and the Infernal Machine - RGBA color')
         ],
         default= Model3doFileVersion.Version2_3.name
@@ -450,7 +450,7 @@ class ExportKey(bpy.types.Operator, ExportHelper):
     )
 
     fps = bpy.props.EnumProperty(
-        name  = "Frame rate",
+        name  = 'Frame rate',
         items = _get_fps_enum_list()
     )
 
@@ -481,18 +481,17 @@ class ExportKey(bpy.types.Operator, ExportHelper):
         self.obj = _get_export_obj(context, self.report, 'animation')
         if self.obj is None:
             return {'CANCELLED'}
-        kfname = bpy.path.display_name_from_filepath(self.obj.name )
+        kfname        = bpy.path.display_name_from_filepath(self.obj.name )
         self.filepath = bpy.path.ensure_ext(kfname, self.filename_ext)
         return ExportHelper.invoke(self, context, event)
 
     def execute(self, context):
+        context.scene.key_animation_flags = self.animation_flags
+        context.scene.key_node_types      = self.node_types
+        context.scene.render.fps          = float(self.fps)
         scene = context.scene.copy()
         try:
-            scene.key_animation_flags = self.animation_flags
-            scene.key_animation_type  = self.animation_type
-            scene.render.fps          = float(self.fps)
             exportKey(self.obj, scene, self.filepath)
-
             self.report({'INFO'}, "KEY '{}' was successfully exported".format(os.path.basename(self.filepath)))
             return {'FINISHED'}
         except (AssertionError, ValueError) as e:
@@ -541,8 +540,8 @@ class Model3doPanel(bpy.types.Panel):
 
 class Mesh3doFaceLayer(bpy.types.PropertyGroup):
     """
-    Intermediant class for temporary storing BMFace properties by Mesh3doFacePanel
-    and used it to disply stored properties to the UI.
+    Intermediate class for temporary storing BMFace properties by Mesh3doFacePanel
+    and used it to display stored properties to the UI.
     """
     face_id = bpy.props.IntProperty(default = -1)
 
