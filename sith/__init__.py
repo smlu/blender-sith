@@ -330,6 +330,7 @@ class ImportModel3do(bpy.types.Operator, ImportHelper):
 
             bpy.ops.object.select_all(action='DESELECT')
             context.scene.objects.active = active_obj
+            space.lock_object            = None
 
         return {'FINISHED'}
 
