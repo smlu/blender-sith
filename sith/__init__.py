@@ -100,41 +100,44 @@ def _make_readable(str):
     return re.sub(r"(\w)([A-Z])", r"\1 \2", str)
 
 def _get_key_flags_enum_list():
-    l = []
-    for f in reversed(KeyFlag):
-        if f != 0x00:
-            l.append((f.name, _make_readable(f.name), ""))
-    return l
+    return [
+        (KeyFlag.UsePuppetFPS.name    , 'Use Puppet FPS'     , "Don't use FPS and play animation at speed based on puppet movement in the game"),
+        (KeyFlag.NoLoop.name          , 'No Loop'            , "Don't loop play animation"),
+        (KeyFlag.PauseOnLastFrame.name, 'Pause On Last Frame', 'Pause animation on the last frame'),
+        (KeyFlag.RestartActive.name   , 'Restart Active'     , 'Restart animation if active'),
+        (KeyFlag.DisableFadeIn.name   , 'Disable Fade-in'    , 'Disable animation fade-in interpolation'),
+        (KeyFlag.FadeOutAndNoLoop.name, 'Fade-out & No Loop' , 'Fade-out animation and finish playing'),
+    ]
 
 def _get_mesh3do_face_type_list():
     return [
-        (FaceType.DoubleSided.name   , 'Double Sided'              , "Polygon face is in game rendered on both sides"                                                                                          ),
-        (FaceType.Translucent.name   , 'Translucent'               , "Polygon is in game rendered with alpha blending enabled making transparent polygon texture translucent"                                  ),
-        (FaceType.TexClamp_x.name    , 'Clamp Horizontal'          , "Polygon texture is clamped horizontally instead of repeated (Might not be used in JKDF2 & MOTS)"                                         ),
-        (FaceType.TexClamp_y.name    , 'Clamp Vertical'            , "Polygon texture is clamped vertically instead of repeated (Might not be used in JKDF2 & MOTS)"                                           ),
-        (FaceType.TexFilterNone.name , 'Disable Bilinear Filtering', "Disables texture bilinear interpolation filtering and instead point filtering is used as a texture magnification or minification filter" ),
-        (FaceType.ZWriteDisabled.name, 'Disable ZWrite'            , "Disables writing polygon face to depth buffer"                                                                                           ),
-        (FaceType.IjimLedge.name     , '(IJIM) Ledge'              , "(IJIM only) Polygon face is a ledge that player can grab and hang from"                                                                  ),
-        (FaceType.IjimFogEnabled.name, '(IJIM) Enable Fog'         , "(IJIM only) Enables fog rendering for polygon face. Enabled by default by the engine"                                                    ),
-        (FaceType.IjimWhipAim.name   , '(IJIM) Whip Aim'           , "(IJIM only) Polygon face is the start point for player to aim at object with whip"                                                       )
+        (FaceType.DoubleSided.name   , 'Double Sided'              , 'Polygon face is rendered in game on both sides'                                                                                          ),
+        (FaceType.Translucent.name   , 'Translucent'               , 'Polygon is rendered in game with alpha blending enabled. This makes polygon with transparent texture translucent'                        ),
+        (FaceType.TexClamp_x.name    , 'Clamp Horizontal'          , 'Polygon texture is clamped horizontally instead of repeated (Might not be used in JKDF2 & MOTS)'                                         ),
+        (FaceType.TexClamp_y.name    , 'Clamp Vertical'            , 'Polygon texture is clamped vertically instead of repeated (Might not be used in JKDF2 & MOTS)'                                           ),
+        (FaceType.TexFilterNone.name , 'Disable Bilinear Filtering', 'Disables texture bilinear interpolation filtering and instead point filtering is used as a texture magnification or minification filter' ),
+        (FaceType.ZWriteDisabled.name, 'Disable ZWrite'            , 'Disables writing polygon face to depth buffer'                                                                                           ),
+        (FaceType.IjimLedge.name     , '(IJIM) Ledge'              , '(IJIM only) Polygon face is a ledge that player can grab and hang from'                                                                  ),
+        (FaceType.IjimFogEnabled.name, '(IJIM) Enable Fog'         , '(IJIM only) Enables fog rendering for polygon face. Enabled by default by the engine'                                                    ),
+        (FaceType.IjimWhipAim.name   , '(IJIM) Whip Aim'           , '(IJIM only) Polygon face is the start point for the player to aim at object with whip'                                                   )
     ]
 
 def _get_model3do_geometry_mode_list():
     l = []
     for f in GeometryMode:
-        l.append((f.name, _make_readable(f.name), ""))
+        l.append((f.name, _make_readable(f.name), ''))
     return l
 
 def _get_model3do_light_mode_list():
     l = []
     for f in LightMode:
-        l.append((f.name, _make_readable(f.name), ""))
+        l.append((f.name, _make_readable(f.name), ''))
     return l
 
 def _get_model3do_texture_mode_list():
     l = []
     for f in TextureMode:
-        l.append((f.name, _make_readable(f.name), ""))
+        l.append((f.name, _make_readable(f.name), ''))
     return l
 
 def _get_export_obj(context, report, data_type: str):
@@ -147,7 +150,7 @@ def _get_export_obj(context, report, data_type: str):
             report({'ERROR'}, f"No object selected! Select 1 object or put object into '{kGModel3do}' group!")
             return None
         if len(context.selected_objects) > 1:
-            print(f"Error: Could not determine which object to export {data_type} data from, more than 1 object selected!")
+            print(f'Error: Could not determine which object to export {data_type} data from, more than 1 object selected!')
             report({'ERROR'}, 'Too many objects selected!')
             return None
 
@@ -187,13 +190,13 @@ def _get_export_obj(context, report, data_type: str):
 
 class ImportMat(bpy.types.Operator, ImportHelper):
     """Import Sith game engine texture (.mat)"""
-    bl_idname    = "import_material.sith_mat"
-    bl_label     = "Import MAT"
-    filename_ext = ".mat"
+    bl_idname    = 'import_material.sith_mat'
+    bl_label     = 'Import MAT'
+    filename_ext = '.mat'
 
     filter_glob = bpy.props.StringProperty(
-        default = "*.mat",
-        options = {"HIDDEN"}
+        default = '*.mat',
+        options = {'HIDDEN'}
     )
 
     cmp_file = bpy.props.StringProperty(
@@ -206,7 +209,7 @@ class ImportMat(bpy.types.Operator, ImportHelper):
         layout = self.layout
         cmp_file_layout = layout.box().column()
         cmp_file_layout.label(text='ColorMap File (JKDF2 & MOTS)')
-        cmp_file_layout.prop(self, "cmp_file", text='')
+        cmp_file_layout.prop(self, 'cmp_file', text='')
 
     def execute(self, context):
         cmp_file = Path(self.cmp_file)
@@ -221,13 +224,13 @@ class ImportMat(bpy.types.Operator, ImportHelper):
 
 class ImportModel3do(bpy.types.Operator, ImportHelper):
     """Import Sith game engine 3DO model (.3do)"""
-    bl_idname    = "import_object.sith_3do"
-    bl_label     = "Import 3DO"
-    filename_ext = ".3do"
+    bl_idname    = 'import_scene.sith_3do'
+    bl_label     = 'Import 3DO'
+    filename_ext = '.3do'
 
     filter_glob = bpy.props.StringProperty(
-        default = "*.3do",
-        options = {"HIDDEN"}
+        default = '*.3do',
+        options = {'HIDDEN'}
     )
 
     set_3d_view = bpy.props.BoolProperty(
@@ -262,7 +265,7 @@ class ImportModel3do(bpy.types.Operator, ImportHelper):
 
     preserve_order = bpy.props.BoolProperty(
         name        = 'Preserve Mesh Hierarchy',
-        description = "Preserve 3DO node hierarchy of objects in Blender.\n\nIf set, the order of imported mesh hierarchy will be preserved by prefixing the name of every mesh object with '{}<seq_number>_'.".format(kNameOrderPrefix),
+        description = f"Preserve 3DO node hierarchy of objects in Blender.\n\nIf set, the order of imported mesh hierarchy will be preserved by prefixing the name of every mesh object with '{kNameOrderPrefix}<seq_number>_'.",
         default     = False,
     )
 
@@ -290,19 +293,19 @@ class ImportModel3do(bpy.types.Operator, ImportHelper):
         mat_layout.label(text='Texture(s)')
         mat_dir_layout = mat_layout.box().column()
         mat_dir_layout.label(text='Directory')
-        mat_dir_layout.prop(self, "mat_dir", text='')
+        mat_dir_layout.prop(self, 'mat_dir', text='')
         cmp_file_layout = mat_layout.box().column()
         cmp_file_layout.label(text='ColorMap File (JKDF2 & MOTS)')
-        cmp_file_layout.prop(self, "cmp_file", text='')
+        cmp_file_layout.prop(self, 'cmp_file', text='')
 
     def execute(self, context):
         obj = import3do(self.filepath, [self.mat_dir], self.cmp_file, self.uv_absolute_3do_2_1, self.vertex_colors, self.import_radius_objects, self.preserve_order, self.clear_scene)
 
         if self.set_3d_view:
-            area   = next(area for area in context.screen.areas if area.type == 'VIEW_3D')
+            area   = next(area   for area   in context.screen.areas if area.type == 'VIEW_3D')
             region = next(region for region in area.regions if region.type == 'WINDOW')
-            space  = next(space for space in area.spaces if space.type == 'VIEW_3D')
-            space.viewport_shade    = "MATERIAL"
+            space  = next(space  for space  in area.spaces if space.type == 'VIEW_3D')
+            space.viewport_shade    = 'MATERIAL'
             space.lens              = 100.0
             space.clip_start        = 0.001
             space.lock_object       = obj
@@ -329,18 +332,18 @@ class ImportModel3do(bpy.types.Operator, ImportHelper):
 
 class ExportModel3do(bpy.types.Operator, ExportHelper):
     """Export object(s) to Sith game engine 3DO file format (.3do)"""
-    bl_idname    = "export_object.sith_3do"
-    bl_label     = "Export 3DO"
-    filename_ext = ".3do"
+    bl_idname    = 'export_scene.sith_3do'
+    bl_label     = 'Export 3DO'
+    filename_ext = '.3do'
 
     filter_glob = bpy.props.StringProperty(
-        default = "*.3do",
-        options = {"HIDDEN"}
+        default = '*.3do',
+        options = {'HIDDEN'}
     )
 
     version = bpy.props.EnumProperty(
-        name        = "Version",
-        description = "3DO file version",
+        name        = 'Version',
+        description = '3DO file version',
         items       = [
             (Model3doFileVersion.Version2_1.name, '2.1 - JKDF2 & MOTS', 'Star Wars Jedi Knight: Dark Forces II & Star Wars Jedi Knight: Mysteries of the Sith'),
             (Model3doFileVersion.Version2_2.name, '2.2 - IJIM (RGB)'  , 'Indiana Jones and the Infernal Machine - RGB color' ),
@@ -384,24 +387,24 @@ class ExportModel3do(bpy.types.Operator, ExportHelper):
                 self.absolute_uv = False
             export3do(self.obj, self.filepath, version, self.absolute_uv, self.export_vert_colors)
         except (AssertionError, ValueError) as e:
-            print("\nAn exception was encountered while exporting object '{}' to 3DO format!\nError: {}".format(self.obj.name, e))
-            self.report({'ERROR'}, "Error: {}".format(e))
+            print(f"\nAn exception was encountered while exporting object '{self.obj.name}' to 3DO format!\nError: {e}")
+            self.report({'ERROR'}, f'Error: {e}')
             return {'CANCELLED'}
 
-        self.report({'INFO'}, "3DO model '{}' was successfully exported".format(os.path.basename(self.filepath)))
+        self.report({'INFO'}, f"3DO model '{os.path.basename(self.filepath)}' was successfully exported")
         return {'FINISHED'}
 
 
 # TODO: add option to load model first
 class ImportKey(bpy.types.Operator, ImportHelper):
     """Import Sith game engine animation (.key)"""
-    bl_idname    = "import_anim.sith_key"
-    bl_label     = "Import KEY"
-    filename_ext = ".key"
+    bl_idname    = 'import_anim.sith_key'
+    bl_label     = 'Import KEY'
+    filename_ext = '.key'
 
     filter_glob = bpy.props.StringProperty(
-        default = "*.key",
-        options = {"HIDDEN"}
+        default = '*.key',
+        options = {'HIDDEN'}
     )
 
     def execute(self, context):
@@ -409,33 +412,34 @@ class ImportKey(bpy.types.Operator, ImportHelper):
             scene = context.scene
             importKey(self.filepath, scene)
         except Exception as e:
-            print("\nError: An exception was encountered while importing keyframe '{}'!\nError: {}".format(os.path.basename(self.filepath), e))
-            self.report({'ERROR'}, "Error: {}".format(e))
+            print(f"\nError: An exception was encountered while importing keyframe '{os.path.basename(self.filepath)}'!\nError: {e}")
+            self.report({'ERROR'}, f'Error: {e}')
             return {'CANCELLED'}
         return {'FINISHED'}
 
 class ExportKey(bpy.types.Operator, ExportHelper):
     """Export animation to Sith game engine KEY file format (.key)"""
-    bl_idname    = "export_anim.sith_key"
-    bl_label     = "Export KEY"
-    filename_ext = ".key"
+    bl_idname    = 'export_anim.sith_key'
+    bl_label     = 'Export KEY'
+    filename_ext = '.key'
 
     filter_glob = bpy.props.StringProperty(
-        default = "*.key",
-        options = {"HIDDEN"}
+        default = '*.key',
+        options = {'HIDDEN'}
     )
 
     def _get_fps_enum_list():
-        return [("60"   , "60 fps", ""),
-                ("50"   , "50 fps", ""),
-                ("30"   , "30 fps", ""),
-                ("25"   , "25 fps", ""),
-                ("24"   , "24 fps", ""),
-                ("15"   , "15 fps", "")]
+        return [('60'   , '60 fps', ''),
+                ('50'   , '50 fps', ''),
+                ('30'   , '30 fps', ''),
+                ('25'   , '25 fps', ''),
+                ('24'   , '24 fps', ''),
+                ('20'   , '20 fps', ''),
+                ('15'   , '15 fps', '')]
 
-    animation_flags = bpy.props.EnumProperty(
-        name        = "Flags",
-        description = "Animation flags. By default animation loops indefinitely",
+    flags = bpy.props.EnumProperty(
+        name        = 'Flags',
+        description = 'Animation flags. Probably not used in the game and overridden by puppet sub-mode flags',
         items       = _get_key_flags_enum_list(),
         options     = {'ENUM_FLAG'}
     )
@@ -457,19 +461,17 @@ class ExportKey(bpy.types.Operator, ExportHelper):
     obj   = None
 
     def draw(self, context):
-        layout       = self.layout
-        flags_layout = layout.box().column()
-        flags_layout.label(text='Flags')
-        flags_layout.prop(self, "animation_flags")
+        layout = self.layout
+        layout.prop_menu_enum(self, 'flags')
         types_layout = layout.box().column()
         types_layout.label(text='High Priority Node(s)')
-        types_layout.prop(self, "node_types", text='')
+        types_layout.prop(self, 'node_types', text='')
         layout.prop(self, 'fps')
 
     def invoke(self, context, event):
-        self.animation_flags = context.scene.key_animation_flags
-        self.node_types      = context.scene.key_node_types
-        fps                  = context.scene.render.fps
+        self.flags       = context.scene.key_animation_flags
+        self.node_types  = context.scene.key_node_types
+        fps              = context.scene.render.fps
         for e in reversed(ExportKey._get_fps_enum_list()):
             if e[0] == str(fps):
                 self.fps = str(e[0])
@@ -486,17 +488,17 @@ class ExportKey(bpy.types.Operator, ExportHelper):
         return ExportHelper.invoke(self, context, event)
 
     def execute(self, context):
-        context.scene.key_animation_flags = self.animation_flags
+        context.scene.key_animation_flags = self.flags
         context.scene.key_node_types      = self.node_types
         context.scene.render.fps          = float(self.fps)
         scene = context.scene.copy()
         try:
             exportKey(self.obj, scene, self.filepath)
-            self.report({'INFO'}, "KEY '{}' was successfully exported".format(os.path.basename(self.filepath)))
+            self.report({'INFO'}, f"KEY '{os.path.basename(self.filepath)}' was successfully exported")
             return {'FINISHED'}
         except (AssertionError, ValueError) as e:
-            print("\nAn exception was encountered while exporting animation data of object '{}' to KEY file format!\nError: {}".format(self.obj.name, e))
-            self.report({'ERROR'}, "Error: {}".format(e))
+            print(f"\nAn exception was encountered while exporting animation data of object '{self.obj.name}' to KEY file format!\nError: {e}")
+            self.report({'ERROR'}, f'Error: {e}')
             return {'CANCELLED'}
         finally:
             if scene:
@@ -513,7 +515,7 @@ class Model3doPanel(bpy.types.Panel):
     bl_description = '3DO model object properties'
     bl_space_type  = 'PROPERTIES'
     bl_region_type = 'WINDOW'
-    bl_context     = "object"
+    bl_context     = 'object'
     bl_options     = {'DEFAULT_CLOSED'}
 
     @classmethod
@@ -526,16 +528,16 @@ class Model3doPanel(bpy.types.Panel):
         layout = self.layout
 
         mesh_properties = layout.box()
-        mesh_properties.label(text="Mesh Properties")
-        mesh_properties.prop(obj, "model3do_light_mode", text="Lighting")
-        mesh_properties.prop(obj, "model3do_texture_mode", text="Texture")
+        mesh_properties.label(text='Mesh Properties')
+        mesh_properties.prop(obj, 'model3do_light_mode'  , text='Lighting')
+        mesh_properties.prop(obj, 'model3do_texture_mode', text='Texture')
 
         node_properties = layout.box()
-        node_properties.label(text="Hierarchy Node Properties")
-        node_properties.prop(obj, "model3do_hnode_num", text="Sequence no.")
-        node_properties.prop(obj, "model3do_hnode_name", text="Name")
-        node_properties.prop(obj, "model3do_hnode_flags", text="Flags")
-        node_properties.prop(obj, "model3do_hnode_type", text="Type")
+        node_properties.label(text='Hierarchy Node Properties')
+        node_properties.prop(obj, 'model3do_hnode_num'  , text='Sequence no.')
+        node_properties.prop(obj, 'model3do_hnode_name' , text='Name')
+        node_properties.prop(obj, 'model3do_hnode_flags', text='Flags')
+        node_properties.prop(obj, 'model3do_hnode_type' , text='Type')
 
 
 class Mesh3doFaceLayer(bpy.types.PropertyGroup):
@@ -546,39 +548,39 @@ class Mesh3doFaceLayer(bpy.types.PropertyGroup):
     face_id = bpy.props.IntProperty(default = -1)
 
     type = bpy.props.EnumProperty(
-        name        = "Type",
-        description = "Face type flag",
+        name        = 'Type',
+        description = 'Face type flag',
         items       = _get_mesh3do_face_type_list(),
         options     = {'ENUM_FLAG'}
     )
 
     geo_mode = bpy.props.EnumProperty(
-        name        = "Geometry Mode",
-        description = "Geometry mode",
+        name        = 'Geometry Mode',
+        description = 'Geometry mode',
         items       = _get_model3do_geometry_mode_list(),
         default     = GeometryMode.Texture.name,
         options     = {'HIDDEN', 'LIBRARY_EDITABLE'}
     )
 
     light_mode = bpy.props.EnumProperty(
-        name        = "Lighting Mode",
-        description = "Lighting mode",
+        name        = 'Lighting Mode',
+        description = 'Lighting mode',
         items       = _get_model3do_light_mode_list(),
         default     = LightMode.Gouraud.name,
         options     = {'HIDDEN', 'LIBRARY_EDITABLE'}
     )
 
     texture_mode = bpy.props.EnumProperty(
-        name        = "Texture Mode",
-        description = "Texture mapping mode (Not used by IJIM)",
+        name        = 'Texture Mode',
+        description = 'Texture mapping mode (Not used by IJIM)',
         items       = _get_model3do_texture_mode_list(),
         default     = TextureMode.PerspectiveCorrected.name,
         options     = {'HIDDEN', 'LIBRARY_EDITABLE'}
     )
 
     extra_light = bpy.props.FloatVectorProperty(
-        name        = "Extra Light",
-        description = "Face extra light color",
+        name        = 'Extra Light',
+        description = 'Face extra light color',
         size        = 4,
         subtype     ='COLOR',
         default     = [0.0, 0.0, 0.0, 1.0],
@@ -592,10 +594,10 @@ class Mesh3doFacePanel(bpy.types.Panel):
     i.e.: face type flags, geometry mode, light mode, texture mode & hierarchy node properties.
     """
     bl_idname      = 'DATA_PT_model3do_face_panel'
-    bl_label       = "3DO Mesh Face Properties"
+    bl_label       = '3DO Mesh Face Properties'
     bl_space_type  = 'PROPERTIES'
     bl_region_type = 'WINDOW'
-    bl_context     = "data"
+    bl_context     = 'data'
     bl_options     = {'DEFAULT_CLOSED'}
 
     @classmethod
@@ -637,12 +639,12 @@ class Mesh3doFacePanel(bpy.types.Panel):
         box          = layout.box()
         box.enabled  = enabled
         tbox         = box.box()
-        tbox.label(text="Type Flags")
-        tbox.prop(wm_fl, "type", text="Type")
-        box.prop(wm_fl, "geo_mode", text="Geometry")
-        box.prop(wm_fl, "light_mode", text="Lighting")
-        box.prop(wm_fl, "texture_mode", text="Texture")
-        box.prop(wm_fl, "extra_light", text="Extra Light")
+        tbox.label(text= 'Type Flags')
+        tbox.props_enum(wm_fl, 'type')
+        box.prop(wm_fl, 'geo_mode'    , text='Geometry')
+        box.prop(wm_fl, 'light_mode'  , text='Lighting')
+        box.prop(wm_fl, 'texture_mode', text='Texture')
+        box.prop(wm_fl, 'extra_light' , text='Extra Light')
 
 
 classes = (
@@ -657,14 +659,14 @@ classes = (
 )
 
 def menu_func_export(self, context):
-    self.layout.operator(ExportKey.bl_idname, text="Sith Game Engine Animation (.key)")
-    self.layout.operator(ExportModel3do.bl_idname, text="Sith Game Engine 3D Model (.3do)")
+    self.layout.operator(ExportKey.bl_idname, text='Sith Game Engine Animation (.key)')
+    self.layout.operator(ExportModel3do.bl_idname, text='Sith Game Engine 3D Model (.3do)')
 
 
 def menu_func_import(self, context):
-    self.layout.operator(ImportKey.bl_idname, text="Sith Game Engine Animation (.key)")
-    self.layout.operator(ImportMat.bl_idname, text="Sith Game Engine Texture (.mat)")
-    self.layout.operator(ImportModel3do.bl_idname, text="Sith Game Engine 3D Model (.3do)")
+    self.layout.operator(ImportKey.bl_idname, text='Sith Game Engine Animation (.key)')
+    self.layout.operator(ImportMat.bl_idname, text='Sith Game Engine Texture (.mat)')
+    self.layout.operator(ImportModel3do.bl_idname, text='Sith Game Engine 3D Model (.3do)')
 
 def register():
     # Register classes
@@ -677,16 +679,16 @@ def register():
 
     # 3DO custom properties for object
     bpy.types.Object.model3do_light_mode = bpy.props.EnumProperty(
-        name        = "Lighting Mode",
-        description = "Lighting mode",
+        name        = 'Lighting Mode',
+        description = 'Lighting mode',
         items       = _get_model3do_light_mode_list(),
         default     = 'Gouraud',
         options     = {'HIDDEN', 'LIBRARY_EDITABLE'}
     )
 
     bpy.types.Object.model3do_texture_mode = bpy.props.EnumProperty(
-        name        = "Texture Mode",
-        description = "Texture mapping mode (Not used by IJIM)",
+        name        = 'Texture Mode',
+        description = 'Texture mapping mode (Not used by IJIM)',
         items       = _get_model3do_texture_mode_list(),
         default     = 'PerspectiveCorrected',
         options     = {'HIDDEN', 'LIBRARY_EDITABLE'}
@@ -694,14 +696,14 @@ def register():
 
     bpy.types.Object.model3do_hnode_num = bpy.props.IntProperty(
         name        = '3DO Hierarchy Node Number',
-        description = "The hierarchy sequence number of the node",
+        description = 'The node position number in the hierarchy list. If set to -1 the position will be auto assigned when exporting to 3DO file',
         default     = -1,
         options     = {'HIDDEN', 'LIBRARY_EDITABLE'}
     )
 
     bpy.types.Object.model3do_hnode_name = bpy.props.StringProperty(
         name        = '3DO Hierarchy Node Name',
-        description = "The name of hierarchy node",
+        description = 'The name of hierarchy node',
         maxlen      = 64,
         options     = {'HIDDEN', 'LIBRARY_EDITABLE'}
     )
@@ -709,7 +711,7 @@ def register():
     bpy.types.Object.model3do_hnode_flags = HexProperty(
         'model3do_hnode_flags',
         name         = '3DO Hierarchy Node Flags',
-        description  = "The hierarchy node flags",
+        description  = 'The hierarchy node flags',
         maxlen       = 4,
         pad          = True,
         options      = {'HIDDEN', 'LIBRARY_EDITABLE'}
@@ -718,7 +720,7 @@ def register():
     bpy.types.Object.model3do_hnode_type = HexProperty(
         'model3do_hnode_type',
         name        = '3DO Hierarchy Node Type',
-        description = "The hierarchy node type",
+        description = 'The hierarchy node type',
         default     = '0x01',
         maxlen      = 4,
         pad         = True,
@@ -732,7 +734,7 @@ def register():
     bpy.types.Scene.key_animation_flags = bpy.props.EnumProperty(
         items       = _get_key_flags_enum_list(),
         name        = 'KEY Flags',
-        description = "KEY Animation flags. By default animation loops indefinitely",
+        description = 'Sith KEY animation flags. This are puppet animation flags which are probably not used by the game.',
         options     = {'ENUM_FLAG', 'HIDDEN', 'LIBRARY_EDITABLE'},
     )
 
@@ -766,7 +768,7 @@ def unregister():
         bpy.utils.unregister_class(cls)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     try:
         unregister()
     except:

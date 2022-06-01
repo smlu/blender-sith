@@ -27,13 +27,13 @@ from sith.types.vector import *
 
 @unique
 class KeyFlag(Flag):
-    Loop                = 0x0
-    PauseOnFirstFrame   = 0x1
-    NoLoop              = 0x2
-    PauseOnLastFrame    = 0x4
-    RestartIfPlaying    = 0x8
-    FinishInGivenTime   = 0x10
-    EndSmoothly         = 0x20
+    Loop              = 0x0
+    UsePuppetFPS      = 0x1
+    NoLoop            = 0x2
+    PauseOnLastFrame  = 0x4
+    RestartActive     = 0x8
+    DisableFadeIn     = 0x10
+    FadeOutAndNoLoop  = 0x20
 
 @unique
 class KeyMarkerType(IntEnum):
