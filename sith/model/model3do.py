@@ -29,9 +29,7 @@ class FaceType(Flag):
     Normal         = 0x00
     DoubleSided    = 0x01
     Translucent    = 0x02
-    #Unknown1      = 3      # inf_cage.3do
     TexClamp_x     = 0x04,  # Mapped texture is clamped in x instead of being repeated (wrapped).
-    #Unknown2      = 5      # anson.3do
     TexClamp_y     = 0x08,  # Mapped texture is clamped in y instead of being repeated.
     TexFilterNone  = 0x10,  # Disables bilinear texture filtering for the polygon texture. (Sets to point filter aka nearest)
     ZWriteDisabled = 0x20,  # Disables ZWrite for the polygon face.
@@ -53,10 +51,11 @@ class GeometryMode(IntEnum):
 
 @unique
 class LightMode(IntEnum):
-    FullyLit  = 0
-    NotLit    = 1
-    Diffuse   = 2
-    Gouraud   = 3
+    FullyLit   = 0
+    NotLit     = 1
+    Diffuse    = 2
+    Gouraud    = 3
+    GfUnknown6 = 6 # Grim Fandango 
 
 @unique
 class TextureMode(IntEnum):

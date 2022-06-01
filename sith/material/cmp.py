@@ -24,9 +24,11 @@ from pathlib import Path
 from struct import Struct
 from typing import NamedTuple, List, Tuple, Union
 
-file_magic       = b'CMP '
-required_version = 0x1E
-
+file_magic         = b'CMP '
+supported_versions = [
+    0x14, # Grim Fandango
+    0x1E  # Star Wars JKDF2, MOTS, DroidWorks
+]
 
 class CmpHeader(NamedTuple):
     format = Struct('<4sii52s')
@@ -61,9 +63,9 @@ class ColorMap:
             rh = CmpHeader.format.unpack(f.read(CmpHeader.format.size))
             h = CmpHeader(*rh)
             if h.signature != file_magic:
-                raise ImportError("Invalid CMP file")
-            if h.version != required_version:
-                raise ImportError("Invalid CMP file version")
+                raise ImportError('Invalid CMP file')
+            if h.version not in supported_versions:
+                raise ImportError(f'Invalid CMP file version 0x{h.version:02x}')
 
             # Read palette
             pal = f.read(256 * 3) # 256 * len(CmpPaletteRGB)

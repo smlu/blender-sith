@@ -19,6 +19,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+from doctest import ELLIPSIS_MARKER
 import os
 from enum import Enum
 from sith.text.tokenizer import TokenType, Tokenizer
@@ -99,7 +100,13 @@ def _parse_model_geometry_section(tok: Tokenizer, model: Model3do, fileVersion: 
             tok.assertIdentifier("RADIUS")
             mesh.radius = tok.getFloatNumber()
 
-            tok.assertIdentifier("GEOMETRYMODE")
+            identifier = tok.getIdentifier()
+            if identifier.upper() == 'SHADOW': # Grim Fandango
+                tok.getToken() # Skip SHADOW
+                tok.assertIdentifier("GEOMETRYMODE")
+            elif identifier.upper() != 'GEOMETRYMODE':
+                raise AssertionError(f"Expected identifier 'GEOMETRYMODE', found '{identifier}'! line: {tok.line} column: {tok.column}")
+
             mesh.geometryMode = GeometryMode(tok.getIntNumber())
 
             tok.assertIdentifier("LIGHTINGMODE")
