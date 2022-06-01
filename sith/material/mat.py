@@ -242,6 +242,7 @@ def _mat_add_new_texture(mat: bpy.types.Material, width: int, height: int, texId
     tex.use_preview_alpha = hasTransparency
 
     ts                = mat.texture_slots.add()
+    ts.use            = False # Disabel slot by default
     ts.texture        = tex
     ts.use_map_alpha  = hasTransparency
     ts.texture_coords = 'UV'
@@ -296,4 +297,6 @@ def importMat(filePath, cmp: Optional[ColorMap] = None):
         for i in range(0, _max_cels(h.texture_count)):
             mm = _read_mipmap(f, h.color_info, cmp)
             _mat_add_new_texture(mat, mm.width, mm.height, i, mm.pixel_data_array[0] if mm.pixel_data_array else None, hasTransparency=use_transparency)
+
+    mat.use_textures[0] = True # Enable only 1st slot
     return mat
