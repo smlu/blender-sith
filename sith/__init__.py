@@ -119,7 +119,7 @@ def _get_mesh3do_face_type_list():
         (FaceType.ZWriteDisabled.name, 'Disable ZWrite'            , 'Disables writing polygon face to depth buffer'                                                                                           ),
         (FaceType.IjimLedge.name     , '(IJIM) Ledge'              , '(IJIM only) Polygon face is a ledge that player can grab and hang from'                                                                  ),
         (FaceType.IjimFogEnabled.name, '(IJIM) Enable Fog'         , '(IJIM only) Enables fog rendering for polygon face. Enabled by default by the engine'                                                    ),
-        (FaceType.IjimWhipAim.name   , '(IJIM) Whip Aim'           , '(IJIM only) Polygon face is the start point for the player to aim at object with whip'                                                   )
+        (FaceType.IjimWhipAim.name   , '(IJIM) Whip Aim'           , '(IJIM only) Polygon face is whip aiming spot from which player can search in the area for object(s) to mount whip on'                    )
     ]
 
 def _get_model3do_geometry_mode_list():
@@ -469,8 +469,8 @@ class ExportKey(bpy.types.Operator, ExportHelper):
         layout.prop(self, 'fps')
 
     def invoke(self, context, event):
-        self.flags       = context.scene.key_animation_flags
-        self.node_types  = context.scene.key_node_types
+        self.flags       = context.scene.sith_key_flags
+        self.node_types  = context.scene.sith_key_types
         fps              = context.scene.render.fps
         for e in reversed(ExportKey._get_fps_enum_list()):
             if e[0] == str(fps):
@@ -488,9 +488,9 @@ class ExportKey(bpy.types.Operator, ExportHelper):
         return ExportHelper.invoke(self, context, event)
 
     def execute(self, context):
-        context.scene.key_animation_flags = self.flags
-        context.scene.key_node_types      = self.node_types
-        context.scene.render.fps          = float(self.fps)
+        context.scene.sith_key_flags = self.flags
+        context.scene.sith_key_types = self.node_types
+        context.scene.render.fps     = float(self.fps)
         scene = context.scene.copy()
         try:
             exportKey(self.obj, scene, self.filepath)
@@ -529,15 +529,15 @@ class Model3doPanel(bpy.types.Panel):
 
         mesh_properties = layout.box()
         mesh_properties.label(text='Mesh Properties')
-        mesh_properties.prop(obj, 'model3do_light_mode'  , text='Lighting')
-        mesh_properties.prop(obj, 'model3do_texture_mode', text='Texture')
+        mesh_properties.prop(obj, 'sith_model3do_light_mode'  , text='Lighting')
+        mesh_properties.prop(obj, 'sith_model3do_texture_mode', text='Texture')
 
         node_properties = layout.box()
         node_properties.label(text='Hierarchy Node Properties')
-        node_properties.prop(obj, 'model3do_hnode_num'  , text='Sequence no.')
-        node_properties.prop(obj, 'model3do_hnode_name' , text='Name')
-        node_properties.prop(obj, 'model3do_hnode_flags', text='Flags')
-        node_properties.prop(obj, 'model3do_hnode_type' , text='Type')
+        node_properties.prop(obj, 'sith_model3do_hnode_idx'  , text='Sequence no.')
+        node_properties.prop(obj, 'sith_model3do_hnode_name' , text='Name')
+        node_properties.prop(obj, 'sith_model3do_hnode_flags', text='Flags')
+        node_properties.prop(obj, 'sith_model3do_hnode_type' , text='Type')
 
 
 class Mesh3doFaceLayer(bpy.types.PropertyGroup):
@@ -609,7 +609,7 @@ class Mesh3doFacePanel(bpy.types.Panel):
         return hash(face) %2**31 -1 # gen. 32 bit signed hash id of face
 
     def draw(self, context):
-        wm_fl = context.window_manager.mesh3do_face_layer
+        wm_fl = context.window_manager.sith_mesh3do_face_layer
 
         bm = bmesh.from_edit_mesh(context.edit_object.data)
         bmMeshInit3doLayers(bm)
@@ -678,7 +678,7 @@ def register():
     bpy.types.INFO_MT_file_import.append(menu_func_import)
 
     # 3DO custom properties for object
-    bpy.types.Object.model3do_light_mode = bpy.props.EnumProperty(
+    bpy.types.Object.sith_model3do_light_mode = bpy.props.EnumProperty(
         name        = 'Lighting Mode',
         description = 'Lighting mode',
         items       = _get_model3do_light_mode_list(),
@@ -686,7 +686,7 @@ def register():
         options     = {'HIDDEN', 'LIBRARY_EDITABLE'}
     )
 
-    bpy.types.Object.model3do_texture_mode = bpy.props.EnumProperty(
+    bpy.types.Object.sith_model3do_texture_mode = bpy.props.EnumProperty(
         name        = 'Texture Mode',
         description = 'Texture mapping mode (Not used by IJIM)',
         items       = _get_model3do_texture_mode_list(),
@@ -694,22 +694,23 @@ def register():
         options     = {'HIDDEN', 'LIBRARY_EDITABLE'}
     )
 
-    bpy.types.Object.model3do_hnode_num = bpy.props.IntProperty(
+    bpy.types.Object.sith_model3do_hnode_idx = bpy.props.IntProperty(
         name        = '3DO Hierarchy Node Number',
         description = 'The node position number in the hierarchy list. If set to -1 the position will be auto assigned when exporting to 3DO file',
         default     = -1,
+        min         = -1,
         options     = {'HIDDEN', 'LIBRARY_EDITABLE'}
     )
 
-    bpy.types.Object.model3do_hnode_name = bpy.props.StringProperty(
+    bpy.types.Object.sith_model3do_hnode_name = bpy.props.StringProperty(
         name        = '3DO Hierarchy Node Name',
         description = 'The name of hierarchy node',
         maxlen      = 64,
         options     = {'HIDDEN', 'LIBRARY_EDITABLE'}
     )
 
-    bpy.types.Object.model3do_hnode_flags = HexProperty(
-        'model3do_hnode_flags',
+    bpy.types.Object.sith_model3do_hnode_flags = HexProperty(
+        'sith_model3do_hnode_flags',
         name         = '3DO Hierarchy Node Flags',
         description  = 'The hierarchy node flags',
         maxlen       = 4,
@@ -717,8 +718,8 @@ def register():
         options      = {'HIDDEN', 'LIBRARY_EDITABLE'}
     )
 
-    bpy.types.Object.model3do_hnode_type = HexProperty(
-        'model3do_hnode_type',
+    bpy.types.Object.sith_model3do_hnode_type = HexProperty(
+        'sith_model3do_hnode_type',
         name        = '3DO Hierarchy Node Type',
         description = 'The hierarchy node type',
         default     = '0x01',
@@ -728,18 +729,18 @@ def register():
     )
 
     # 3DO Mesh Face custom properties
-    bpy.types.WindowManager.mesh3do_face_layer = bpy.props.PointerProperty(type=Mesh3doFaceLayer)
+    bpy.types.WindowManager.sith_mesh3do_face_layer = bpy.props.PointerProperty(type=Mesh3doFaceLayer)
 
     # KEY custom properties
-    bpy.types.Scene.key_animation_flags = bpy.props.EnumProperty(
+    bpy.types.Scene.sith_key_flags = bpy.props.EnumProperty(
         items       = _get_key_flags_enum_list(),
         name        = 'KEY Flags',
         description = 'Sith KEY animation flags. This are puppet animation flags which are probably not used by the game.',
         options     = {'ENUM_FLAG', 'HIDDEN', 'LIBRARY_EDITABLE'},
     )
 
-    bpy.types.Scene.key_node_types = HexProperty(
-        'key_node_types',
+    bpy.types.Scene.sith_key_types = HexProperty(
+        'sith_key_types',
         name        = 'High Priority Node(s)',
         description = '3DO hierarchy node types which have higher animation priority set by the associated puppet file.\n\nBy default all 3DO joint nodes have low animation priority assigned in the associated puppet file (.pup). When the node type is defined here then this node will have high priority value assigned. Set this field to `FFFF` in order to assign all node types to high priority',
         default     = '0xFFFF',
@@ -749,17 +750,17 @@ def register():
     )
 
 def unregister():
-    del bpy.types.Scene.key_animation_flags
-    del bpy.types.Scene.key_node_types
+    del bpy.types.Scene.sith_key_flags
+    del bpy.types.Scene.sith_key_types
 
-    del bpy.types.WindowManager.mesh3do_face_layer
+    del bpy.types.WindowManager.sith_mesh3do_face_layer
 
-    del bpy.types.Object.model3do_hnode_flags
-    del bpy.types.Object.model3do_hnode_type
-    del bpy.types.Object.model3do_hnode_name
-    del bpy.types.Object.model3do_hnode_num
-    del bpy.types.Object.model3do_texture_mode
-    del bpy.types.Object.model3do_light_mode
+    del bpy.types.Object.sith_model3do_hnode_flags
+    del bpy.types.Object.sith_model3do_hnode_type
+    del bpy.types.Object.sith_model3do_hnode_name
+    del bpy.types.Object.sith_model3do_hnode_idx
+    del bpy.types.Object.sith_model3do_texture_mode
+    del bpy.types.Object.sith_model3do_light_mode
 
     bpy.types.INFO_MT_file_export.remove(menu_func_export)
     bpy.types.INFO_MT_file_import.remove(menu_func_import)

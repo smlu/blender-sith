@@ -165,8 +165,8 @@ def _create_objects_from_model(model: Model3do, uvAbsolute: bool, geosetNum: int
                 _set_mesh_radius(obj, mesh3do.radius)
 
             obj.draw_type             = getDrawType(mesh3do.geometryMode)
-            obj.model3do_light_mode   = mesh3do.lightMode.name
-            obj.model3do_texture_mode = mesh3do.textureMode.name
+            obj.sith_model3do_light_mode   = mesh3do.lightMode.name
+            obj.sith_model3do_texture_mode = mesh3do.textureMode.name
             obj.draw_bounds_type      = 'SPHERE'
             bpy.context.scene.objects.link(obj)
         else:
@@ -179,10 +179,10 @@ def _create_objects_from_model(model: Model3do, uvAbsolute: bool, geosetNum: int
         obj.name = makeOrderedName(obj.name, node.idx, len(model.meshHierarchy)) if preserveOrder else obj.name
 
         # Set hierarchy node flags, type and name
-        obj.model3do_hnode_num   = node.idx
-        obj.model3do_hnode_name  = node.name
-        obj.model3do_hnode_flags = node.flags.hex()
-        obj.model3do_hnode_type  = node.type.hex()
+        obj.sith_model3do_hnode_idx   = node.idx
+        obj.sith_model3do_hnode_name  = node.name
+        obj.sith_model3do_hnode_flags = node.flags.hex()
+        obj.sith_model3do_hnode_type  = node.type.hex()
 
         # Set node position, rotation and pivot
         _set_obj_pivot(obj, node.pivot)

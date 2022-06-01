@@ -52,8 +52,8 @@ def importKey(keyPath, scene: bpy.types.Scene):
     scene.render.fps      = key.fps
     scene.render.fps_base = 1.0
 
-    scene.key_animation_flags = key.flags.toSet()
-    scene.key_node_types      = key.nodeTypes.hex()
+    scene.sith_key_flags = key.flags.toSet()
+    scene.sith_key_types = key.nodeTypes.hex()
 
     for m in key.markers:
         scene.timeline_markers.new(m.type.name, m.frame)
@@ -62,11 +62,11 @@ def importKey(keyPath, scene: bpy.types.Scene):
         # Get object to animate
         kobj = None
         for obj in scene.objects:
-            if obj.model3do_hnode_num != -1:
-                if obj.model3do_hnode_num == node.idx:
+            if obj.sith_model3do_hnode_idx > -1 and obj.sith_model3do_hnode_idx < key.joints:
+                if obj.sith_model3do_hnode_idx == node.idx:
                     kobj = obj
                     break
-            elif obj.model3do_hnode_name.lower() == node.meshName.lower():
+            elif obj.sith_model3do_hnode_name.lower() == node.meshName.lower():
                 kobj = obj
                 break
             elif node.meshName.lower() == obj.name.lower():

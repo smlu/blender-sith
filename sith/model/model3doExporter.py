@@ -181,21 +181,21 @@ def _set_mesh_properties(mesh: Mesh3do, obj: bpy.types.Object, scale: mathutils.
         mesh.radius = radius_obj.dimensions[0] / 2
 
     try:
-        mesh.lightMode = LightMode[obj.model3do_light_mode]
+        mesh.lightMode = LightMode[obj.sith_model3do_light_mode]
     except:
         print("\nWarning: Invalid lighting mode for mesh '{}', using default value!".format(mesh.name))
         mesh.lightMode = kDefaultLightMode
 
     try:
-        mesh.textureMode = TextureMode[obj.model3do_texture_mode]
+        mesh.textureMode = TextureMode[obj.sith_model3do_texture_mode]
     except:
         print("\nWarning: Invalid texture mode for mesh '{}', using default value!".format(mesh.name))
         mesh.textureMode = kDefaultTexMode
 
 def _get_obj_hnode_name(obj: bpy.types.Object):
     name = stripOrderPrefix(obj.name)
-    if len(obj.model3do_hnode_name) > 0:
-        name = obj.model3do_hnode_name
+    if len(obj.sith_model3do_hnode_name) > 0:
+        name = obj.sith_model3do_hnode_name
 
     assertName(name)
     return name
@@ -216,9 +216,9 @@ def _get_hnode_last_sibling(first_child: Mesh3doNode, nodes: List[Mesh3doNode]):
 def _model3do_add_hnode(model: Model3do, mesh_idx: int, obj: bpy.types.Object, parent: bpy.types.Object, scale: mathutils.Vector):
     name               = _get_obj_hnode_name(obj)
     node               = Mesh3doNode(name)
-    node.idx           = obj.model3do_hnode_num
-    node.flags         = Mesh3doNodeFlags.fromHex(obj.model3do_hnode_flags)
-    node.type          = Mesh3doNodeType.fromHex(obj.model3do_hnode_type)
+    node.idx           = obj.sith_model3do_hnode_idx
+    node.flags         = Mesh3doNodeFlags.fromHex(obj.sith_model3do_hnode_flags)
+    node.type          = Mesh3doNodeType.fromHex(obj.sith_model3do_hnode_type)
     node.meshIdx       = mesh_idx
     node.parentIdx     = _get_obj_hnode_idx(model.meshHierarchy, parent)
     node.firstChildIdx = -1
