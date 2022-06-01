@@ -99,6 +99,7 @@ class Mesh3doNodeType(Flag):
     #LeftHand2    = 0x82
     RightHand     = 0x100
     #RightHand2   = 0x104
+    Unknown_200   = 0x200
     Vehicle       = 0x400
     BackPart      = 0x800
     FrontPart     = 0x1000
