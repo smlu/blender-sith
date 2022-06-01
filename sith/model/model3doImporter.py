@@ -19,7 +19,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-import bpy, bmesh, mathutils, time
+import bpy, bmesh, mathutils, os, time
 
 from sith.material import ColorMap
 from sith.utils import *
@@ -31,6 +31,8 @@ from .model3do import (
     Model3do,
     Mesh3do
 )
+
+_dfltcmp = 'dflt.cmp'
 
 def _set_obj_rotation(obj, rotation):
     objSetRotation(obj, rotation)
@@ -221,7 +223,10 @@ def import3do(file_path, mat_dirs = [], cmp_file = '', uvAbsolute_2_1 = True, im
         # Load ColorMap
         if len(cmp_file) == 0:
             print('\nInfo: ColorMap path not set, loading default...')
-            cmp_file = getDefaultCmpFilePath(file_path)
+            cmp_file = _dfltcmp
+
+        if not os.path.isfile(cmp_file):
+            cmp_file = findCmpFileInPath(cmp_file, file_path)
         if cmp_file:
             cmp = _import_colormap(cmp_file)
         else:

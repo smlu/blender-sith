@@ -213,11 +213,14 @@ class ImportMat(bpy.types.Operator, ImportHelper):
 
     def execute(self, context):
         cmp_file = Path(self.cmp_file)
+        if len(self.cmp_file) == 0:
+            cmp_file = Path('dflt.cmp')
         if not cmp_file.is_file():
-            cmp_file = getDefaultCmpFilePath(self.filepath)
+            cmp_file = findCmpFileInPath(cmp_file, self.filepath)
         cmp = None
         if cmp_file is not None and cmp_file.is_file():
             cmp = ColorMap.load(cmp_file)
+
         importMat(self.filepath, cmp)
         return {'FINISHED'}
 

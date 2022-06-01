@@ -39,9 +39,9 @@ def assertName(name: str):
     if not isASCII(name):
         raise AssertionError("name error: '{}' len does not contain all ASCII chars".format(name))
 
-def getDefaultCmpFilePath(model3doPath) -> Optional[Path]:
-    cmpFile  = Path('dflt.cmp')
-    modelDir = Path(os.path.dirname(model3doPath))
+def findCmpFileInPath(cmpFile, path) -> Optional[Path]:
+    cmpFile  = Path(cmpFile)
+    modelDir = Path(os.path.dirname(path))
 
     # try model folder
     path = modelDir/ cmpFile
@@ -71,10 +71,11 @@ def getDefaultCmpFilePath(model3doPath) -> Optional[Path]:
     return None
 
 def getDefaultMatFolders(model3doPath):
-    path1 = os.path.join(os.path.dirname(model3doPath), 'mat')
-    path2 = os.path.abspath(os.path.join(os.path.dirname(model3doPath), os.pardir))
-    path2 = os.path.join(path2, 'mat')
-    return [path1, path2]
+    path1 = os.path.dirname(model3doPath)
+    path2 = os.path.join(path1, 'mat')
+    path3 = os.path.abspath(os.path.join(path1, os.pardir))
+    path3 = os.path.join(path3, 'mat')
+    return [path1, path2, path3]
 
 def getFilePathInDir(fileName: str, dirPath: str, insensitive=True):
     "Returns string file path in dir if file exists otherwise None"
