@@ -131,7 +131,10 @@ def _get_model3do_geometry_mode_list():
 def _get_model3do_light_mode_list():
     l = []
     for f in LightMode:
-        l.append((f.name, _make_readable(f.name), ''))
+        if f == LightMode.GfUnknown6:
+            l.append((f.name, 'GF Unknown 6', 'Unknown lighting mode used in Grim Fandango'))
+        else:
+            l.append((f.name, _make_readable(f.name), ''))
     return l
 
 def _get_model3do_texture_mode_list():
@@ -201,7 +204,7 @@ class ImportMat(bpy.types.Operator, ImportHelper):
 
     cmp_file = bpy.props.StringProperty(
         name        = 'ColorMap Directory',
-        description = "Path to the ColorMap file (.cmp) of mat texture (JKDF2 & MOTS only).\n\nBy default addon tries to load 'dflt.cmp' from the texture path and parent directory",
+        description = "Path to the ColorMap file (.cmp) used by mat textures of the imported 3DO model (JKDF2 & MOTS only).\n\nBy default file is searched in specified path, in the directory of the imported 3DO model and it's parent directory.\nIf no file is specified 'dflt.cmp' file is loaded",
         #subtype='DIR_PATH'
     )
 
@@ -266,13 +269,13 @@ class ImportModel3do(bpy.types.Operator, ImportHelper):
 
     mat_dir = bpy.props.StringProperty(
         name        = 'Material(s) Directory',
-        description = "Path to the directory to search for texture files (.mat) of 3DO model.\n\nBy default addon tries to find required texture files in the 'mat' directory of the model path and parent directory",
+        description = "Path to the directory to search for texture files (.mat) of the imported 3DO model.\n\nBy default required texture files are searched in 'mat' directory at the location of imported 3DO model and it's parent directory",
         #subtype='DIR_PATH'
     )
 
     cmp_file = bpy.props.StringProperty(
-        name        = 'ColorMap Directory',
-        description = "Path to the ColorMap file (.cmp) of mat textures of imported 3DO model (JKDF2 & MOTS only).\n\nBy default addon tries to load 'dflt.cmp' from the model path and parent directory",
+        name        = 'ColorMap File',
+        description = "Path to the ColorMap file (.cmp) used by mat textures of the imported 3DO model (JKDF2 & MOTS only).\n\nBy default file is searched in specified path, in the directory of the imported 3DO model and it's parent directory.\nIf no file is specified 'dflt.cmp' file is loaded",
         #subtype='DIR_PATH'
     )
 
