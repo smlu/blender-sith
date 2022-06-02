@@ -37,40 +37,40 @@ class KeyFlag(Flag):
 
 @unique
 class KeyMarkerType(IntEnum):
-    Marker                   = 0
-    LeftFootstep             = 1
-    RightFootstep            = 2
-    AttackFire               = 3
-    WhipSwing                = 4
-    SaberUnknown2            = 5
-    SwimLeft                 = 6
-    LeftRunFootstep          = 8
-    RightRunFootstep         = 9
-    Died                     = 10
-    Jump                     = 11
-    SwimRight                = 13
-    Duck                     = 14
-    Climb                    = 15
-    Activate                 = 16
-    Crawl                    = 17
-    RunJumpLand              = 18
-    RightArmPickup           = 19
-    RightArmPickupRest       = 20
-    RightArmPlace            = 21
-    RightArmPlaceRest        = 22
-    RightArmReach            = 23
-    RightArmReachRest        = 24
-    Pickup                   = 25
-    Drop                     = 26
-    Pull                     = 27
-    InventoryPull            = 28
-    InventoryPut             = 29
-    AttackFireFinish         = 30
-    TurnOff                  = 31
-    Unknown_32               = 32
-    Unknown_33               = 33
-    MoveLeftSide             = 34
-    MoveRightSide            = 35
+    Marker               = 0
+    LeftFoot             = 1
+    RightFoot            = 2
+    Attack               = 3
+    Swing                = 4
+    SwingFinish          = 5
+    SwimLeft             = 6
+    RunLeftFoot          = 8
+    RunRightFoot         = 9
+    Died                 = 10
+    Jump                 = 11
+    SwimRight            = 13
+    Duck                 = 14
+    Climb                = 15
+    Activate             = 16
+    Crawl                = 17
+    RunJumpLand          = 18
+    ActivateRightArm     = 19
+    ActivateRightArmRest = 20
+    PlaceRightArm        = 21
+    PlaceRightArmRest    = 22
+    ReachRightArm        = 23
+    ReachRightArmRest    = 24
+    Pickup               = 25
+    Drop                 = 26
+    Move                 = 27
+    InventoryPull        = 28
+    InventoryPut         = 29
+    AttackFinish         = 30
+    TurnOff              = 31
+    Unknown_32           = 32
+    Unknown_33           = 33
+    LeftSide             = 34
+    RightSide            = 35
 
 @unique
 class KeyframeFlag(IntEnum):
@@ -78,7 +78,6 @@ class KeyframeFlag(IntEnum):
     PositionChange    = 1,
     OrientationChange = 2,
     AllChange         = 3
-
 
 class KeyMarker:
     def __init__(self):
