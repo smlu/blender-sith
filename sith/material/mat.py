@@ -141,7 +141,7 @@ def _read_records(f, h: mat_header) -> List[Tuple[mat_color_record, mat_texture_
         rh_list.append(record)
     return rh_list
 
-def _decode_indexed_pixel_data(pd, width, height, cmp: ColorMap):
+def _decode_indexed_pixel_data(pd, width, height, cmp: ColorMap) -> List[Tuple[float, float, float, float]]:
     row_len    = width
     dpd = []
     # MAT cord-system is top-down, so we use reverse here to flip img over y cord.
@@ -162,7 +162,7 @@ def _get_pixel_data_size(width, height, bpp):
 def _get_color_mask(bpc):
     return 0xFFFFFFFF >> (32 - bpc)
 
-def _decode_pixel(p, ci: color_format):
+def _decode_pixel(p, ci: color_format) -> Tuple[float, float, float, float]:
     r = ((p >> ci.red_shl)   & _get_color_mask(ci.red_bpp))   << ci.red_shr
     g = ((p >> ci.green_shl) & _get_color_mask(ci.green_bpp)) << ci.green_shr
     b = ((p >> ci.blue_shl)  & _get_color_mask(ci.blue_bpp))  << ci.blue_shr
@@ -175,7 +175,7 @@ def _decode_pixel(p, ci: color_format):
     # Return blender's pixel representation
     return (float(r/255), float(g/255), float(b/255), float(a/255))
 
-def _decode_rgba_pixel_data(pd, width, height, ci: color_format):
+def _decode_rgba_pixel_data(pd, width, height, ci: color_format) -> List[Tuple[float, float, float, float]]:
     pixel_size = int(ci.bpp /8)
     row_len    = _get_img_row_len(width, ci.bpp)
     dpd = []
@@ -188,7 +188,7 @@ def _decode_rgba_pixel_data(pd, width, height, ci: color_format):
             dpd.extend(_decode_pixel(pixel, ci))
     return dpd
 
-def _read_pixel_data(f, width, height, ci: color_format, cmp: Optional[ColorMap] = None):
+def _read_pixel_data(f, width, height, ci: color_format, cmp: Optional[ColorMap] = None) -> List[Tuple[float, float, float, float]]:
     pd_size = _get_pixel_data_size(width, height, ci.bpp)
     pd = bytearray(f.read(pd_size))
     if ci.color_mode == ColorMode.Indexed or ci.bpp == 8:
@@ -196,7 +196,11 @@ def _read_pixel_data(f, width, height, ci: color_format, cmp: Optional[ColorMap]
     # RGB(A)
     return _decode_rgba_pixel_data(pd, width, height, ci)
 
-def _read_mipmap(f, ci: color_format, cmp: Optional[ColorMap] = None): # If cmp is required and is None then no pixel data is set
+def _read_mipmap(f, ci: color_format, cmp: Optional[ColorMap] = None) -> List[List[Tuple[float, float, float, float]]]:
+    """
+    Reads MipMap textures and returns List of mipmap pixel data.
+    If cmp is required and is None then no pixel data is set
+    """
     # Read texture header
     mmh_raw = mmm_serf.unpack(bytearray(f.read(mmm_serf.size)))
     mmh     = mat_mipmap_header._make(mmh_raw)
@@ -220,8 +224,8 @@ def _get_tex_name(idx, mat_name):
         name += '_cel_' + str(idx)
     return name
 
-def _mat_add_new_texture(mat: bpy.types.Material, width: int, height: int, texIdx: int, pixdata: Optional[List[Tuple]], hasTransparency: bool):
-    img_name   = _get_tex_name(texIdx, mat.name)
+def _mat_add_new_texture(mat: bpy.types.Material, width: int, height: int, texIdx: int, pixdata: Optional[List[Tuple[float, float, float, float]]], hasTransparency: bool):
+    img_name = _get_tex_name(texIdx, mat.name)
     if not img_name in bpy.data.images:
         img = bpy.data.images.new(
             img_name,
@@ -230,19 +234,24 @@ def _mat_add_new_texture(mat: bpy.types.Material, width: int, height: int, texId
         )
     else:
         img = bpy.data.images[img_name]
-        img.scale(width, height)
+        if img.has_data:
+            img.scale(width, height)
 
     if pixdata is not None:
-        img.pixels = pixdata
-    img.update()
-    img.pack(as_png=True)
+        img.pixels[:] = pixdata
+        img.pack(as_png=True)
+        img.update()
+    else:
+        img.generated_type   = 'UV_GRID'
+        img.generated_width  = width
+        img.generated_height = height
 
     tex                   = bpy.data.textures.new(img_name, 'IMAGE')
     tex.image             = img
     tex.use_preview_alpha = hasTransparency
 
     ts                = mat.texture_slots.add()
-    ts.use            = False # Disabel slot by default
+    ts.use            = False # Disable slot by default
     ts.texture        = tex
     ts.use_map_alpha  = hasTransparency
     ts.texture_coords = 'UV'
