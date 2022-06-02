@@ -22,7 +22,9 @@
 import bpy, os.path
 from pathlib import Path
 from typing import Optional
-from . import bl_info
+
+from sith.material import ColorMap
+from sith import bl_info
 
 maxNameLen = 64
 
@@ -69,6 +71,17 @@ def findCmpFileInPath(cmpFile, path) -> Optional[Path]:
         return path
 
     return None
+
+def getCmpFileOrDefault(filepath: str, searchPath: str) -> Optional[ColorMap]:
+    cmp_file = Path(filepath)
+    if len(filepath) == 0:
+        cmp_file = Path('dflt.cmp')
+    if not cmp_file.is_file():
+        cmp_file = findCmpFileInPath(cmp_file, searchPath)
+    cmp = None
+    if cmp_file is not None and cmp_file.is_file():
+        cmp = ColorMap.load(cmp_file)
+    return cmp
 
 def getDefaultMatFolders(model3doPath):
     path1 = os.path.dirname(model3doPath)
@@ -122,7 +135,7 @@ def makeNewGlobalMaterial(name: str):
     mat.texture_slots.add()
     ts = mat.texture_slots[0]
     ts.texture_coords = 'UV'
-    ts.uv_layer = 'UVMap'
+    ts.uv_layer       = 'UVMap'
     return mat
 
 def clearSceneAnimData(scene):

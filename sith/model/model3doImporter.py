@@ -202,12 +202,6 @@ def _create_objects_from_model(model: Model3do, uvAbsolute: bool, geosetNum: int
             node.obj.parent      = model.meshHierarchy[node.parentIdx].obj
     bpy.context.scene.update()
 
-def _import_colormap(cmp_file: str) -> Optional[ColorMap]:
-    try:
-        return ColorMap.load(cmp_file)
-    except Exception as e:
-        print(f"Warning: Failed to load ColorMap '{cmp_file}': {e}")
-
 def import3do(file_path, mat_dirs = [], cmp_file = '', uvAbsolute_2_1 = True, importVertexColors = True, importRadiusObj = False, preserveOrder = True, clearScene = True):
     print("importing 3DO: %r..." % (file_path), end="")
     startTime = time.process_time()
@@ -221,15 +215,11 @@ def import3do(file_path, mat_dirs = [], cmp_file = '', uvAbsolute_2_1 = True, im
     cmp = None
     if isJkdf2:
         # Load ColorMap
-        if len(cmp_file) == 0:
-            print('\nInfo: ColorMap path not set, loading default...')
-            cmp_file = _dfltcmp
-
-        if not os.path.isfile(cmp_file):
-            cmp_file = findCmpFileInPath(cmp_file, file_path)
-        if cmp_file:
-            cmp = _import_colormap(cmp_file)
-        else:
+        try:
+            cmp = getCmpFileOrDefault(cmp_file, file_path)
+        except Exception as e:
+            print(f"Warning: Failed to load ColorMap '{cmp_file}': {e}")
+        if not cmp:
             print("Warning: Loading 3DO version 2.1 and no ColorMap was found!")
 
     if clearScene:
