@@ -6,6 +6,7 @@ Addon provides Blender game assets import/export scripts for the games based on 
   - Star Wars Jedi Knight: Mysteries of the Sith
   - Star Wars: DroidWorks
   - Indiana Jones and the Infernal Machine
+  - Grim Fandango - *Only importing of text format 3DO models is supported*
 
 ## Features
   - Import/Export .3do models
@@ -26,7 +27,7 @@ Blender 2.79, you can download it [here](https://download.blender.org/release/Bl
       and select the downloaded `sith.zip` file.
    3. Enable the addon by clicking the checkbox next to the add-on name.
    4. Click the `Save User Settings` button in the lower left and close the preferences window.
-   
+
 ## Usage
 ### Importing 3DO model
    1. Go to `File > Import > Sith Game Engine 3D Model (.3do)`
