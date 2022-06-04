@@ -27,6 +27,8 @@ from sith.material import ColorMap
 from sith import bl_info
 
 maxNameLen = 64
+kDefaultCmp = 'dflt.cmp'
+_fsys_case_sensitive = not Path(str(Path.home()).upper()).exists()
 
 def isValidNameLen(name: str):
     return len(name) <= maxNameLen
@@ -75,7 +77,7 @@ def findCmpFileInPath(cmpFile, path) -> Optional[Path]:
 def getCmpFileOrDefault(filepath: str, searchPath: str) -> Optional[ColorMap]:
     cmp_file = Path(filepath)
     if len(filepath) == 0:
-        cmp_file = Path('dflt.cmp')
+        cmp_file = Path(kDefaultCmp)
     if not cmp_file.is_file():
         cmp_file = findCmpFileInPath(cmp_file, searchPath)
     cmp = None
@@ -103,7 +105,7 @@ def getFilePathInDir(fileName: str, dirPath: str, insensitive=True):
     if file_exists(filePath):
         return filePath
 
-    if insensitive:
+    if _fsys_case_sensitive and insensitive:
         # Try to find the file by lower-cased name
         fileName = fileName.lower()
         filePath = os.path.join(dirPath, fileName)
