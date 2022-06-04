@@ -6,7 +6,7 @@ Addon provides Blender game assets import/export scripts for the games based on 
   - Star Wars Jedi Knight: Mysteries of the Sith
   - Star Wars: DroidWorks
   - Indiana Jones and the Infernal Machine
-  - Grim Fandango - *Only importing of text format 3DO models is supported*
+  - Grim Fandango - *Only supported importing of text format 3DO models*
 
 ## Features
   - Import/Export .3do models
