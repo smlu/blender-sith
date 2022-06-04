@@ -23,7 +23,7 @@ from doctest import ELLIPSIS_MARKER
 import os
 from enum import Enum
 from sith.text.tokenizer import TokenType, Tokenizer
-from sith.types.vector import *
+from sith.types import Vector4f
 from typing import Tuple
 
 from .model3do import *

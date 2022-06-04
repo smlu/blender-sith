@@ -92,8 +92,7 @@ from sith.model.utils import (
 )
 
 from sith.utils import *
-from sith.types.vector import Vector4f
-from sith.types.props import *
+from sith.types import HexProperty, Vector4f
 
 
 def _make_readable(str):

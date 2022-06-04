@@ -22,7 +22,7 @@
 import bpy, bmesh, mathutils, math, re
 
 from sith.material import ColorMap, importMat
-from sith.types.vector import Vector3f, Vector4f
+from sith.types import Vector3f, Vector4f
 from sith.utils import *
 from typing import List
 

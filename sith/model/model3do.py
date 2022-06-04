@@ -20,9 +20,13 @@
 # SOFTWARE.
 
 from enum import IntEnum, unique
+from sith.types import (
+    Flag, 
+    Vector2f, 
+    Vector3f, 
+    Vector4f
+)
 from typing import List
-from sith.types.enum import Flag
-from sith.types.vector import *
 
 @unique
 class FaceType(Flag):

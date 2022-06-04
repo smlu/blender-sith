@@ -21,7 +21,7 @@
 
 from .model3do import *
 from .model3doLoader import Model3doFileVersion
-from sith.types.vector import *
+from sith.types import Vector4f
 from sith.text.serutils import *
 from typing import Tuple, List
 

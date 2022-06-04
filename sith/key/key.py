@@ -22,8 +22,7 @@
 from enum import IntEnum, unique
 from typing import List
 from sith.model import Mesh3doNodeType
-from sith.types.enum import Flag
-from sith.types.vector import *
+from sith.types import Flag, Vector3f
 
 @unique
 class KeyFlag(Flag):
