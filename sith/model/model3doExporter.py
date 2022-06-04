@@ -19,9 +19,10 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-import bpy, bmesh, mathutils, os, time
+import bpy, bmesh, mathutils, os
 import numpy as np
 
+from sith.types import BenchmarkMeter
 from sith.utils import *
 from typing import List
 
@@ -310,16 +311,14 @@ def makeModel3doFromObj(name, obj: bpy.types.Object, uvAbsolute: bool = False, e
     return model
 
 def export3do(obj: bpy.types.Object, path: str, version: Model3doFileVersion, uvAbsolute: bool, exportVertexColors: bool):
-    bpy.path.ensure_ext(path, '.3do')
-    print("exporting 3DO: %r..." % (path), end="")
-    start_time = time.process_time()
+    with BenchmarkMeter(' done in {:.4f} sec.'):
+        print("exporting 3DO: %r..." % (path), end="")
 
-    model_name = os.path.basename(path)
-    if not isValidNameLen(model_name):
+        bpy.path.ensure_ext(path, '.3do')
+        model_name = os.path.basename(path)
+        if not isValidNameLen(model_name):
             raise ValueError("Export file name '{}' is longer then {} chars!".format(model_name, kMaxNameLen))
 
-    model3do = makeModel3doFromObj(model_name, obj, uvAbsolute=uvAbsolute, exportVertexColors=exportVertexColors)
-    header   = getExportFileHeader("3DO model '{}'".format(os.path.basename(path)))
-    model3doWriter.save3do(model3do, path, version, header)
-
-    print(" done in %.4f sec." % (time.process_time() - start_time))
+        model3do = makeModel3doFromObj(model_name, obj, uvAbsolute=uvAbsolute, exportVertexColors=exportVertexColors)
+        header   = getExportFileHeader("3DO model '{}'".format(os.path.basename(path)))
+        model3doWriter.save3do(model3do, path, version, header)

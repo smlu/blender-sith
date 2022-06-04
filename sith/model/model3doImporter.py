@@ -19,11 +19,10 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-import bpy, bmesh, mathutils, os, time
-
-from sith.material import ColorMap
+import bpy, bmesh, mathutils
+from sith.types import BenchmarkMeter
 from sith.utils import *
-from typing import List, Optional
+from typing import List
 
 from . import model3doLoader
 from .utils import *
@@ -31,8 +30,6 @@ from .model3do import (
     Model3do,
     Mesh3do
 )
-
-_dfltcmp = 'dflt.cmp'
 
 def _set_obj_rotation(obj, rotation):
     objSetRotation(obj, rotation)
@@ -203,53 +200,53 @@ def _create_objects_from_model(model: Model3do, uvAbsolute: bool, geosetNum: int
     bpy.context.scene.update()
 
 def import3do(file_path, mat_dirs = [], cmp_file = '', uvAbsolute_2_1 = True, importVertexColors = True, importRadiusObj = False, preserveOrder = True, clearScene = True):
-    print("importing 3DO: %r..." % (file_path), end="")
-    startTime = time.process_time()
+    with BenchmarkMeter(' done in {:.4f} sec.'):
+        print("importing 3DO: %r..." % (file_path), end="")
 
-    model, fileVersion = model3doLoader.load3do(file_path)
-    isJkdf2 = (fileVersion == model3doLoader.Model3doFileVersion.Version2_1)
-    if len(model.geosets) == 0:
-        print("Info: Nothing to load because 3DO model doesn't contain any geoset.")
-        return
+        with BenchmarkMeter('Info: \nLoaded model from file in {:.4f} sec.', enabled=False):
+            model, fileVersion = model3doLoader.load3do(file_path)
+        isJkdf2 = (fileVersion == model3doLoader.Model3doFileVersion.Version2_1)
+        if len(model.geosets) == 0:
+            print("Info: Nothing to load because 3DO model doesn't contain any geoset.")
+            return
 
-    cmp = None
-    if isJkdf2:
-        # Load ColorMap
-        try:
-            cmp = getCmpFileOrDefault(cmp_file, file_path)
-        except Exception as e:
-            print(f"Warning: Failed to load ColorMap '{cmp_file}': {e}")
-        if not cmp:
-            print("Warning: Loading 3DO version 2.1 and no ColorMap was found!")
+        cmp = None
+        if isJkdf2:
+            # Load ColorMap
+            try:
+                cmp = getCmpFileOrDefault(cmp_file, file_path)
+            except Exception as e:
+                print(f"Warning: Failed to load ColorMap '{cmp_file}': {e}")
+            if not cmp:
+                print("Warning: Loading 3DO version 2.1 and no ColorMap was found!")
 
-    if clearScene:
-        clearAllScenes()
+        if clearScene:
+            clearAllScenes()
 
-    # Load model's textures
-    importMaterials(model.materials, getDefaultMatFolders(file_path) + mat_dirs, cmp)
+        # Load model's textures
+        with BenchmarkMeter('Info: \nLoaded materials from files in {:.4f} sec.', enabled=False):
+            importMaterials(model.materials, getDefaultMatFolders(file_path) + mat_dirs, cmp)
 
-    # Create objects from model
-    _create_objects_from_model(model, uvAbsolute=(isJkdf2 and uvAbsolute_2_1), geosetNum=0, vertexColors=importVertexColors, importRadiusObj=importRadiusObj, preserveOrder=preserveOrder)
+        # Create objects from model
+        _create_objects_from_model(model, uvAbsolute=(isJkdf2 and uvAbsolute_2_1), geosetNum=0, vertexColors=importVertexColors, importRadiusObj=importRadiusObj, preserveOrder=preserveOrder)
 
-    # Set model's insert offset and radius
-    baseObj = bpy.data.objects.new(model.name, None)
-    baseObj.empty_draw_size = (0.0)
-    bpy.context.scene.objects.link(baseObj)
+        # Set model's insert offset and radius
+        baseObj = bpy.data.objects.new(model.name, None)
+        baseObj.empty_draw_size = (0.0)
+        bpy.context.scene.objects.link(baseObj)
 
-    baseObj.location = model.insert_offset
-    if importRadiusObj:
-        _set_model_radius(baseObj, model.radius)
+        baseObj.location = model.insert_offset
+        if importRadiusObj:
+            _set_model_radius(baseObj, model.radius)
 
-    firstChild             = model.meshHierarchy[0].obj
-    firstChild.parent_type = 'OBJECT'
-    firstChild.parent      = baseObj
+        firstChild             = model.meshHierarchy[0].obj
+        firstChild.parent_type = 'OBJECT'
+        firstChild.parent      = baseObj
 
-    # Add model to the "Model3do" group
-    if kGModel3do in bpy.data.groups:
-        group = bpy.data.groups[kGModel3do]
-    else:
-        group = bpy.data.groups.new(kGModel3do)
-    group.objects.link(baseObj)
-
-    print(" done in %.4f sec." % (time.process_time() - startTime))
-    return baseObj
+        # Add model to the "Model3do" group
+        if kGModel3do in bpy.data.groups:
+            group = bpy.data.groups[kGModel3do]
+        else:
+            group = bpy.data.groups.new(kGModel3do)
+        group.objects.link(baseObj)
+        return baseObj

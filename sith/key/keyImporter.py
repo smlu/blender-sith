@@ -19,9 +19,10 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-import bpy, mathutils, time
+import bpy, mathutils
 
 from sith.model.utils import *
+from sith.types import BenchmarkMeter
 from sith.utils import *
 
 from .key import *
@@ -40,52 +41,51 @@ def _set_obj_location(obj: bpy.types.Object, location: Vector3f):
             break
 
 def importKey(keyPath, scene: bpy.types.Scene):
-    print("importing KEY: %r..." % (keyPath), end="")
-    startTime = time.process_time ()
+    with BenchmarkMeter(' done in {:.4f} sec.'):
+        print("importing KEY: %r..." % (keyPath), end="")
 
-    key = keyLoader.loadKey(keyPath)
-    clearSceneAnimData(scene)
+        key = keyLoader.loadKey(keyPath)
+        clearSceneAnimData(scene)
 
-    scene.frame_start     = 0
-    scene.frame_end       = key.numFrames - 1
-    scene.frame_step      = 1
-    scene.render.fps      = key.fps
-    scene.render.fps_base = 1.0
+        scene.frame_start     = 0
+        scene.frame_end       = key.numFrames - 1
+        scene.frame_step      = 1
+        scene.render.fps      = key.fps
+        scene.render.fps_base = 1.0
 
-    scene.sith_key_flags = key.flags.toSet()
-    scene.sith_key_types = key.nodeTypes.hex()
+        scene.sith_key_flags = key.flags.toSet()
+        scene.sith_key_types = key.nodeTypes.hex()
 
-    for m in key.markers:
-        scene.timeline_markers.new(m.type.name, m.frame)
+        for m in key.markers:
+            scene.timeline_markers.new(m.type.name, m.frame)
 
-    for node in key.nodes:
-        # Get object to animate
-        kobj = None
-        for obj in scene.objects:
-            if obj.sith_model3do_hnode_idx > -1 and obj.sith_model3do_hnode_idx < key.joints:
-                if obj.sith_model3do_hnode_idx == node.idx:
+        for node in key.nodes:
+            # Get object to animate
+            kobj = None
+            for obj in scene.objects:
+                if obj.sith_model3do_hnode_idx > -1 and obj.sith_model3do_hnode_idx < key.joints:
+                    if obj.sith_model3do_hnode_idx == node.idx:
+                        kobj = obj
+                        break
+                elif obj.sith_model3do_hnode_name.lower() == node.meshName.lower():
                     kobj = obj
                     break
-            elif obj.sith_model3do_hnode_name.lower() == node.meshName.lower():
-                kobj = obj
-                break
-            elif node.meshName.lower() == obj.name.lower():
-                kobj = obj
-                break
-            elif isOrderPrefixed(obj.name) and getOrderedNameIdx(obj.name) == node.idx:
-                kobj = obj
-                break
+                elif node.meshName.lower() == obj.name.lower():
+                    kobj = obj
+                    break
+                elif isOrderPrefixed(obj.name) and getOrderedNameIdx(obj.name) == node.idx:
+                    kobj = obj
+                    break
 
-        if kobj is None:
-            raise ValueError("Cannot find object '{}' to animate!".format(node.meshName))
+            if kobj is None:
+                raise ValueError("Cannot find object '{}' to animate!".format(node.meshName))
 
-        # Set object's keyframes
-        for keyframe in node.keyframes:
-            _set_obj_location(kobj, keyframe.position)
-            kobj.keyframe_insert(data_path="location", frame=keyframe.frame)
+            # Set object's keyframes
+            for keyframe in node.keyframes:
+                _set_obj_location(kobj, keyframe.position)
+                kobj.keyframe_insert(data_path="location", frame=keyframe.frame)
 
-            objSetRotation(kobj, keyframe.orientation)
-            kobj.keyframe_insert(data_path="rotation_quaternion", frame=keyframe.frame)
+                objSetRotation(kobj, keyframe.orientation)
+                kobj.keyframe_insert(data_path="rotation_quaternion", frame=keyframe.frame)
 
-    scene.frame_set(0)
-    print(" done in %.4f sec." % (time.process_time() - startTime))
+        scene.frame_set(0)

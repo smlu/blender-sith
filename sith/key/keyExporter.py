@@ -19,13 +19,14 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-import bpy, mathutils, os.path, time
+import bpy, mathutils, os.path
 import sith.key.keyWriter as keyWriter
 from collections import OrderedDict
 
 from sith.key import *
 from sith.model.utils import *
 from sith.model import makeModel3doFromObj, Mesh3doNodeType
+from sith.types import BenchmarkMeter
 from sith.utils import *
 
 def _set_keyframe_delta(dtype: KeyframeFlag, kf1: Keyframe, kf2: Keyframe):
@@ -156,17 +157,15 @@ def _make_key_from_obj(key_name, obj: bpy.types.Object, scene: bpy.types.Scene):
     return key
 
 def exportKey(obj: bpy.types.Object, scene: bpy.types.Scene, path: str):
-    print("exporting KEY: {} for obj: '{}'...".format(path, obj.name), end="")
-    start_time = time.process_time()
+    with BenchmarkMeter(' done in {:.4f} sec.'):
+        print("exporting KEY: {} for obj: '{}'...".format(path, obj.name), end="")
 
-    key_name = os.path.basename(path)
-    if not isValidNameLen(key_name):
+        key_name = os.path.basename(path)
+        if not isValidNameLen(key_name):
             raise ValueError("Export file name '{}' is longer then {} chars!".format(key_name, kMaxNameLen))
 
-    key = _make_key_from_obj(key_name, obj, scene)
-    if len(key.nodes) == 0:
-        print("\nWarning: The object doesn't have any animation data to export!")
-    header  = getExportFileHeader("Keyframe '{}'".format(os.path.basename(path)))
-    keyWriter.saveKey(key, path, header)
-
-    print(" done in %.4f sec." % (time.process_time() - start_time))
+        key = _make_key_from_obj(key_name, obj, scene)
+        if len(key.nodes) == 0:
+            print("\nWarning: The object doesn't have any animation data to export!")
+        header  = getExportFileHeader("Keyframe '{}'".format(os.path.basename(path)))
+        keyWriter.saveKey(key, path, header)
