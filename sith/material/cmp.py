@@ -22,7 +22,7 @@
 import numpy as np
 from pathlib import Path
 from struct import Struct
-from typing import NamedTuple, List, Tuple, Union
+from typing import NamedTuple, List, Union
 
 file_magic         = b'CMP '
 supported_versions = [
@@ -41,9 +41,6 @@ class CmpPaletteRGB(NamedTuple):
     r: int
     g: int
     b: int
-
-    def toLinear(self, alpha=1.0) -> Tuple[float, float, float, float]:
-        return (float(self.r/255), float(self.g/255), float(self.b/255), alpha)
 
 class ColorMap:
     palette: List[CmpPaletteRGB]

@@ -105,6 +105,7 @@ mipmap = namedtuple("mipmap", [
     'pixel_data_array'
 ])
 
+_linear_coef = 1.0 / 255.0
 
 def _read_header(f):
     rh = bytearray(f.read(mh_serf.size))
@@ -142,19 +143,18 @@ def _read_records(f, h: mat_header) -> List[Tuple[mat_color_record, mat_texture_
     return rh_list
 
 def _decode_indexed_pixel_data(pd, width, height, cmp: ColorMap) -> List[Tuple[float, float, float, float]]:
-    row_len    = width
-    dpd = []
-    # MAT cord-system is top-down, so we use reverse here to flip img over y cord.
-    for r in reversed(range(0, height)):
-        for c in range(0, row_len):
-            i = c + r * row_len
-            pIdx  = pd[i:i+1][0]
-            pixel = cmp.palette[pIdx].toLinear()
-            dpd.extend(pixel)
-    return dpd
+    idx = np.frombuffer(pd, dtype=np.uint8) # image index buffer
+    pal = np.insert(cmp.palette, 3, 255, axis=1) # expand palette to contain 255 for alpha
 
-def _get_img_row_len(width, bpp):
-    return int(abs(width) * (bpp /8))
+    # Convert indexed color to RGB
+    raw_img = pal[idx]
+    raw_img = raw_img.flatten().view(np.uint32)
+
+    raw_img = np.flip(
+        raw_img.view(np.uint8).reshape((height, width, 4)), axis=0
+    ).flatten() * _linear_coef # get byte array and convert to linear
+    return raw_img
+
 
 def _get_pixel_data_size(width, height, bpp):
     return int(abs(width * height) * (bpp /8))
@@ -162,31 +162,37 @@ def _get_pixel_data_size(width, height, bpp):
 def _get_color_mask(bpc):
     return 0xFFFFFFFF >> (32 - bpc)
 
-def _decode_pixel(p, ci: color_format) -> Tuple[float, float, float, float]:
-    r = ((p >> ci.red_shl)   & _get_color_mask(ci.red_bpp))   << ci.red_shr
-    g = ((p >> ci.green_shl) & _get_color_mask(ci.green_bpp)) << ci.green_shr
-    b = ((p >> ci.blue_shl)  & _get_color_mask(ci.blue_bpp))  << ci.blue_shr
-    a = 255
-    if ci.alpha_bpp != 0:
-        a = ((p >> ci.alpha_shl) & _get_color_mask(ci.alpha_bpp)) << ci.alpha_shr
-        if ci.alpha_bpp == 1: # RGBA5551
-            a = 255 if a > 0 else 0
-
-    # Return blender's pixel representation
-    return (float(r/255), float(g/255), float(b/255), float(a/255))
-
 def _decode_rgba_pixel_data(pd, width, height, ci: color_format) -> List[Tuple[float, float, float, float]]:
-    pixel_size = int(ci.bpp /8)
-    row_len    = _get_img_row_len(width, ci.bpp)
-    dpd = []
-    # MAT cord-system is top-down, so we use reverse here to flip img over y cord.
-    for r in reversed(range(0, height)):
-        for c in (range(0, row_len, pixel_size)):
-            i = c + r * row_len
-            p_raw = pd[i: i + pixel_size]
-            pixel = int.from_bytes(p_raw, byteorder='little', signed=False)
-            dpd.extend(_decode_pixel(pixel, ci))
-    return dpd
+    type = np.uint8 if (ci.bpp == 8 or ci.bpp == 24) else np.uint16 if ci.bpp == 16 else np.uint32
+    raw_img = np.frombuffer(pd, type)
+    if ci.bpp == 24: # expand array to contain 255 for alpha
+        raw_img = np.insert(raw_img.reshape((-1, 3)), 3, 255, axis=1) \
+            .flatten().view(np.uint32)
+    raw_img = raw_img.astype(np.uint32)
+
+    def decode_alpha(img):
+        a = 255
+        if ci.alpha_bpp > 0:
+            a = ((img >> ci.alpha_shl) & am) << ci.alpha_shr
+            if ci.alpha_bpp == 1: # clamp rgb5551 to 0 or 255
+                np.clip(a * 255, 0, 255, a) # faster than a[a>0] = 255
+        return a
+
+    # Decode image to 32 bit
+    rm = _get_color_mask(ci.red_bpp)
+    gm = _get_color_mask(ci.green_bpp)
+    bm = _get_color_mask(ci.blue_bpp)
+    am = _get_color_mask(ci.alpha_bpp)
+    raw_img = ((raw_img >> ci.red_shl)   & rm)  << ci.red_shr         | \
+              ((raw_img >> ci.green_shl) & gm)  << ci.green_shr << 8  | \
+              ((raw_img >> ci.blue_shl)  & bm)  << ci.blue_shr  << 16 | \
+              decode_alpha(raw_img) << 24
+
+    # Flip image over Y-axis (height) and convert to linear
+    raw_img = np.flip(
+        raw_img.view(np.uint8).reshape((height, width, 4)), axis=[0]
+    ).flatten() * _linear_coef # get byte array and convert to linear
+    return raw_img
 
 def _read_pixel_data(f, width, height, ci: color_format, cmp: Optional[ColorMap] = None) -> List[Tuple[float, float, float, float]]:
     pd_size = _get_pixel_data_size(width, height, ci.bpp)
@@ -265,11 +271,9 @@ def _make_color_textures(mat: bpy.types.Material, records: List[mat_color_record
     for idx, r in zip(range(_max_cels(len(records))), records):
         pixmap = None
         if cmp:
-            pixel = np.empty((), dtype=[('', np.float)] * 4)
-            pixel[()] = tuple([float(c/255) for c in cmp.palette[r.color_index]]) + tuple([1.0])
-            pixmap = np.full((color_tex_height, color_tex_width), pixel, dtype=pixel.dtype) \
-                .flatten() \
-                .view(np.float)
+            rgba   = (cmp.palette[r.color_index]) + (255,)
+            pixmap = np.full((color_tex_height, color_tex_width, 4), rgba) \
+                .flatten() * _linear_coef # flatten and convert to linear
         else:
             print("  Missing ColorMap, only texture size will be loaded!")
 
