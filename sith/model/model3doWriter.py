@@ -233,7 +233,7 @@ def _write_section_hierarchydef(file, model: Model3do):
 
 def save3do(model: Model3do, filePath, version: Model3doFileVersion, headerComment):
     """ Saves `model` to 3DO file """
-    f = open(filePath, 'w')
+    f = open(filePath, 'w', encoding='utf-8')
 
     _write_section_header(f, model, headerComment, version)
     _write_section_resources(f, model)

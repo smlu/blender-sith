@@ -96,7 +96,7 @@ def _parse_key_section_keyframe_nodes(tok: Tokenizer, key: Key):
 
 def loadKey(filePath) -> Key:
     """ Loads Key from .key file """
-    f = open(filePath, 'r')
+    f = open(filePath, 'r', encoding='utf-8')
     tok = Tokenizer(f)
     key = Key(os.path.basename(filePath))
 

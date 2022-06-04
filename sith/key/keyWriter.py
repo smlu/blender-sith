@@ -19,10 +19,8 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-from sith.types.vector import *
 from sith.text.serutils import *
 from typing import Tuple
-
 from .key import *
 
 max_markers = 16
@@ -93,7 +91,7 @@ def _write_section_keyframe_nodes(file, key: Key):
 
 def saveKey(key: Key, filePath, headerComment):
     """ Saves `key` to .key file """
-    f = open(filePath, 'w')
+    f = open(filePath, 'w', encoding='utf-8')
 
     _write_section_header(f, key, headerComment)
     _write_section_markers(f, key)

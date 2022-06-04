@@ -229,7 +229,7 @@ def _parse_hierarchy_section(tok: Tokenizer, model: Model3do):
 
 
 def load3do(filePath) -> Tuple[Model3do, Model3doFileVersion]:
-    f = open(filePath, 'r')
+    f = open(filePath, 'r', encoding='utf-8')
     tok = Tokenizer(f)
 
     file_version = Model3doFileVersion.Version2_1
