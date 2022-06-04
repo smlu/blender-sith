@@ -161,7 +161,7 @@ def exportKey(obj: bpy.types.Object, scene: bpy.types.Scene, path: str):
 
     key_name = os.path.basename(path)
     if not isValidNameLen(key_name):
-        raise ValueError("Export file name '{}' is longer then {} chars!".format(key_name, maxNameLen))
+            raise ValueError("Export file name '{}' is longer then {} chars!".format(key_name, kMaxNameLen))
 
     key = _make_key_from_obj(key_name, obj, scene)
     if len(key.nodes) == 0:

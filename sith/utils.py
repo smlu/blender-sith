@@ -26,19 +26,20 @@ from typing import Optional
 from sith.material import ColorMap
 from sith import bl_info
 
-maxNameLen = 64
+kMaxNameLen = 64
 kDefaultCmp = 'dflt.cmp'
+
 _fsys_case_sensitive = not Path(str(Path.home()).upper()).exists()
 
 def isValidNameLen(name: str):
-    return len(name) <= maxNameLen
+    return len(name) <= kMaxNameLen
 
 def isASCII(s: str):
     return all(ord(c) < 128 for c in s)
 
 def assertName(name: str):
     if not isValidNameLen(name):
-        raise AssertionError("name error: len of '{}' is greater then {} chars".format(name, maxNameLen))
+        raise AssertionError("name error: len of '{}' is greater then {} chars".format(name, kMaxNameLen))
 
     if not isASCII(name):
         raise AssertionError("name error: '{}' len does not contain all ASCII chars".format(name))

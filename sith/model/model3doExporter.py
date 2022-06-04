@@ -316,7 +316,7 @@ def export3do(obj: bpy.types.Object, path: str, version: Model3doFileVersion, uv
 
     model_name = os.path.basename(path)
     if not isValidNameLen(model_name):
-        raise ValueError("Export file name '{}' is longer then {} chars!".format(model_name, maxNameLen))
+            raise ValueError("Export file name '{}' is longer then {} chars!".format(model_name, kMaxNameLen))
 
     model3do = makeModel3doFromObj(model_name, obj, uvAbsolute=uvAbsolute, exportVertexColors=exportVertexColors)
     header   = getExportFileHeader("3DO model '{}'".format(os.path.basename(path)))
