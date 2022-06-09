@@ -11,7 +11,7 @@ Addon provides Blender game assets import/export scripts for the games based on 
 ## Features
   - Import/Export .3do models
   - Edit 3DO mesh & polygon properties in Blender
-  - Import/Export .key mesh animations
+  - Import/Export .key mesh animations  
     Armature animations not supported (yet)
   - Import .mat textures
 
