@@ -93,7 +93,7 @@ mat_mipmap_header = namedtuple('mat_mipmap_header', [
     'height',
     'transparent',
     'unknown_1',
-    'unknown_2',
+    'transparent_color_num',
     'levels',
 ])
 mmm_serf = Struct('<6i')
@@ -142,9 +142,11 @@ def _read_records(f, h: mat_header) -> List[Tuple[mat_color_record, mat_texture_
         rh_list.append(record)
     return rh_list
 
-def _decode_indexed_pixel_data(pd, width, height, cmp: ColorMap) -> List[Tuple[float, float, float, float]]:
+def _decode_indexed_pixel_data(pd, width, height, cmp: ColorMap, transparent_color: Optional[int] = None) -> List[Tuple[float, float, float, float]]:
     idx = np.frombuffer(pd, dtype=np.uint8) # image index buffer
     pal = np.insert(cmp.palette, 3, 255, axis=1) # expand palette to contain 255 for alpha
+    if transparent_color is not None:
+        pal[transparent_color][3] = 0
 
     # Convert indexed color to RGB
     raw_img = pal[idx]
@@ -194,11 +196,11 @@ def _decode_rgba_pixel_data(pd, width, height, ci: color_format) -> List[Tuple[f
     ).flatten() * _linear_coef # get byte array and convert to linear
     return raw_img
 
-def _read_pixel_data(f, width, height, ci: color_format, cmp: Optional[ColorMap] = None) -> List[Tuple[float, float, float, float]]:
+def _read_pixel_data(f, width, height, ci: color_format, cmp: Optional[ColorMap] = None, transparent_color: Optional[int] = None) -> List[Tuple[float, float, float, float]]:
     pd_size = _get_pixel_data_size(width, height, ci.bpp)
     pd = bytearray(f.read(pd_size))
     if ci.color_mode == ColorMode.Indexed or ci.bpp == 8:
-        return _decode_indexed_pixel_data(pd, width, height, cmp)
+        return _decode_indexed_pixel_data(pd, width, height, cmp, transparent_color)
     # RGB(A)
     return _decode_rgba_pixel_data(pd, width, height, ci)
 
@@ -214,11 +216,12 @@ def _read_mipmap(f, ci: color_format, cmp: Optional[ColorMap] = None) -> List[Li
     pd = None
     if (ci.color_mode != ColorMode.Indexed and ci.bpp != 8) or cmp:
         # Read MipMap pixel data
+        transparent_color =  mmh.transparent_color_num if ci.bpp == 8 and mmh.transparent else None
         pd = []
         for i in range(0, mmh.levels):
             w = mmh.width >> i
             h = mmh.height >> i
-            pd += [_read_pixel_data(f, w, h, ci, cmp)]
+            pd += [_read_pixel_data(f, w, h, ci, cmp, transparent_color)]
     else:
         print("  Missing ColorMap, only texture size will be loaded!")
 
