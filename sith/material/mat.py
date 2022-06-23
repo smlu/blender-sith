@@ -30,8 +30,8 @@ from .cmp import ColorMap
 
 file_magic        = b'MAT '
 required_version  = 0x32
-color_tex_width   = 64
-color_tex_height  = 64
+color_tex_width   = 32
+color_tex_height  = 32
 max_texture_slots = 18 # blender 2.79 limitation
 
 
