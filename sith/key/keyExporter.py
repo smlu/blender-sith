@@ -58,11 +58,11 @@ def _make_key_from_obj(key_name, obj: bpy.types.Object, scene: bpy.types.Scene):
     key.numFrames = scene.frame_end + 1
     key.fps       = scene.render.fps
     for marker in scene.timeline_markers:
-        t = KeyMarkerType.Marker
+        t = KeyMarkerType.Default
         try:
             t = KeyMarkerType[marker.name]
         except:
-            print("\nWarning: Can't convert invalid marker name '{}' to marker type. Using type '{}'!".format(marker.name, t.name))
+            print("\nWarning: Invalid marker name '{}'. Using marker type '{}'!".format(marker.name, t.name))
 
         m = KeyMarker()
         m.frame = marker.frame

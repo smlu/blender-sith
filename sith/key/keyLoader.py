@@ -21,7 +21,8 @@
 
 import os
 from sith.text.tokenizer import TokenType, Tokenizer
-from .key import *
+from sith.key import *
+from sith.model import Mesh3doNodeType
 
 def _skip_to_next_key_section(tok: Tokenizer):
     t = tok.getToken()
@@ -54,7 +55,7 @@ def _parse_key_section_markers(tok: Tokenizer, key: Key):
     for _ in range(0, numMarkers):
         m       = KeyMarker()
         m.frame = tok.getFloatNumber()
-        m.type  = KeyMarkerType.Marker
+        m.type  = KeyMarkerType.Default
         mt      = tok.getIntNumber()
         try:
             m.type  = KeyMarkerType(mt)

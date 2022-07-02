@@ -36,22 +36,24 @@ class KeyFlag(Flag):
 
 @unique
 class KeyMarkerType(IntEnum):
-    Marker               = 0
+    Default              = 0
     LeftFoot             = 1
     RightFoot            = 2
     Attack               = 3
     Swing                = 4
     SwingFinish          = 5
     SwimLeft             = 6
+    Tread                = 7 # Water treading
     RunLeftFoot          = 8
     RunRightFoot         = 9
     Died                 = 10
     Jump                 = 11
+    JumpUp               = 12
     SwimRight            = 13
     Duck                 = 14
     Climb                = 15
     Activate             = 16
-    Crawl                = 17
+    Crawl                = 17 # maybe crouch
     RunJumpLand          = 18
     ActivateRightArm     = 19
     ActivateRightArmRest = 20
@@ -68,8 +70,8 @@ class KeyMarkerType(IntEnum):
     TurnOff              = 31
     Unknown_32           = 32
     Unknown_33           = 33
-    LeftSide             = 34
-    RightSide            = 35
+    LeftHand             = 34 # ijim snd climbhandleft
+    RightHand            = 35 # ijim snd climbhandright
 
 @unique
 class KeyframeFlag(IntEnum):
@@ -81,7 +83,7 @@ class KeyframeFlag(IntEnum):
 class KeyMarker:
     def __init__(self):
         self.f : float = 0.0
-        self.t : KeyMarkerType = KeyMarkerType.Marker
+        self.t : KeyMarkerType = KeyMarkerType.Default
 
     @property
     def frame(self) -> float:
