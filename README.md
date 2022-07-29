@@ -6,7 +6,7 @@ Addon provides Blender game assets import/export scripts for the games based on 
   - Star Wars Jedi Knight: Mysteries of the Sith
   - Star Wars: DroidWorks
   - Indiana Jones and the Infernal Machine
-  - Grim Fandango - *Only supported importing of text format 3DO models*
+  - Grim Fandango - *Importing of text format 3DO models is only supported*
 
 ## Features
   - Import/Export .3do models
@@ -19,7 +19,7 @@ Addon provides Blender game assets import/export scripts for the games based on 
 <img src="demo/gif/kych.gif" width="50%"/><img src="demo/gif/diswim.gif" width="50%"/>
 
 ## Requirements
-Blender 2.79, you can download it [here](https://download.blender.org/release/Blender2.79/latest/). 
+The latest Blender 2.79b, you can download it [here](https://download.blender.org/release/Blender2.79/latest/). 
 
 ## Installation
    1. Download `sith.zip` file from the [Releases](https://github.com/smlu/blender-sith/releases) page.
@@ -42,7 +42,7 @@ Blender 2.79, you can download it [here](https://download.blender.org/release/Bl
 ### Exporting 3DO model
    1. Go to `File > Export > Sith Game Engine 3D Model (.3do)`
    2. Select path, name the file  
-      *Note: The file name must not be longer then 64 characters.*
+      *Note: The file name must not be longer than 32 characters (IJIM 64 characters).*
    3. In the export options section select the 3DO file version  
       ![eopt](demo/eopt.png)
    4. Then click the `Export 3DO` button to export object(s) to 3DO file.
@@ -59,7 +59,7 @@ Blender 2.79, you can download it [here](https://download.blender.org/release/Bl
    2. (Optional) Set additional export options in the `Export KEY` section (bottom left)  
       ![ekopt](demo/ekopt.png)
    3. Select path, name the file and click `Export KEY`  
-      *Note: The file name must not be longer then 64 characters*
+      *Note: The file name must not be longer than 32 characters (IJIM 64 characters).*
 
 ### Importing MAT texture
    1. Go to `File > Import > Sith Game Engine Texture (.mat)`
