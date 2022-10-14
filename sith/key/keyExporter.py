@@ -62,7 +62,11 @@ def _make_key_from_obj(key_name, obj: bpy.types.Object, scene: bpy.types.Scene):
         try:
             t = KeyMarkerType[marker.name]
         except:
-            print("\nWarning: Invalid marker name '{}'. Using marker type '{}'!".format(marker.name, t.name))
+            try:
+                im = int(marker.name)
+                t = KeyMarkerType(im)
+            except:
+                print(f"\nWarning: Invalid marker name '{marker.name}'. Using marker type '{t.name}'!")
 
         m = KeyMarker()
         m.frame = marker.frame
