@@ -68,8 +68,8 @@ class KeyMarkerType(IntEnum):
     InventoryPut         = 29
     AttackFinish         = 30
     TurnOff              = 31
-    Unknown_32           = 32
-    Unknown_33           = 33
+    Row                  = 32
+    RowFinish            = 33
     LeftHand             = 34 # ijim snd climbhandleft
     RightHand            = 35 # ijim snd climbhandright
 
