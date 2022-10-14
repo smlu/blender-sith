@@ -39,10 +39,10 @@ def isASCII(s: str):
 
 def assertName(name: str):
     if not isValidNameLen(name):
-        raise AssertionError("name error: len of '{}' is greater then {} chars".format(name, kMaxNameLen))
+        raise AssertionError(f"name error: len of '{name}' is greater then {kMaxNameLen} chars")
 
     if not isASCII(name):
-        raise AssertionError("name error: '{}' len does not contain all ASCII chars".format(name))
+        raise AssertionError(f"name error: '{name}' len does not contain all ASCII chars")
 
 def findCmpFileInPath(cmpFile, path) -> Optional[Path]:
     cmpFile  = Path(cmpFile)
@@ -193,4 +193,4 @@ def getExportFileHeader(prefix):
     version = '.'.join([str(v) for v in version])
     if 'pre_release' in bl_info:
         version += '-' + bl_info['pre_release']
-    return "{} created with Blender Sith addon v{} by {}".format(prefix, version, bl_info['author'])
+    return f"{prefix} created with Blender Sith addon v{version} by {bl_info['author']}"

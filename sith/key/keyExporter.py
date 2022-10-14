@@ -158,14 +158,14 @@ def _make_key_from_obj(key_name, obj: bpy.types.Object, scene: bpy.types.Scene):
 
 def exportKey(obj: bpy.types.Object, scene: bpy.types.Scene, path: str):
     with BenchmarkMeter(' done in {:.4f} sec.'):
-        print("exporting KEY: {} for obj: '{}'...".format(path, obj.name), end="")
+        print(f"exporting KEY: {path} for obj: '{obj.name}'...", end="")
 
         key_name = os.path.basename(path)
         if not isValidNameLen(key_name):
-            raise ValueError("Export file name '{}' is longer then {} chars!".format(key_name, kMaxNameLen))
+            raise ValueError(f"Export file name '{key_name}' is longer then {kMaxNameLen} chars!")
 
         key = _make_key_from_obj(key_name, obj, scene)
         if len(key.nodes) == 0:
             print("\nWarning: The object doesn't have any animation data to export!")
-        header  = getExportFileHeader("Keyframe '{}'".format(os.path.basename(path)))
+        header  = getExportFileHeader(f"Keyframe '{os.path.basename(path)}'")
         keyWriter.saveKey(key, path, header)

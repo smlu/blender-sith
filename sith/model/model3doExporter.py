@@ -100,7 +100,7 @@ def _model3do_add_mesh(model: Model3do, mesh: bpy.types.Mesh, scale: mathutils.V
         name = _get_mat_name_org(mat)
         if len(name) > 0: # mesh could have non existing material
             if not name.endswith(".mat"):
-                print("\nWarning: adding an extension '.mat' to the material file name '{}' ".format(name))
+                print(f"\nWarning: adding an extension '.mat' to the material file name '{name}'")
                 name = _get_mat_name(mat)
 
             if not model.materials.count(name):
@@ -184,13 +184,13 @@ def _set_mesh_properties(mesh: Mesh3do, obj: bpy.types.Object, scale: mathutils.
     try:
         mesh.lightMode = LightMode[obj.sith_model3do_light_mode]
     except:
-        print("\nWarning: Invalid lighting mode for mesh '{}', using default value!".format(mesh.name))
+        print(f"\nWarning: Invalid lighting mode for mesh '{mesh.name}', using default value!")
         mesh.lightMode = kDefaultLightMode
 
     try:
         mesh.textureMode = TextureMode[obj.sith_model3do_texture_mode]
     except:
-        print("\nWarning: Invalid texture mode for mesh '{}', using default value!".format(mesh.name))
+        print(f"\nWarning: Invalid texture mode for mesh '{mesh.name}', using default value!")
         mesh.textureMode = kDefaultTexMode
 
 def _get_obj_hnode_name(obj: bpy.types.Object):
@@ -317,8 +317,8 @@ def export3do(obj: bpy.types.Object, path: str, version: Model3doFileVersion, uv
         bpy.path.ensure_ext(path, '.3do')
         model_name = os.path.basename(path)
         if not isValidNameLen(model_name):
-            raise ValueError("Export file name '{}' is longer then {} chars!".format(model_name, kMaxNameLen))
+            raise ValueError(f"Export file name '{model_name}' is longer then {kMaxNameLen} chars!")
 
         model3do = makeModel3doFromObj(model_name, obj, uvAbsolute=uvAbsolute, exportVertexColors=exportVertexColors)
-        header   = getExportFileHeader("3DO model '{}'".format(os.path.basename(path)))
+        header   = getExportFileHeader(f"3DO model '{os.path.basename(path)}'")
         model3doWriter.save3do(model3do, path, version, header)

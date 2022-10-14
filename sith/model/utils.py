@@ -169,14 +169,14 @@ def makeOrderedName(name, order, maxOrder):
     return name_format.format(kNameOrderPrefix, order, name)
 
 def isOrderPrefixed(name):
-    return re.match("^{}([0-9]+)_".format(kNameOrderPrefix), name)
+    return re.match(f"^{kNameOrderPrefix}([0-9]+)_", name)
 
 def getOrderedNameIdx(name):
-    str_idx = re.findall("^{}([0-9]+)_".format(kNameOrderPrefix), name)[0]
+    str_idx = re.findall(f"^{kNameOrderPrefix}([0-9]+)_", name)[0]
     return int(str_idx)
 
 def stripOrderPrefix(name):
-    return re.sub("^{}([0-9]+)_".format(kNameOrderPrefix), "", name)
+    return re.sub(f"^{kNameOrderPrefix}([0-9]+)_", "", name)
 
 def _get_scene_obj(name):
     try:
@@ -195,7 +195,7 @@ def getMeshObjectByName(meshName: str):
             return o
         if o.data is not None and o.data.name == meshName:
             return o
-    raise ValueError("Could not find mesh object with name '{}'".format(meshName))
+    raise ValueError(f"Could not find mesh object with name '{meshName}'")
 
 def getMeshRadiusObj(mesh):
     try:
@@ -298,7 +298,7 @@ def getDrawType(geo_mode: GeometryMode):
         return 'SOLID'
     if geo_mode == GeometryMode.Texture:
         return 'TEXTURED'
-    raise ValueError("Unknown geometry mode {}".format(geo_mode))
+    raise ValueError(f"Unknown geometry mode {geo_mode}")
 
 def objGeometryMode(obj: bpy.types.Object):
     dt = obj.draw_type
@@ -310,7 +310,7 @@ def objGeometryMode(obj: bpy.types.Object):
         return GeometryMode.Solid
     elif dt == 'TEXTURED':
         return GeometryMode.Texture
-    raise ValueError("Unknown draw type {}".format(dt))
+    raise ValueError(f'Unknown draw type {dt}')
 
 def importMaterials(mat_names: List, search_paths: List, cmp: ColorMap):
     def skip_loading_mat(mat):
@@ -331,7 +331,7 @@ def importMaterials(mat_names: List, search_paths: List, cmp: ColorMap):
                     break
                 except Exception as e:
                     print("Warning: Couldn't load material: ", mat_path)
-                    print("  Error: {}".format(e))
+                    print(f'  Error: {e}')
 
 def _vector_component_op(a: mathutils.Vector, b: mathutils.Vector, oopfunc) -> mathutils.Vector:
     c = a.copy()

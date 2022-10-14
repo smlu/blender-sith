@@ -60,7 +60,7 @@ def _parse_key_section_markers(tok: Tokenizer, key: Key):
         try:
             m.type  = KeyMarkerType(mt)
         except:
-            print("\nWarning: Unknown marker type '{}' fallback to '{}'!".format(mt, m.type.name))
+            print(f"\nWarning: Unknown marker type '{mt}' fallback to '{m.type.name}'!")
         key.markers.append(m)
 
 def _parse_key_section_keyframe_nodes(tok: Tokenizer, key: Key):

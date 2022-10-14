@@ -102,7 +102,7 @@ def _make_mesh(mesh3do: Mesh3do, uvAbsolute: bool, vertexColors: bool, mat_list:
             mat_name = mat_list[face3do.materialIdx]
             mat = getGlobalMaterial(mat_name)
             if mat is None:
-                print("\nWarning: Could not find or load material file '{}'".format(mat_name))
+                print(f"\nWarning: Could not find or load material file '{mat_name}'")
                 mat = makeNewGlobalMaterial(mat_name)
 
         if mat:
@@ -153,7 +153,7 @@ def _create_objects_from_model(model: Model3do, uvAbsolute: bool, geosetNum: int
         # Get node's mesh
         if meshIdx > -1:
             if meshIdx >= len(meshes):
-                raise IndexError("Mesh index {} out of range ({})!".format(meshIdx, len(meshes)))
+                raise IndexError(f"Mesh index {meshIdx} out of range ({len(meshes)})!")
 
             mesh3do = meshes[meshIdx]
             mesh    = _make_mesh(mesh3do, uvAbsolute, vertexColors, model.materials)

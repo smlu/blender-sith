@@ -222,19 +222,19 @@ class Tokenizer:
     def getIdentifier(self) -> str:
         t = self.getToken()
         if t.type != TokenType.Identifier:
-            IOError("Expected identifier! line: {0} column: {1}".format(self.line, self.column))
+            IOError(f'Expected identifier! line: {self.line} column: {self.column}')
         return t.value
 
     def getString(self) -> str:
         t = self.getToken()
         if t.type != TokenType.String:
-            IOError("Expected string! line: {0} column: {1}".format(self.line, self.column))
+            IOError(f'Expected string! line: {self.line} column: {self.column}')
         return t.value
 
     def getSpaceDelimitedString(self) -> str:
         t = self.getDelimitedStringToken(lambda x: x.isspace())
         if not t.value or len(t.value) == 0:
-            IOError("Expected string got null! line: {0} column: {1}".format(self.line, self.column))
+            IOError(f'Expected string got null! line: {self.line} column: {self.column}')
         return t.value
 
     def getIntNumber(self) -> int:
@@ -271,39 +271,36 @@ class Tokenizer:
             x = t.toFloatNumber()
         else:
             x = self.getFloatNumber()
-            self.assertPunctuator("/")
+            self.assertPunctuator('/')
 
         y = self.getFloatNumber()
         if not vecSimple:
-            self.assertPunctuator("/")
+            self.assertPunctuator('/')
 
         z = self.getFloatNumber()
         if not vecSimple:
-            self.assertPunctuator("/")
+            self.assertPunctuator('/')
 
         w = self.getFloatNumber()
         if not vecSimple:
-            self.assertPunctuator(")")
+            self.assertPunctuator(')')
 
         return Vector4f(x,y,z,w)
 
     def assertIdentifier(self, id: str):
         t = self.getToken()
         if t.type != TokenType.Identifier or t.value.lower() != id.lower():
-            raise AssertionError("Expected identifier '{0}', found '{1}'! line: {2} column: {3}"
-                .format(id, t.value, self.line, self.column))
+            raise AssertionError(f"Expected identifier '{id}', found '{t.value}'! line: {self.line} column: {self.column}")
 
     def assertInteger(self, num: str):
         t = self.getToken()
         if t.type != TokenType.Integer or t.toIntNumber() != num:
-            raise AssertionError("Expected integer '{0}', found '{1}'! line: {2} column: {3}"
-                .format(num, t.toIntNumber(), self.line, self.column))
+            raise AssertionError(f"Expected integer '{num}', found '{t.toIntNumber()}'! line: {self.line} column: {self.column}")
 
     def assertPunctuator(self, punc: str):
         t = self.getToken()
         if t.type != TokenType.Punctuator or t.value.lower() != punc.lower():
-            raise AssertionError("Expected punctuator '{0}', found '{1}'! line: {2} column: {3}"
-                .format(punc, t.value, self.line, self.column))
+            raise AssertionError(f"Expected punctuator '{punc}', found '{t.value}'! line: {self.line} column: {self.column}")
 
     def assertLabel(self, label: str):
         self.assertIdentifier(label)
@@ -312,8 +309,7 @@ class Tokenizer:
     def assertEndOfFile(self):
         t = self.getToken()
         if t.type != TokenType.EOF :
-            raise AssertionError("Expected end of file! line: {0} column: {1}".format(self.line, self.column))
-
+            raise AssertionError(f'Expected end of file! line: {self.line} column: {self.column}')
 
     def _read_ch(self):
         c = self.f.read(1)
@@ -428,12 +424,12 @@ class Tokenizer:
             if self.current_ch == '':
                 token.lastLine = self.line
                 token.lastColumn = self.column
-                raise IOError("Unexpected end of a file! line: {0} column: {1}".format(self.line, self.column))
+                raise IOError(f'Unexpected end of a file! line: {self.line} column: {self.column}')
 
             if self.current_ch == '\n':
                 token.lastLine = self.line
                 token.lastColumn = self.column
-                raise IOError("Unexpected newline in string literal! line: {0} column: {1}".format(self.line, self.column))
+                raise IOError(f'Unexpected newline in string literal! line: {self.line} column: {self.column}')
 
             if self.current_ch == '"':
                 token.type = TokenType.String

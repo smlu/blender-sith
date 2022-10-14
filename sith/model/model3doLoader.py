@@ -62,7 +62,7 @@ def _parse_model_resource_section(tok: Tokenizer, model: Model3do):
     for i in range(0, listLen):
         idx = tok.getIntNumber()
         if idx != i:
-            print("Warning: Index mismatch while loading 3DO materials. {} != {}".format(idx, i))
+            print(f"Warning: Index mismatch while loading 3DO materials. {idx} != {i}")
         tok.assertPunctuator(':')
         model.materials.append(tok.getSpaceDelimitedString())
 
@@ -82,7 +82,7 @@ def _parse_model_geometry_section(tok: Tokenizer, model: Model3do, fileVersion: 
         tok.assertIdentifier("GEOSET")
         geosetIdx = tok.getIntNumber()
         if geosetIdx != i:
-            print("Warning: Index mismatch while loading 3DO geosets. {} != {}".format(geosetIdx, i))
+            print(f"Warning: Index mismatch while loading 3DO geosets. {geosetIdx} != {i}")
 
         tok.assertIdentifier("MESHES")
         numMeshes = tok.getIntNumber()
@@ -90,7 +90,7 @@ def _parse_model_geometry_section(tok: Tokenizer, model: Model3do, fileVersion: 
             tok.assertIdentifier("MESH")
             meshIdx = tok.getIntNumber()
             if meshIdx != j:
-                print("Warning: Index mismatch while loading 3DO meshes. {} != {}".format(meshIdx, j))
+                print(f"Warning: Index mismatch while loading 3DO meshes. {meshIdx} != {i}")
 
             tok.assertIdentifier("NAME")
             name = tok.getDelimitedStringToken(lambda c: c == '\n')
@@ -121,7 +121,7 @@ def _parse_model_geometry_section(tok: Tokenizer, model: Model3do, fileVersion: 
             for k in range(0, numVertices):
                 uvIdx = tok.getIntNumber()
                 if uvIdx != k:
-                    print("Warning: Index mismatch while loading 3DO vertices. {} != {}".format(uvIdx, k))
+                    print(f"Warning: Index mismatch while loading 3DO vertices. {uvIdx} != {k}")
 
                 tok.assertPunctuator(':')
 
@@ -141,7 +141,7 @@ def _parse_model_geometry_section(tok: Tokenizer, model: Model3do, fileVersion: 
             for k in range(0, numUVs):
                 uvIdx = tok.getIntNumber()
                 if uvIdx != k:
-                    print("Warning: Index mismatch while loading 3DO UV list. {} != {}".format(uvIdx, k))
+                    print(f"Warning: Index mismatch while loading 3DO UV list. {uvIdx} != {k}")
                 tok.assertPunctuator(':')
                 mesh.uvs.append(tok.getVector2f())
 
@@ -150,7 +150,7 @@ def _parse_model_geometry_section(tok: Tokenizer, model: Model3do, fileVersion: 
             for k in range(0, numVertices):
                 normalIdx = tok.getIntNumber()
                 if normalIdx != k:
-                    print("Warning: Index mismatch while loading 3DO vertex normals. {} != {}".format(normalIdx, k))
+                    print(f"Warning: Index mismatch while loading 3DO vertex normals. {normalIdx} != {k}")
                 tok.assertPunctuator(':')
                 mesh.normals.append(tok.getVector3f())
 
@@ -159,7 +159,7 @@ def _parse_model_geometry_section(tok: Tokenizer, model: Model3do, fileVersion: 
             for k in range(0, numFaces):
                 faceIdx = tok.getIntNumber()
                 if faceIdx != k:
-                    print("Warning: Index mismatch while loading 3DO mesh faces. {} != {}".format(faceIdx, k))
+                    print(f"Warning: Index mismatch while loading 3DO mesh faces. {faceIdx} != {k}")
 
                 tok.assertPunctuator(':')
 
@@ -191,7 +191,7 @@ def _parse_model_geometry_section(tok: Tokenizer, model: Model3do, fileVersion: 
             for k in range(0, numFaces):
                 faceNormalIdx = tok.getIntNumber()
                 if faceNormalIdx != k:
-                    print("Warning: Index mismatch while loading 3DO mesh face normals. {} != {}".format(faceNormalIdx, k))
+                    print(f"Warning: Index mismatch while loading 3DO mesh face normals. {faceNormalIdx} != {k}")
                 tok.assertPunctuator(':')
                 mesh.faces[k].normal = tok.getVector3f()
 
@@ -206,7 +206,7 @@ def _parse_hierarchy_section(tok: Tokenizer, model: Model3do):
     for i in range(0, numNodes):
         nodeIdx = tok.getIntNumber()
         if nodeIdx != i:
-            print("Warning: Seq. number mismatch while loading 3DO hierarchy list. {} != {}".format(nodeIdx, i))
+            print(f"Warning: Seq. number mismatch while loading 3DO hierarchy list. {nodeIdx} != {i}")
 
         tok.assertPunctuator(':')
         node               = Mesh3doNode()
