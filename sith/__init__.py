@@ -401,10 +401,22 @@ class ImportKey(bpy.types.Operator, ImportHelper):
         options = {'HIDDEN'}
     )
 
+    validate_active_object = bpy.props.BoolProperty(
+        name        = 'Validate object',
+        description = 'Validate active object has all required animation nodes before importing KEY animation.',
+        default     = True,
+    )
+
+    clear_scene = bpy.props.BoolProperty(
+        name        = 'Clear scene',
+        description = 'Clear any existing animation data from the scene before importing KEY animation.',
+        default     = True,
+    )
+
     def execute(self, context):
         try:
             scene = context.scene
-            importKey(self.filepath, scene)
+            importKey(self.filepath, scene, self.clear_scene, self.validate_active_object)
         except Exception as e:
             print(f"\nError: An exception was encountered while importing keyframe '{os.path.basename(self.filepath)}'!\nError: {e}")
             self.report({'ERROR'}, f'Error: {e}')
