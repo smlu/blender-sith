@@ -147,16 +147,12 @@ def _get_export_obj(context, report, data_type: str):
     eobj = None
     if kGModel3do not in bpy.data.groups or len(bpy.data.groups[kGModel3do].objects) == 0:
         # Get one selected object
-        if len(context.selected_objects) == 0:
+        if context.active_object is None:
             print(f"Error: Could not determine which object to export {data_type} data from. Select 1 object or put object into '{kGModel3do}' group!")
             report({'ERROR'}, f"No object selected! Select 1 object or put object into '{kGModel3do}' group!")
             return None
-        if len(context.selected_objects) > 1:
-            print(f'Error: Could not determine which object to export {data_type} data from, more than 1 object selected!')
-            report({'ERROR'}, 'Too many objects selected!')
-            return None
+        eobj = context.active_object
 
-        eobj = context.selected_objects[0]
     else: # Model3do group
         objs = bpy.data.groups[kGModel3do].objects
         if len(objs) == 0:
