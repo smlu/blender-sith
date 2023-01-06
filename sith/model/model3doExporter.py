@@ -40,7 +40,7 @@ kHNDefaultType      = 0
 
 def _set_hnode_location(node: Mesh3doNode, scale: mathutils.Vector):
     node.position = Vector3f(*vectorMultiply(node.obj.location, scale))
-    node.rotation = objOrientationToImEuler(node.obj)
+    node.rotation = objRotationToPYR(node.obj)
     node.pivot    = Vector3f(0.0, 0.0, 0.0)
 
     pc = None

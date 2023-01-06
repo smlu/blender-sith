@@ -98,7 +98,7 @@ def _make_key_from_obj(key_name, obj: bpy.types.Object, scene: bpy.types.Scene):
                             if fc.data_path.endswith(('location', 'rotation_euler')):
                                 kfs[frame][fc.data_path] = [0.0, 0.0, 0.0]
                                 kfs[frame]["delta_" + fc.data_path] = [0.0, 0.0, 0.0]
-                            else: # quaternion rotation
+                            else: # quaternion rotation or rotation_axis_angle
                                 kfs[frame][fc.data_path] = [0.0, 0.0, 0.0, 0.0]
                                 kfs[frame]["delta_" + fc.data_path] = [0.0, 0.0, 0.0, 0.0]
 
@@ -141,10 +141,14 @@ def _make_key_from_obj(key_name, obj: bpy.types.Object, scene: bpy.types.Scene):
 
                 # Set orientation
                 if 'rotation_euler' in entry:
-                    kf.orientation   = eulerToImEuler(entry["rotation_euler"], cobj.rotation_mode)
+                    euler = mathutils.Euler(entry["rotation_euler"], cobj.rotation_mode)
+                    kf.orientation = eulerToPYR(euler)
                 elif "rotation_quaternion" in entry:
                     orient = mathutils.Quaternion(entry["rotation_quaternion"])
-                    kf.orientation = quaternionToImEuler(orient)
+                    kf.orientation = quaternionToPYR(orient)
+                elif 'rotation_axis_angle' in entry: # Note, using axis angles can lead to broken rotations
+                    orient = mathutils.Quaternion(entry["rotation_axis_angle"])
+                    kf.orientation = quaternionToPYR(orient)
                 elif previous_kf:
                     kf.orientation = previous_kf.orientation
 

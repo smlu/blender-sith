@@ -223,7 +223,7 @@ def objSetEulerRotation(obj: bpy.types.Object, rotation: Vector3f):
     obj.rotation_mode  = kImEulerOrder
     obj.rotation_euler = makeEulerRotation(rotation)
 
-def makeQuaternionRotation(pyr: Vector3f):
+def makeQuaternionRotation(pyr: Vector3f) -> mathutils.Quaternion:
     return makeRotationMatrix(pyr[0], pyr[1], pyr[2]).to_quaternion()
     # p = mathutils.Quaternion((1.0, 0.0, 0.0), math.radians(rot[0]))
     # y = mathutils.Quaternion((0.0, 0.0, 1.0), math.radians(rot[1]))
@@ -237,39 +237,37 @@ def objSetRotation(obj: bpy.types.Object, pyr: Vector3f):
     obj.rotation_mode       = 'QUATERNION'
     obj.rotation_quaternion = makeQuaternionRotation(pyr)
 
-def eulerToImEuler(euler, order):
-    if order != kImEulerOrder:
-        euler = mathutils.Euler(euler, order)
-        euler.order = kImEulerOrder
+def quaternionToImEuler(quaternion: mathutils.Quaternion) -> mathutils.Euler:
+    assert type(quaternion) is mathutils.Quaternion
+    qrot = quaternion.normalized()
+    return qrot.to_euler(kImEulerOrder)
+
+def eulerToPYR(euler: mathutils.Euler) -> Vector3f:
+    assert type(euler) is mathutils.Euler
+    if euler.order != kImEulerOrder:
+        euler = quaternionToImEuler(euler.to_quaternion())
     rot = []
     for a in euler:
         d = math.degrees(a)
         rot.append(d)
     return Vector3f(rot[0], rot[2], rot[1])
 
-def quaternionToImEuler(quaternion: mathutils.Quaternion):
+def quaternionToPYR(quaternion: mathutils.Quaternion) -> Vector3f:
     assert type(quaternion) is mathutils.Quaternion
-    qrot = quaternion.normalized()
-    return eulerToImEuler(qrot.to_euler(kImEulerOrder), kImEulerOrder)
+    return eulerToPYR(quaternionToImEuler(quaternion))
 
-def objOrientationToImEuler(obj: bpy.types.Object):
-    erot = None
-    eorder = kImEulerOrder
-    rmode = obj.rotation_mode
-    if rmode == "QUATERNION":
-        qrot = obj.rotation_quaternion.normalized()
-        erot = qrot.to_euler(kImEulerOrder)
-    elif rmode == "AXIS_ANGLE":
+def objRotationToPYR(obj: bpy.types.Object) -> Vector3f:
+    euler = None
+    if obj.rotation_mode == "QUATERNION":
+        euler = quaternionToImEuler(obj.rotation_quaternion)
+    elif obj.rotation_mode == "AXIS_ANGLE": # Note, using axis angles can lead to broken rotations
         qrot = mathutils.Quaternion(obj.rotation_axis_angle)
-        qrot.normalize()
-        erot.to_euler(kImEulerOrder)
+        euler = quaternionToImEuler(qrot)
     else:
-        erot = obj.rotation_euler.copy()
-        eorder = rmode
+        euler = mathutils.Euler(obj.rotation_euler, obj.rotation_mode)
+    return eulerToPYR(euler)
 
-    return eulerToImEuler(erot, eorder)
-
-def objPivot(obj: bpy.types.Object):
+def objPivot(obj: bpy.types.Object) -> mathutils.Vector:
     for c in obj.constraints:
         if type(c) is bpy.types.PivotConstraint:
             pivot = -c.offset
@@ -278,7 +276,7 @@ def objPivot(obj: bpy.types.Object):
             return mathutils.Vector(pivot)
     return mathutils.Vector((0.0, 0.0, 0.0))
 
-def objRadius(obj, scale: mathutils.Vector = mathutils.Vector((1.0,)*3)):
+def objRadius(obj, scale: mathutils.Vector = mathutils.Vector((1.0,) * 3)):
     r = 0
     if obj is not None and obj.type == 'MESH':
         for v in obj.data.vertices:
