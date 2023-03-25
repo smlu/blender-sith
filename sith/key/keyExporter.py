@@ -64,20 +64,20 @@ def _make_key_from_obj(key_name, obj: bpy.types.Object, scene: bpy.types.Scene):
         except:
             try:
                 im = int(marker.name)
-                t = KeyMarkerType(im)
+                t  = KeyMarkerType(im)
             except:
                 print(f"\nWarning: Invalid marker name '{marker.name}'. Using marker type '{t.name}'!")
 
-        m = KeyMarker()
+        m       = KeyMarker()
         m.frame = marker.frame
-        m.type = t
+        m.type  = t
         key.markers.append(m)
 
     # Make model3do from object to get ordered hierarchy nodes
     model3do = makeModel3doFromObj(key_name, obj)
     for hnode in model3do.meshHierarchy:
         cobj = hnode.obj
-        if cobj.animation_data:
+        if cobj.animation_data and cobj.animation_data.action:
             knode          = KeyNode()
             knode.idx      = hnode.idx
             knode.meshName = hnode.name
@@ -88,7 +88,7 @@ def _make_key_from_obj(key_name, obj: bpy.types.Object, scene: bpy.types.Scene):
             for fc in cobj.animation_data.action.fcurves:
                 if fc.data_path.endswith(('location','rotation_euler','rotation_quaternion')):
                     for k in fc.keyframe_points :
-                        frame = k.co[0]
+                        frame   = k.co[0]
                         axis_co = k.co[1]
 
                         if frame not in kfs:
@@ -161,6 +161,7 @@ def _make_key_from_obj(key_name, obj: bpy.types.Object, scene: bpy.types.Scene):
             # Append keyframe node if node has keyframes
             if len(knode.keyframes):
                 key.nodes.append(knode)
+
     key.numJoints = len(model3do.meshHierarchy)
     return key
 
