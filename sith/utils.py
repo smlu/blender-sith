@@ -186,7 +186,8 @@ def clearAllScenes():
         bpy.data.worlds
     ):
         for id_data in bpy_data_iter:
-            bpy_data_iter.remove(id_data)
+            if hasattr(bpy_data_iter, 'remove'): # Some bpy_prop_collection don't have this method.
+                bpy_data_iter.remove(id_data)
 
 def getExportFileHeader(prefix):
     version = bl_info['version']
