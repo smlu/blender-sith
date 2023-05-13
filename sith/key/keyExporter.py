@@ -29,7 +29,7 @@ from sith.model import makeModel3doFromObj, Mesh3doNodeType
 from sith.types import BenchmarkMeter
 from sith.utils import *
 
-def _set_keyframe_delta(dtype: KeyframeFlag, kf1: Keyframe, kf2: Keyframe):
+def _set_keyframe_delta(kf1: Keyframe, kf2: Keyframe, dtype: KeyframeFlag):
     assert dtype == KeyframeFlag.PositionChange or dtype == KeyframeFlag.OrientationChange
     vec1 = mathutils.Vector(kf1.position)
     vec2 = mathutils.Vector(kf2.position)
@@ -123,7 +123,10 @@ def _make_key_from_obj(key_name, obj: bpy.types.Object, scene: bpy.types.Scene):
                 # Set location
                 if "location" in entry:
                     def get_scale(o):
-                        scale = o.scale
+                         # Note, must not use objet's scale
+                         # for the same reason than when exporting 3DO node.
+                         # See, _model3do_add_obj
+                        scale = mathutils.Vector((1.0,) * 3)
                         nonlocal obj
                         while o != obj:
                             o = o.parent
@@ -137,7 +140,7 @@ def _make_key_from_obj(key_name, obj: bpy.types.Object, scene: bpy.types.Scene):
 
                 # Set delta position
                 if previous_kf:
-                    _set_keyframe_delta(KeyframeFlag.PositionChange, previous_kf, kf)
+                    _set_keyframe_delta(previous_kf, kf, KeyframeFlag.PositionChange)
 
                 # Set orientation
                 if 'rotation_euler' in entry:
@@ -154,7 +157,7 @@ def _make_key_from_obj(key_name, obj: bpy.types.Object, scene: bpy.types.Scene):
 
                 # Set delta rotation
                 if previous_kf:
-                    _set_keyframe_delta(KeyframeFlag.OrientationChange, previous_kf, kf)
+                    _set_keyframe_delta(previous_kf, kf, KeyframeFlag.OrientationChange)
 
                 knode.keyframes.append(kf)
 

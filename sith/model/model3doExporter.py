@@ -38,11 +38,13 @@ kHNDefaultFlags     = 0
 kHNDefaultType      = 0
 
 
-def _set_hnode_location(node: Mesh3doNode, scale: mathutils.Vector):
-    node.position = Vector3f(*vectorMultiply(node.obj.location, scale))
-    node.rotation = objRotationToPYR(node.obj)
-    node.pivot    = Vector3f(0.0, 0.0, 0.0)
+def _set_hnode_pose(node: Mesh3doNode, scale: mathutils.Vector):
+    scaledLocation = vectorMultiply(node.obj.location, scale)
+    node.position  = Vector3f(*scaledLocation)
+    node.rotation  = objRotationToPYR(node.obj)
+    node.pivot     = Vector3f(0.0, 0.0, 0.0)
 
+    # pivot
     pc = None
     for c in node.obj.constraints:
         if type(c) == bpy.types.PivotConstraint:
@@ -53,7 +55,8 @@ def _set_hnode_location(node: Mesh3doNode, scale: mathutils.Vector):
         pivot = -pc.offset
         if c.target:
             pivot += -c.target.location
-        node.position = Vector3f(*(node.obj.location - pivot))
+        pivot = vectorMultiply(pivot, scale)
+        node.position = Vector3f(*(scaledLocation - pivot))
         node.pivot    = Vector3f(*pivot)
 
 def _get_mat_name_org(mat: bpy.types.Material):
@@ -176,7 +179,7 @@ def _set_mesh_properties(mesh: Mesh3do, obj: bpy.types.Object, scale: mathutils.
 
     radius_obj = getMeshRadiusObj(mesh)
     if radius_obj is None:
-        obj = getMeshObjectByName(mesh.name)
+        obj = getMeshObjectByName(mesh.name) # TODO: why is this needed? Isn't passed obj the owner of the mesh?
         mesh.radius = objRadius(obj, scale)
     else:
         mesh.radius = radius_obj.dimensions[0] / 2
@@ -238,22 +241,27 @@ def _model3do_add_hnode(model: Model3do, mesh_idx: int, obj: bpy.types.Object, p
             snode.siblingIdx = node_idx
         pnode.numChildren += 1
 
-    _set_hnode_location(node, scale)
+    _set_hnode_pose(node, scale)
     model.meshHierarchy.append(node)
 
-def _model3do_add_obj(model: Model3do, obj: bpy.types.Object, parent: bpy.types.Object = None, scale: mathutils.Vector = mathutils.Vector((1.0,)*3), uvAbsolute: bool = False, exportVertexColors: bool = False):
+def _model3do_add_obj(model: Model3do, obj: bpy.types.Object, parent: bpy.types.Object = None, scale: mathutils.Vector = mathutils.Vector((1.0,) * 3), uvAbsolute: bool = False, exportVertexColors: bool = False):
     if 'EMPTY' != obj.type != 'MESH' or _is_aux_obj(obj):
         return
 
-    scale    = vectorMultiply(scale, obj.scale)
-    mesh_idx = _model3do_add_mesh(model, obj.data, scale, uvAbsolute, exportVertexColors)
+    # Add object's mesh
+    objScale = vectorMultiply(scale, obj.scale)
+    mesh_idx = _model3do_add_mesh(model, obj.data, objScale, uvAbsolute, exportVertexColors)
     if mesh_idx > -1:
         mesh = model.geosets[0].meshes[mesh_idx]
-        _set_mesh_properties(mesh, obj, scale)
+        _set_mesh_properties(mesh, obj, objScale)
 
+    # Add object to hierarchy
+    # Note, must use passed scale, since the object's location is already changed when object has set scale
     _model3do_add_hnode(model, mesh_idx, obj, parent, scale)
+
+    # Add children
     for child in obj.children:
-        _model3do_add_obj(model, child, parent=obj, scale=scale, uvAbsolute=uvAbsolute, exportVertexColors=exportVertexColors)
+        _model3do_add_obj(model, child, parent=obj, scale=objScale, uvAbsolute=uvAbsolute, exportVertexColors=exportVertexColors)
 
 def _get_model_radius(obj, scale: mathutils.Vector = mathutils.Vector((1.0,)*3)):
     min = mathutils.Vector((999999.0,)*3)
