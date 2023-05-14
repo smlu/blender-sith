@@ -114,6 +114,9 @@ def _make_key_from_obj(key_name, obj: bpy.types.Object, scene: bpy.types.Scene):
                 frame = item[0]
                 entry = item[1]
 
+                if idx == 0 and frame != 0:
+                    print(f"\nWarning: The object '{cobj.name}' doesn't have a keyframe at frame 0!")
+
                 kf       = Keyframe()
                 kf.frame = int(frame)
                 kf.flags = entry["flags"]
