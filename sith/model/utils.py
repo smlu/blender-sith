@@ -38,9 +38,9 @@ k3doFaceType       = "3do_face_type"
 k3doGeometryMode   = "3do_geometry_mode"
 k3doLightingMode   = "3do_lighting_mode"
 k3doTextureMode    = "3do_texture_mode"
-kDefaultFaceColor  = Vector4f(0.0, 0.0, 0.0, 1.0)
+kDefaultFaceColor  = Vector4f(0.0, 0.0, 0.0, 1.0)  # Black color
 kGModel3do         = "Model3do"
-kImEulerOrder      = "YXZ"                 # Infernal machine euler orientation order
+kImEulerOrder      = "YXZ"                         # Infernal machine euler orientation order Y - roll, X - pitch, Z - yaw
 kMeshRadius        = "MESH_RADIUS_"
 kModelRadius       = "MODEL_RADIUS_"
 kNameOrderPrefix   = "no"
@@ -208,9 +208,12 @@ def makeRotationMatrix(pitch, yaw, roll):
     p = math.radians(pitch)
     y = math.radians(yaw)
     r = math.radians(roll)
+
+    # rotate arount yaw then pitch and then roll
     return mathutils.Matrix.Rotation(y, 3, 'Z') * \
            mathutils.Matrix.Rotation(p, 3, 'X') * \
            mathutils.Matrix.Rotation(r, 3, 'Y')
+
 
 def makeEulerRotation(pyr: Vector3f):
     return makeRotationMatrix(pyr[0], pyr[1], pyr[2]).to_euler(kImEulerOrder)
@@ -224,7 +227,7 @@ def objSetEulerRotation(obj: bpy.types.Object, rotation: Vector3f):
     obj.rotation_euler = makeEulerRotation(rotation)
 
 def makeQuaternionRotation(pyr: Vector3f) -> mathutils.Quaternion:
-    return makeRotationMatrix(pyr[0], pyr[1], pyr[2]).to_quaternion()
+    return makeRotationMatrix(pyr[0], pyr[1], pyr[2]).to_quaternion().normalized()
     # p = mathutils.Quaternion((1.0, 0.0, 0.0), math.radians(rot[0]))
     # y = mathutils.Quaternion((0.0, 0.0, 1.0), math.radians(rot[1]))
     # r = mathutils.Quaternion((0.0, 1.0, 0.0), math.radians(rot[2]))
@@ -232,7 +235,7 @@ def makeQuaternionRotation(pyr: Vector3f) -> mathutils.Quaternion:
 
 def objSetRotation(obj: bpy.types.Object, pyr: Vector3f):
     """
-    Sets `obj` rotation as quaterion from `pyr` rotation.
+    Sets `obj` rotation as quaternion from `pyr` rotation.
     """
     obj.rotation_mode       = 'QUATERNION'
     obj.rotation_quaternion = makeQuaternionRotation(pyr)
@@ -250,6 +253,7 @@ def eulerToPYR(euler: mathutils.Euler) -> Vector3f:
     for a in euler:
         d = math.degrees(a)
         rot.append(d)
+    # Blender Euler angles are in order XYZ (pitch, roll, yaw)
     return Vector3f(rot[0], rot[2], rot[1])
 
 def quaternionToPYR(quaternion: mathutils.Quaternion) -> Vector3f:
@@ -316,7 +320,7 @@ def importMaterials(mat_names: List, search_paths: List, cmp: ColorMap):
             if s is not None and s.texture is not None:
                 return True
         return False
-        
+
     for name in mat_names:
         if name in bpy.data.materials:
             if skip_loading_mat(bpy.data.materials[name]):
