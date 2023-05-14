@@ -100,12 +100,12 @@ def _make_readable(str):
 
 def _get_key_flags_enum_list():
     return [
-        (KeyFlag.UsePuppetFPS.name    , 'Use Puppet FPS'     , "Don't use FPS and play animation at speed based on puppet movement in the game"),
-        (KeyFlag.NoLoop.name          , 'No Loop'            , "Don't loop play animation"),
-        (KeyFlag.PauseOnLastFrame.name, 'Pause On Last Frame', 'Pause animation on the last frame'),
-        (KeyFlag.RestartActive.name   , 'Restart Active'     , 'Restart animation if active'),
-        (KeyFlag.DisableFadeIn.name   , 'Disable Fade-in'    , 'Disable animation fade-in interpolation'),
-        (KeyFlag.FadeOutAndNoLoop.name, 'Fade-out & No Loop' , 'Fade-out animation and finish playing'),
+        (KeyFlag.UsePuppetFPS.name    , 'Use Puppet FPS'     , "Don't use FPS and play animation at speed based on puppet movement in the game" ),
+        (KeyFlag.NoLoop.name          , 'No Loop'            , "Don't loop play animation"                                                      ),
+        (KeyFlag.PauseOnLastFrame.name, 'Pause On Last Frame', 'Pause animation on the last frame'                                              ),
+        (KeyFlag.RestartActive.name   , 'Restart Active'     , 'Restart animation if active'                                                    ),
+        (KeyFlag.DisableFadeIn.name   , 'Disable Fade-in'    , 'Disable animation fade-in interpolation'                                        ),
+        (KeyFlag.FadeOutAndNoLoop.name, 'Fade-out & No Loop' , 'Fade-out animation and finish playing'                                          ),
     ]
 
 def _get_mesh3do_face_type_list():
@@ -114,8 +114,8 @@ def _get_mesh3do_face_type_list():
         (FaceType.Translucent.name   , 'Translucent'               , 'Polygon is rendered in game with alpha blending enabled. This makes polygon with transparent texture translucent'                        ),
         (FaceType.TexClamp_x.name    , 'Clamp Horizontal'          , 'Polygon texture is clamped horizontally instead of repeated (Might not be used in JKDF2 & MOTS)'                                         ),
         (FaceType.TexClamp_y.name    , 'Clamp Vertical'            , 'Polygon texture is clamped vertically instead of repeated (Might not be used in JKDF2 & MOTS)'                                           ),
-        (FaceType.TexFilterNone.name , 'Disable Bilinear Filtering', 'Disables texture bilinear interpolation filtering and instead point filtering is used as a texture magnification or minification filter' ),
-        (FaceType.ZWriteDisabled.name, 'Disable ZWrite'            , 'Disables writing polygon face to depth buffer'                                                                                           ),
+        (FaceType.TexFilterNone.name , 'Disable Bilinear Filtering', 'Disables texture bilinear interpolation filtering and point filtering is used instead'                                                   ),
+        (FaceType.ZWriteDisabled.name, 'Disable ZWrite'            , 'Disables writing polygon face to depth buffer.'                                                                                          ),
         (FaceType.IjimLedge.name     , '(IJIM) Ledge'              , '(IJIM only) Polygon face is a ledge that player can grab and hang from'                                                                  ),
         (FaceType.IjimFogEnabled.name, '(IJIM) Enable Fog'         , '(IJIM only) Enables fog rendering for polygon face. Enabled by default by the engine'                                                    ),
         (FaceType.IjimWhipAim.name   , '(IJIM) Whip Aim'           , '(IJIM only) Polygon face is whip aiming spot from which player can search in the area for object(s) to mount whip on'                    )
@@ -608,7 +608,11 @@ class Mesh3doFacePanel(bpy.types.Panel):
 
     @classmethod
     def poll(cls, context):
-        return context.edit_object is not None
+        # only show panel if in edit with face selection mode enabled and actively selected face
+        if (context.edit_object is not None):
+            bm = bmesh.from_edit_mesh(context.edit_object.data)
+            return 'FACE' in bm.select_mode and isinstance(bm.select_history.active, bmesh.types.BMFace)
+        return False
 
     @staticmethod
     def _get_face_id(face: bmesh.types.BMFace):
