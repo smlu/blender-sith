@@ -117,3 +117,4 @@ __test.py
 
 # IDE-s
 .vs
+.vscode
