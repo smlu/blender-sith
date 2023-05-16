@@ -27,6 +27,18 @@ from typing import Tuple, List
 
 _file_magic = "3DO"
 
+def save3do(model: Model3do, filePath, version: Model3doFileVersion, headerComment):
+    """ Saves `model` to 3DO file """
+    f = open(filePath, 'w', encoding='utf-8')
+
+    _write_section_header(f, model, headerComment, version)
+    _write_section_resources(f, model)
+    _write_section_geometry(f, model, version)
+    _write_section_hierarchydef(f, model)
+
+    f.flush()
+    f.close()
+
 def _vector_to_str(vector: Tuple, compact = True, align_width = 10):
     out = "" if compact else '('
     if compact:
@@ -230,15 +242,3 @@ def _write_section_hierarchydef(file, model: Model3do):
         row += _vector_to_str(node.pivot)
         row += '  ' + node.name
         writeLine(file, row)
-
-def save3do(model: Model3do, filePath, version: Model3doFileVersion, headerComment):
-    """ Saves `model` to 3DO file """
-    f = open(filePath, 'w', encoding='utf-8')
-
-    _write_section_header(f, model, headerComment, version)
-    _write_section_resources(f, model)
-    _write_section_geometry(f, model, version)
-    _write_section_hierarchydef(f, model)
-
-    f.flush()
-    f.close()

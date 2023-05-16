@@ -37,6 +37,18 @@ kDefaultVertexColor = Vector4f(0.0, 0.0, 0.0, 1.0)
 kHNDefaultFlags     = 0
 kHNDefaultType      = 0
 
+def export3do(obj: bpy.types.Object, path: str, version: Model3doFileVersion, uvAbsolute: bool, exportVertexColors: bool):
+    with BenchmarkMeter(' done in {:.4f} sec.'):
+        print("exporting 3DO: %r..." % (path), end="")
+
+        bpy.path.ensure_ext(path, '.3do')
+        model_name = os.path.basename(path)
+        if not isValidNameLen(model_name):
+            raise ValueError(f"Export file name '{model_name}' is longer then {kMaxNameLen} chars!")
+
+        model3do = makeModel3doFromObj(model_name, obj, uvAbsolute=uvAbsolute, exportVertexColors=exportVertexColors)
+        header   = getExportFileHeader(f"3DO model '{os.path.basename(path)}'")
+        model3doWriter.save3do(model3do, path, version, header)
 
 def _set_hnode_pose(node: Mesh3doNode, scale: mathutils.Vector):
     scaledLocation = vectorMultiply(node.obj.location, scale)
@@ -317,16 +329,3 @@ def makeModel3doFromObj(name, obj: bpy.types.Object, uvAbsolute: bool = False, e
 
     model.reorderNodes()
     return model
-
-def export3do(obj: bpy.types.Object, path: str, version: Model3doFileVersion, uvAbsolute: bool, exportVertexColors: bool):
-    with BenchmarkMeter(' done in {:.4f} sec.'):
-        print("exporting 3DO: %r..." % (path), end="")
-
-        bpy.path.ensure_ext(path, '.3do')
-        model_name = os.path.basename(path)
-        if not isValidNameLen(model_name):
-            raise ValueError(f"Export file name '{model_name}' is longer then {kMaxNameLen} chars!")
-
-        model3do = makeModel3doFromObj(model_name, obj, uvAbsolute=uvAbsolute, exportVertexColors=exportVertexColors)
-        header   = getExportFileHeader(f"3DO model '{os.path.basename(path)}'")
-        model3doWriter.save3do(model3do, path, version, header)

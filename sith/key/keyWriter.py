@@ -23,7 +23,16 @@ from sith.text.serutils import *
 from typing import Tuple
 from .key import *
 
-max_markers = 16
+def saveKey(key: Key, filePath, headerComment):
+    """ Saves `key` to .key file """
+    f = open(filePath, 'w', encoding='utf-8')
+
+    _write_section_header(f, key, headerComment)
+    _write_section_markers(f, key)
+    _write_section_keyframe_nodes(f, key)
+
+    f.flush()
+    f.close()
 
 def _flags2str(flags: int):
     return '0x{:04X}'.format(flags)
@@ -88,14 +97,3 @@ def _write_section_keyframe_nodes(file, key: Key):
             row2 += _vector_to_str(k.deltaRotation)
             writeLine(file, row2)
         writeNewLine(file)
-
-def saveKey(key: Key, filePath, headerComment):
-    """ Saves `key` to .key file """
-    f = open(filePath, 'w', encoding='utf-8')
-
-    _write_section_header(f, key, headerComment)
-    _write_section_markers(f, key)
-    _write_section_keyframe_nodes(f, key)
-
-    f.flush()
-    f.close()

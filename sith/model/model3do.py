@@ -21,9 +21,9 @@
 
 from enum import IntEnum, unique
 from sith.types import (
-    Flag, 
-    Vector2f, 
-    Vector3f, 
+    Flag,
+    Vector2f,
+    Vector3f,
     Vector4f
 )
 from typing import List
@@ -59,7 +59,7 @@ class LightMode(IntEnum):
     NotLit     = 1
     Diffuse    = 2
     Gouraud    = 3
-    GfUnknown6 = 6 # Grim Fandango 
+    GfUnknown6 = 6 # Grim Fandango
 
 @unique
 class TextureMode(IntEnum):

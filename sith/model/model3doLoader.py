@@ -37,6 +37,33 @@ class Model3doFileVersion(float, Enum):
     def contains(cls, value):
         return value in cls._value2member_map_
 
+def load3do(filePath) -> Tuple[Model3do, Model3doFileVersion]:
+    f = open(filePath, 'r', encoding='utf-8')
+    tok = Tokenizer(f)
+
+    file_version = Model3doFileVersion.Version2_1
+    model = Model3do(os.path.basename(filePath))
+
+    while True:
+        _skip_to_next_model_section(tok)
+        t = tok.getToken()
+        if t.type == TokenType.EOF:
+            break
+
+        if t.value.upper() == "HEADER":
+            file_version = _parse_model_header_section(tok)
+
+        elif t.value.upper() == "MODELRESOURCE":
+            _parse_model_resource_section(tok, model)
+
+        elif t.value.upper() == "GEOMETRYDEF":
+            _parse_model_geometry_section(tok, model, file_version)
+
+        elif t.value.upper() == "HIERARCHYDEF":
+            _parse_hierarchy_section(tok, model)
+
+    return (model, file_version)
+
 def _skip_to_next_model_section(tok: Tokenizer):
     t = tok.getToken()
     while t.type != TokenType.EOF and (t.type != TokenType.Identifier or t.value.upper() != "SECTION"):
@@ -226,31 +253,3 @@ def _parse_hierarchy_section(tok: Tokenizer, model: Model3do):
         node.name          = tok.getSpaceDelimitedString()
 
         model.meshHierarchy.append(node)
-
-
-def load3do(filePath) -> Tuple[Model3do, Model3doFileVersion]:
-    f = open(filePath, 'r', encoding='utf-8')
-    tok = Tokenizer(f)
-
-    file_version = Model3doFileVersion.Version2_1
-    model = Model3do(os.path.basename(filePath))
-
-    while True:
-        _skip_to_next_model_section(tok)
-        t = tok.getToken()
-        if t.type == TokenType.EOF:
-            break
-
-        if t.value.upper() == "HEADER":
-            file_version = _parse_model_header_section(tok)
-
-        elif t.value.upper() == "MODELRESOURCE":
-            _parse_model_resource_section(tok, model)
-
-        elif t.value.upper() == "GEOMETRYDEF":
-            _parse_model_geometry_section(tok, model, file_version)
-
-        elif t.value.upper() == "HIERARCHYDEF":
-            _parse_hierarchy_section(tok, model)
-
-    return (model, file_version)
