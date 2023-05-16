@@ -26,17 +26,18 @@ from sith.types import Flag, Vector3f
 
 @unique
 class KeyFlag(Flag):
-    Loop              = 0x0
-    UsePuppetFPS      = 0x1
-    NoLoop            = 0x2
-    PauseOnLastFrame  = 0x4
-    RestartActive     = 0x8
-    DisableFadeIn     = 0x10
-    FadeOutAndNoLoop  = 0x20
+    Loop                   = 0x0
+    MovementControlled     = 0x1
+    NoLoop                 = 0x2
+    PauseOnLastFrame       = 0x4
+    RestartActive          = 0x8
+    DisableFadeIn          = 0x10
+    FadeOutAndNoLoop       = 0x20
+    SetPositionToLastFrame = 0x40 # (IJIM) Set position of animated object to last frame when animation is finished
 
 @unique
 class KeyMarkerType(IntEnum):
-    Default              = 0
+    Finish               = 0 # Marker 0 denotes the end of the animation
     LeftFoot             = 1
     RightFoot            = 2
     Attack               = 3
@@ -83,7 +84,7 @@ class KeyframeFlag(IntEnum):
 class KeyMarker:
     def __init__(self):
         self.f : float = 0.0
-        self.t : KeyMarkerType = KeyMarkerType.Default
+        self.t : KeyMarkerType = KeyMarkerType.Finish
 
     @property
     def frame(self) -> float:
