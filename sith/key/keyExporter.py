@@ -58,19 +58,17 @@ def _make_key_from_obj(key_name, obj: bpy.types.Object, scene: bpy.types.Scene):
     key.numFrames = scene.frame_end + 1
     key.fps       = scene.render.fps
     for marker in scene.timeline_markers:
-        t = KeyMarkerType.Default
+        m       = KeyMarker()
+        m.frame = marker.frame
         try:
-            t = KeyMarkerType[marker.name]
+            m.type = KeyMarkerType[marker.name]
         except:
             try:
                 im = int(marker.name)
-                t  = KeyMarkerType(im)
+                m.type = KeyMarkerType(im)
             except:
-                print(f"\nWarning: Invalid marker name '{marker.name}'. Using marker type '{t.name}'!")
-
-        m       = KeyMarker()
-        m.frame = marker.frame
-        m.type  = t
+                print(f"\nWarning: Invalid marker '{marker.name}' at frame {marker.frame}, skipping it!")
+                continue
         key.markers.append(m)
 
     # Make model3do from object to get ordered hierarchy nodes

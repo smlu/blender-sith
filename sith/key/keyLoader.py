@@ -24,6 +24,30 @@ from sith.text.tokenizer import TokenType, Tokenizer
 from sith.key import *
 from sith.model import Mesh3doNodeType
 
+def loadKey(filePath) -> Key:
+    """ Loads Key from .key file """
+    f = open(filePath, 'r', encoding='utf-8')
+    tok = Tokenizer(f)
+    key = Key(os.path.basename(filePath))
+
+    while True:
+        _skip_to_next_key_section(tok)
+        t = tok.getToken()
+        if t.type == TokenType.EOF:
+            break
+
+        if t.value.upper() == "HEADER":
+            _parse_key_section_header(tok, key)
+
+        elif t.value.upper() == "MARKERS":
+            _parse_key_section_markers(tok, key)
+
+        elif t.value.upper() == "KEYFRAME":
+            tok.assertIdentifier("NODES")
+            _parse_key_section_keyframe_nodes(tok, key)
+
+    return key
+
 def _skip_to_next_key_section(tok: Tokenizer):
     t = tok.getToken()
     while t.type != TokenType.EOF and (t.type != TokenType.Identifier or t.value.upper() != "SECTION"):
@@ -55,12 +79,12 @@ def _parse_key_section_markers(tok: Tokenizer, key: Key):
     for _ in range(0, numMarkers):
         m       = KeyMarker()
         m.frame = tok.getFloatNumber()
-        m.type  = KeyMarkerType.Default
         mt      = tok.getIntNumber()
         try:
             m.type  = KeyMarkerType(mt)
         except:
-            print(f"\nWarning: Unknown marker type '{mt}' fallback to '{m.type.name}'!")
+            print(f"\nWarning: Unknown marker type '{mt}' at frame {m.frame}, skipping!")
+            continue
         key.markers.append(m)
 
 def _parse_key_section_keyframe_nodes(tok: Tokenizer, key: Key):
@@ -93,28 +117,3 @@ def _parse_key_section_keyframe_nodes(tok: Tokenizer, key: Key):
 
             node.keyframes.append(keyframe)
         key.nodes.append(node)
-
-
-def loadKey(filePath) -> Key:
-    """ Loads Key from .key file """
-    f = open(filePath, 'r', encoding='utf-8')
-    tok = Tokenizer(f)
-    key = Key(os.path.basename(filePath))
-
-    while True:
-        _skip_to_next_key_section(tok)
-        t = tok.getToken()
-        if t.type == TokenType.EOF:
-            break
-
-        if t.value.upper() == "HEADER":
-            _parse_key_section_header(tok, key)
-
-        elif t.value.upper() == "MARKERS":
-            _parse_key_section_markers(tok, key)
-
-        elif t.value.upper() == "KEYFRAME":
-            tok.assertIdentifier("NODES")
-            _parse_key_section_keyframe_nodes(tok, key)
-
-    return key
