@@ -21,13 +21,27 @@
 
 import bpy, mathutils, os.path
 import sith.key.keyWriter as keyWriter
-from collections import OrderedDict
+from collections import defaultdict, OrderedDict
 
 from sith.key import *
 from sith.model.utils import *
 from sith.model import makeModel3doFromObj, Mesh3doNodeType
 from sith.types import BenchmarkMeter
 from sith.utils import *
+
+def exportKey(obj: bpy.types.Object, scene: bpy.types.Scene, path: str):
+    with BenchmarkMeter(' done in {:.4f} sec.'):
+        print(f"exporting KEY: {path} for obj: '{obj.name}'...", end="")
+
+        key_name = os.path.basename(path)
+        if not isValidNameLen(key_name):
+            raise ValueError(f"Export file name '{key_name}' is longer then {kMaxNameLen} chars!")
+
+        key = _make_key_from_obj(key_name, obj, scene)
+        if len(key.nodes) == 0:
+            print("\nWarning: The object doesn't have any animation data to export!")
+        header  = getExportFileHeader(f"Keyframe '{os.path.basename(path)}'")
+        keyWriter.saveKey(key, path, header)
 
 def _set_keyframe_delta(kf1: Keyframe, kf2: Keyframe, dtype: KeyframeFlag):
     assert dtype == KeyframeFlag.PositionChange or dtype == KeyframeFlag.OrientationChange
@@ -72,60 +86,72 @@ def _make_key_from_obj(key_name, obj: bpy.types.Object, scene: bpy.types.Scene):
         key.markers.append(m)
 
     # Make model3do from object to get ordered hierarchy nodes
-    model3do = makeModel3doFromObj(key_name, obj)
+    model3do      = makeModel3doFromObj(key_name, obj)
+    key.numJoints = len(model3do.meshHierarchy)
+
     for hnode in model3do.meshHierarchy:
         cobj = hnode.obj
         if cobj.animation_data and cobj.animation_data.action:
-            knode          = KeyNode()
-            knode.idx      = hnode.idx
-            knode.meshName = hnode.name
 
-            # Get node's keyframe entries
+            # Get object's animation data
             cobj_pivot = objPivot(cobj)
-            kfs = OrderedDict()
+            fcs = defaultdict(OrderedDict)
             for fc in cobj.animation_data.action.fcurves:
-                if fc.data_path.endswith(('location','rotation_euler','rotation_quaternion')):
+                if fc.is_valid and fc.data_path.endswith(('location','rotation_euler','rotation_quaternion')):
+                    fcdp = fcs[fc.data_path]
                     for k in fc.keyframe_points :
+                        # co[1] represents the value of position or rotation axis (only 1 e.g. x or y or z etc...).
+                        # Which axis is determined by fc.array_index,
+                        # and fc.data_path defines the type of data (location, rotation_euler, rotation_quaternion)
                         frame   = k.co[0]
                         axis_co = k.co[1]
 
-                        if frame not in kfs:
-                            kfs[frame] = {"flags": KeyframeFlag.NoChange}
-
-                        if fc.data_path not in kfs[frame]:
-                            if fc.data_path.endswith(('location', 'rotation_euler')):
-                                kfs[frame][fc.data_path] = [0.0, 0.0, 0.0]
-                                kfs[frame]["delta_" + fc.data_path] = [0.0, 0.0, 0.0]
-                            else: # quaternion rotation or rotation_axis_angle
-                                kfs[frame][fc.data_path] = [0.0, 0.0, 0.0, 0.0]
-                                kfs[frame]["delta_" + fc.data_path] = [0.0, 0.0, 0.0, 0.0]
+                        if frame not in fcdp:
+                            fcdp[frame] = [None, None, None] # location or rotation_euler
+                            if fc.data_path.endswith(('rotation_quaternion', 'rotation_axis_angle')):
+                                fcdp[frame] = [None, None, None, None]
 
                         # Set coordinate for data
                         # Note: fc.array_index is an index to the axis of a vector
                         if fc.data_path.endswith(('location')):
                             axis_co -= cobj_pivot[fc.array_index]
-                        kfs[frame][fc.data_path][fc.array_index] = axis_co
+                        # kfs[frame][fc.data_path][fc.array_index] = axis_co
+                        fcdp[frame][fc.array_index] = axis_co
 
-            # Set node's keyframes
+            # Fill missing keyframe data and make new dict with ordered frames
+            kfs = OrderedDict()
+            for data_path, fcdp in fcs.items():
+                prev_co = None
+                for frame, co in fcdp.items():
+                    # Fill missing coordinate
+                    co = [co[i] or (prev_co[i] if prev_co else 0.0) for i in range(len(co))] # If co[i] is None set to previous coordinate if available, otherwise 0.0
+                    kfs.setdefault(frame, {})[data_path] = co # assign co to kfs[frame][data_path]
+                    prev_co = co
+
+            # Make key node from animation data
+            knode          = KeyNode()
+            knode.idx      = hnode.idx
+            knode.meshName = hnode.name
+
             kfs_items = list(sorted(kfs.items()))
             for idx, item in enumerate(kfs_items):
                 frame = item[0]
                 entry = item[1]
 
                 if idx == 0 and frame != 0:
-                    print(f"\nWarning: The object '{cobj.name}' doesn't have a keyframe at frame 0!")
+                    print(f"\nWarning: The object '{cobj.name}' doesn't have a keyframe set at frame 0!")
 
                 kf       = Keyframe()
                 kf.frame = int(frame)
-                kf.flags = entry["flags"]
+                kf.flags = KeyframeFlag.NoChange #entry["flags"]
 
                 previous_kf = knode.keyframes[idx - 1] if idx > 0 else None
 
                 # Set location
                 if "location" in entry:
                     def get_scale(o):
-                         # Note, must not use objet's scale
-                         # for the same reason than when exporting 3DO node.
+                         # Note, must not use object's scale
+                         # for the same reason as when exporting 3DO node.
                          # See, _model3do_add_obj
                         scale = mathutils.Vector((1.0,) * 3)
                         nonlocal obj
@@ -144,12 +170,12 @@ def _make_key_from_obj(key_name, obj: bpy.types.Object, scene: bpy.types.Scene):
                     _set_keyframe_delta(previous_kf, kf, KeyframeFlag.PositionChange)
 
                 # Set orientation
-                if 'rotation_euler' in entry:
-                    euler = mathutils.Euler(entry["rotation_euler"], cobj.rotation_mode)
-                    kf.orientation = eulerToPYR(euler)
-                elif "rotation_quaternion" in entry:
+                if "rotation_quaternion" in entry:
                     orient = mathutils.Quaternion(entry["rotation_quaternion"])
                     kf.orientation = quaternionToPYR(orient)
+                elif 'rotation_euler' in entry:
+                    euler = mathutils.Euler(entry["rotation_euler"], cobj.rotation_mode)
+                    kf.orientation = eulerToPYR(euler)
                 elif 'rotation_axis_angle' in entry: # Note, using axis angles can lead to broken rotations
                     orient = mathutils.Quaternion(entry["rotation_axis_angle"])
                     kf.orientation = quaternionToPYR(orient)
@@ -166,19 +192,4 @@ def _make_key_from_obj(key_name, obj: bpy.types.Object, scene: bpy.types.Scene):
             if len(knode.keyframes):
                 key.nodes.append(knode)
 
-    key.numJoints = len(model3do.meshHierarchy)
     return key
-
-def exportKey(obj: bpy.types.Object, scene: bpy.types.Scene, path: str):
-    with BenchmarkMeter(' done in {:.4f} sec.'):
-        print(f"exporting KEY: {path} for obj: '{obj.name}'...", end="")
-
-        key_name = os.path.basename(path)
-        if not isValidNameLen(key_name):
-            raise ValueError(f"Export file name '{key_name}' is longer then {kMaxNameLen} chars!")
-
-        key = _make_key_from_obj(key_name, obj, scene)
-        if len(key.nodes) == 0:
-            print("\nWarning: The object doesn't have any animation data to export!")
-        header  = getExportFileHeader(f"Keyframe '{os.path.basename(path)}'")
-        keyWriter.saveKey(key, path, header)
