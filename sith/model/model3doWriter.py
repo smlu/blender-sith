@@ -68,14 +68,13 @@ def _write_section_header(file, model: Model3do, headerComment, version: Model3d
 
 def _write_section_resources(file, model: Model3do):
     num_mats = len(model.materials)
-    if num_mats < 1:
-        return
 
     writeSectionTitle(file, "modelresource")
     writeCommentLine(file, "Materials list")
     writeKeyValue(file, "materials", num_mats)
     writeNewLine(file)
 
+    if num_mats == 0: return
     for idx, mat in enumerate(model.materials):
         row = '{:>10}:{:>15}'.format(idx, mat)
         writeLine(file, row)
