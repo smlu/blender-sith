@@ -24,8 +24,8 @@ bl_info = {
     "description": "Import/export 3D model(s), animation(s) and texture(s) for the games based on Sith game engine",
     "author": "Crt Vavros",
     "version": (1, 0, 0),
-    "pre_release": "rc3",
-    "warning": "Pre-release RC3",
+    "pre_release": "rc4",
+    "warning": "Pre-release RC4",
     "blender": (2, 79, 0),
     "location": "File > Import-Export",
     "wiki_url": "https://github.com/smlu/blender-sith",
@@ -63,7 +63,7 @@ from sith.key import (
     KeyFlag
 )
 
-from sith.material import ColorMap, importMat
+from sith.material import importMat
 
 from sith.model import (
     export3do,
@@ -201,7 +201,6 @@ class ImportMat(bpy.types.Operator, ImportHelper):
     cmp_file = bpy.props.StringProperty(
         name        = 'ColorMap Directory',
         description = "Path to the ColorMap file (.cmp) used by mat textures of the imported 3DO model (JKDF2 & MOTS only).\n\nBy default file is searched in specified path, in the directory of the imported 3DO model and it's parent directory.\nIf no file is specified 'dflt.cmp' file is loaded",
-        #subtype='DIR_PATH'
     )
 
     def draw(self, context):
@@ -241,7 +240,7 @@ class ImportModel3do(bpy.types.Operator, ImportHelper):
 
     uv_absolute_3do_2_1 = bpy.props.BoolProperty(
         name        = '3DO 2.1 - Absolute UV',
-        description = 'Remove texture size from associated UV coordinates If imported 3DO file is version 2.1 (Required for JKDF2 & MOTS)',
+        description = 'If imported 3DO file is version 2.1 the absolute UV coordinates will be converted to relative UV coordinates (Required for JKDF2 & MOTS)',
         default     = True,
     )
 
@@ -266,13 +265,11 @@ class ImportModel3do(bpy.types.Operator, ImportHelper):
     mat_dir = bpy.props.StringProperty(
         name        = 'Material(s) Directory',
         description = "Path to the directory to search for texture files (.mat) of the imported 3DO model.\n\nBy default required texture files are searched in 'mat' directory at the location of imported 3DO model and it's parent directory",
-        #subtype='DIR_PATH'
     )
 
     cmp_file = bpy.props.StringProperty(
         name        = 'ColorMap File',
         description = "Path to the ColorMap file (.cmp) used by mat textures of the imported 3DO model (JKDF2 & MOTS only).\n\nBy default file is searched in specified path, in the directory of the imported 3DO model and it's parent directory.\nIf no file is specified 'dflt.cmp' file is loaded",
-        #subtype='DIR_PATH'
     )
 
     def draw(self, context):
@@ -403,8 +400,8 @@ class ImportKey(bpy.types.Operator, ImportHelper):
     )
 
     validate_active_object = bpy.props.BoolProperty(
-        name        = 'Validate object',
-        description = 'Validate active object has all required animation nodes before importing KEY animation.',
+        name        = 'Validate',
+        description = 'Validate that the active object has all the required animating nodes before importing the KEY animation.',
         default     = True,
     )
 

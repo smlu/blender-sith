@@ -45,6 +45,10 @@ def exportKey(obj: bpy.types.Object, scene: bpy.types.Scene, path: str):
 
 def _set_keyframe_delta(kf1: Keyframe, kf2: Keyframe, dtype: KeyframeFlag):
     assert dtype == KeyframeFlag.PositionChange or dtype == KeyframeFlag.OrientationChange
+
+    if kf2.frame <= kf1.frame:
+        return
+
     vec1 = mathutils.Vector(kf1.position)
     vec2 = mathutils.Vector(kf2.position)
     if dtype == KeyframeFlag.OrientationChange:
@@ -143,7 +147,7 @@ def _make_key_from_obj(key_name, obj: bpy.types.Object, scene: bpy.types.Scene):
 
                 kf       = Keyframe()
                 kf.frame = int(frame)
-                kf.flags = KeyframeFlag.NoChange #entry["flags"]
+                kf.flags = KeyframeFlag.NoChange
 
                 previous_kf = knode.keyframes[idx - 1] if idx > 0 else None
 

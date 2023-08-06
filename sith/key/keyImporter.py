@@ -80,7 +80,7 @@ def importKey(keyPath, scene: bpy.types.Scene, clearScene: bool, validateActiveO
                 aobj.keyframe_insert(data_path=_get_rotation_data_path(aobj), frame=keyframe.frame)
 
             # Fix any broken interpolation between keyframes
-            _fix_obj_interpolation(aobj)
+            _fix_obj_anim_interpolation(aobj)
 
         # Set current frame to 0
         scene.frame_set(0)
@@ -145,7 +145,7 @@ def _get_rotation_data_path(obj: bpy.types.Object) -> str:
     else:
         return 'rotation_euler'
 
-def _fix_obj_interpolation(obj: bpy.types.Object):
+def _fix_obj_anim_interpolation(obj: bpy.types.Object):
     """ fixes broken quaternion interpolation between frames and sets it to LINEAR"""
 
     interpolation = 'LINEAR'

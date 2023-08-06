@@ -76,9 +76,7 @@ def _get_mat_name_org(mat: bpy.types.Material):
 
 def _get_mat_name(mat: bpy.types.Material):
     name = _get_mat_name_org(mat)
-    if not name.endswith(".mat"):
-        name = os.path.splitext(name)[0] + '.mat'
-    return name
+    return name.partition('.')[0] + '.mat' # remove any extension and add .mat
 
 def _is_aux_obj(obj: bpy.types.Object):
     return (kModelRadius in obj.name) or (kMeshRadius in obj.name)
