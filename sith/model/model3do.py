@@ -532,9 +532,13 @@ class Model3do:
                     pnum = get_node_seq(pnode, nodes)
                 node.parentIdx = pnum
 
-                # Set parent first child
-                if self.meshHierarchy[pnode.firstChildIdx] == node:
-                    pnode.firstChildIdx = idx
+            # Update child
+            if node.firstChildIdx > -1:
+                cnode = self.meshHierarchy[node.firstChildIdx]
+                cnum  = cnode.idx
+                if cnum < 0:
+                    cnum = get_node_seq(cnode, nodes)
+                node.firstChildIdx = cnum
 
             # Update sibling
             if node.siblingIdx > -1:
