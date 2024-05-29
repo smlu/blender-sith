@@ -258,32 +258,33 @@ class ImportModel3do(bpy.types.Operator, ImportHelper):
 
     preserve_order = bpy.props.BoolProperty(
         name        = 'Preserve Mesh Hierarchy',
-        description = f"Preserve 3DO node hierarchy of objects in Blender.\n\nIf set, the order of imported mesh hierarchy will be preserved by prefixing the name of every mesh object with '{kNameOrderPrefix}<seq_number>_'.",
-        default     = False,
+        description = f"Preserve 3DO mesh hierarchy in Blender.\n\nIf enabled, the order of the imported mesh hierarchy will be preserved by prefixing the name of each mesh object with '{kNameOrderPrefix}<seq_number>_'.",
+        default     = True,
     )
 
     mat_dir = bpy.props.StringProperty(
-        name        = 'Material(s) Directory',
-        description = "Path to the directory to search for texture files (.mat) of the imported 3DO model.\n\nBy default required texture files are searched in 'mat' directory at the location of imported 3DO model and it's parent directory",
+        name        = 'MAT Directory',
+        description = "Path to the directory to search for MAT texture files (.mat) of the imported 3DO model.\n\nBy default, required texture files are searched in the 'mat' directory at the location of the imported 3DO model and its parent directory",
     )
 
     cmp_file = bpy.props.StringProperty(
         name        = 'ColorMap File',
-        description = "Path to the ColorMap file (.cmp) used by mat textures of the imported 3DO model (JKDF2 & MOTS only).\n\nBy default file is searched in specified path, in the directory of the imported 3DO model and it's parent directory.\nIf no file is specified 'dflt.cmp' file is loaded",
+        description = "Path to the ColorMap file (.cmp) used by mat textures of the imported 3DO model (JKDF2 & MOTS only).\n\nBy default, file is searched in specified path, in the directory of the imported 3DO model and its parent directory.\nIf no file is specified 'dflt.cmp' file is loaded",
     )
 
     def draw(self, context):
         layout = self.layout
+        layout.prop(self, 'preserve_order')
         layout.prop(self, 'set_3d_view')
         layout.prop(self, 'clear_scene')
         layout.prop(self, 'uv_absolute_3do_2_1')
         layout.prop(self, 'vertex_colors')
         layout.prop(self, 'import_radius_objects')
-        layout.prop(self, 'preserve_order')
+
         mat_layout = layout.box().column()
         mat_layout.label(text='Texture(s)')
         mat_dir_layout = mat_layout.box().column()
-        mat_dir_layout.label(text='Directory')
+        mat_dir_layout.label(text='MAT Directory')
         mat_dir_layout.prop(self, 'mat_dir', text='')
         cmp_file_layout = mat_layout.box().column()
         cmp_file_layout.label(text='ColorMap File (JKDF2 & MOTS)')
