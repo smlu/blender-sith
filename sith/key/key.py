@@ -37,7 +37,7 @@ class KeyFlag(Flag):
 
 @unique
 class KeyMarkerType(IntEnum):
-    Finish               = 0 # Marker 0 denotes the end of the animation
+    Finished             = 0 # Marker 0 denotes the end of the animation
     LeftFoot             = 1
     RightFoot            = 2
     Attack               = 3
@@ -84,7 +84,7 @@ class KeyframeFlag(IntEnum):
 class KeyMarker:
     def __init__(self):
         self.f : float = 0.0
-        self.t : KeyMarkerType = KeyMarkerType.Finish
+        self.t : KeyMarkerType = KeyMarkerType.Finished
 
     @property
     def frame(self) -> float:
