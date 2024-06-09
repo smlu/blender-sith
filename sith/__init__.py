@@ -412,10 +412,16 @@ class ImportKey(bpy.types.Operator, ImportHelper):
         default     = True,
     )
 
+    named_markers = bpy.props.BoolProperty(
+        name        = 'Import markers by name',
+        description = 'Import frame markers by name rather than by number.',
+        default     = False,
+    )
+
     def execute(self, context):
         try:
             scene = context.scene
-            importKey(self.filepath, scene, self.clear_scene, self.validate_active_object)
+            importKey(self.filepath, scene, self.clear_scene, self.validate_active_object, self.named_markers)
         except Exception as e:
             print(f"\nError: An exception was encountered while importing keyframe '{os.path.basename(self.filepath)}'!\nError: {e}")
             self.report({'ERROR'}, f'Error: {e}')

@@ -31,7 +31,7 @@ from typing import Optional
 from .key import *
 from . import keyLoader
 
-def importKey(keyPath, scene: bpy.types.Scene, clearScene: bool, validateActiveObject: bool):
+def importKey(keyPath, scene: bpy.types.Scene, clearScene: bool, validateActiveObject: bool, namedMarkers: bool):
     with BenchmarkMeter(' done in {:.4f} sec.'):
         print("importing KEY: %r..." % (keyPath), end="")
 
@@ -62,7 +62,10 @@ def importKey(keyPath, scene: bpy.types.Scene, clearScene: bool, validateActiveO
             scene.sith_key_types = key.nodeTypes.hex()
 
         for m in key.markers:
-            scene.timeline_markers.new(m.type.name, m.frame)
+            marker_name = str(m.type.value)
+            if namedMarkers:
+                marker_name = m.type.name
+            scene.timeline_markers.new(marker_name, m.frame)
 
         for node in key.nodes:
             # Get object to animate
