@@ -616,7 +616,8 @@ class Mesh3doFacePanel(bpy.types.Panel):
         # only show panel if in edit with face selection mode enabled and actively selected face
         if (context.edit_object is not None):
             bm = bmesh.from_edit_mesh(context.edit_object.data)
-            return 'FACE' in bm.select_mode and isinstance(bm.select_history.active, bmesh.types.BMFace)
+            return 'FACE' in bm.select_mode and isinstance(bm.select_history.active, bmesh.types.BMFace) \
+                and len(bm.select_history) == 1 # temp fix; disable mutliselection due to issues with property edit notification
         return False
 
     @staticmethod
@@ -629,26 +630,26 @@ class Mesh3doFacePanel(bpy.types.Panel):
         bm = bmesh.from_edit_mesh(context.edit_object.data)
         bmMeshInit3doLayers(bm)
 
-        face    = bm.faces.active
-        enabled = face is not None
+        aface   = bm.faces.active
+        enabled = aface is not None
         if enabled:
-            fid = self._get_face_id(face)
+            fid = self._get_face_id(aface)
             if wm_fl.face_id != fid: # init Mesh3doFaceLayer properties aka hack to draw BMFace custom properties
                 wm_fl.face_id      = fid
-                wm_fl.type         = bmFaceGetType(face, bm).toSet()
-                wm_fl.geo_mode     = bmFaceGetGeometryMode(face, bm).name
-                wm_fl.light_mode   = bmFaceGetLightMode(face, bm).name
-                wm_fl.texture_mode = bmFaceGetTextureMode(face, bm).name
-                wm_fl.extra_light  = bmFaceGetExtraLight(face, bm)
+                wm_fl.type         = bmFaceGetType(aface, bm).toSet()
+                wm_fl.geo_mode     = bmFaceGetGeometryMode(aface, bm).name
+                wm_fl.light_mode   = bmFaceGetLightMode(aface, bm).name
+                wm_fl.texture_mode = bmFaceGetTextureMode(aface, bm).name
+                wm_fl.extra_light  = bmFaceGetExtraLight(aface, bm)
 
             # Copy 3DO properties of BMFace from Mesh3doFaceLayer properties
-            bmFaceSetType(face, bm, FaceType.fromSet(wm_fl.type))
-            bmFaceSetGeometryMode(face, bm, GeometryMode[wm_fl.geo_mode])
-            bmFaceSetLightMode(face, bm, LightMode[wm_fl.light_mode])
-            bmFaceSetTextureMode(face, bm, TextureMode[wm_fl.texture_mode])
-            bmFaceSetExtraLight(face, bm, Vector4f(*wm_fl.extra_light))
+            bmFaceSetType(aface, bm, FaceType.fromSet(wm_fl.type))
+            bmFaceSetGeometryMode(aface, bm, GeometryMode[wm_fl.geo_mode])
+            bmFaceSetLightMode(aface, bm, LightMode[wm_fl.light_mode])
+            bmFaceSetTextureMode(aface, bm, TextureMode[wm_fl.texture_mode])
+            bmFaceSetExtraLight(aface, bm, Vector4f(*wm_fl.extra_light))
         else:
-            wm_fl.face = -1
+            wm_fl.face_id = -1
 
         layout       = self.layout
         box          = layout.box()
@@ -660,7 +661,6 @@ class Mesh3doFacePanel(bpy.types.Panel):
         box.prop(wm_fl, 'light_mode'  , text='Lighting')
         box.prop(wm_fl, 'texture_mode', text='Texture')
         box.prop(wm_fl, 'extra_light' , text='Extra Light')
-
 
 classes = (
     Mesh3doFaceLayer,
