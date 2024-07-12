@@ -20,6 +20,7 @@
 # SOFTWARE.
 
 from enum import IntEnum, unique
+from collections import defaultdict
 from sith.types import (
     Flag,
     Vector2f,
@@ -518,6 +519,7 @@ class Model3do:
                     return idx
             return -1
 
+        kids_map: Dict[int, List[int]] = defaultdict(list)
         from functools import cmp_to_key
         nodes = sorted(self.meshHierarchy, key=cmp_to_key(lambda n1, n2: n1.idx - n2.idx))
         for idx, node in enumerate(nodes):
@@ -531,22 +533,26 @@ class Model3do:
                 if pnum < 0:
                     pnum = get_node_seq(pnode, nodes)
                 node.parentIdx = pnum
+                kids_map[node.parentIdx].append(node.idx)
 
-            # Update child
-            if node.firstChildIdx > -1:
-                cnode = self.meshHierarchy[node.firstChildIdx]
-                cnum  = cnode.idx
-                if cnum < 0:
-                    cnum = get_node_seq(cnode, nodes)
-                node.firstChildIdx = cnum
+        # Now update the indices of children and siblings in ascending order
+        for pidx, kids in kids_map.items():
+            if len(kids) == 0:
+                nodes[pidx].firstChildIdx = -1 # make sure parent has no children
+                continue
 
-            # Update sibling
-            if node.siblingIdx > -1:
-                snode = self.meshHierarchy[node.siblingIdx]
-                snum  = snode.idx
-                if snum < 0:
-                    snum = get_node_seq(snode, nodes)
-                node.siblingIdx = snum
+            # Sort children nodes in ascending order
+            kids = sorted(kids)
+            nodes[pidx].firstChildIdx = kids[0] # set first child to parent
 
-        # set new hierarchy list
+            # Update siblings
+            for i in range(len(kids)):
+                current_index = kids[i]
+                if i < len(kids) - 1:
+                    next_index = kids[i + 1]
+                    nodes[current_index].siblingIdx = next_index
+                else:
+                    nodes[current_index].siblingIdx = -1 # we hit the leaf node with no more siblings
+
+        # Assign the new hierarchy list
         self.meshHierarchy = nodes
