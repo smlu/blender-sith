@@ -24,7 +24,6 @@ import numpy as np
 
 from sith.types import BenchmarkMeter
 from sith.utils import *
-from typing import List
 from typing import Dict, List, Optional
 
 from .model3do import *
@@ -38,7 +37,7 @@ kDefaultVertexColor = Vector4f(0.0, 0.0, 0.0, 1.0)
 kHNDefaultFlags     = 0
 kHNDefaultType      = 0
 
-def export3do(obj: bpy.types.Object, path: str, version: Model3doFileVersion, uvAbsolute: bool, exportVertexColors: bool):
+def export3do(obj: bpy.types.Object, path: str, version: Model3doFileVersion, uvAbsolute: bool, exportVertexColors: bool, sync_mesh_list: bool):
     with BenchmarkMeter(' done in {:.4f} sec.'):
         print("exporting 3DO: %r..." % (path), end="")
 
@@ -47,7 +46,7 @@ def export3do(obj: bpy.types.Object, path: str, version: Model3doFileVersion, uv
         if not isValidNameLen(model_name):
             raise ValueError(f"Export file name '{model_name}' is longer then {kMaxNameLen} chars!")
 
-        model3do = makeModel3doFromObj(model_name, obj, uvAbsolute=uvAbsolute, exportVertexColors=exportVertexColors)
+        model3do = makeModel3doFromObj(model_name, obj, uvAbsolute=uvAbsolute, exportVertexColors=exportVertexColors, sync_mesh_list=sync_mesh_list)
         header   = getExportFileHeader(f"3DO model '{os.path.basename(path)}'")
         model3doWriter.save3do(model3do, path, version, header)
 
@@ -309,7 +308,45 @@ def _get_model_radius(obj: bpy.types.Object, scale: mathutils.Vector = mathutils
     traverse_children(obj, scale)
     return ((max - min).length /2)
 
-def makeModel3doFromObj(name, obj: bpy.types.Object, uvAbsolute: bool = False, exportVertexColors: bool = False):
+def _sync_model_meshes(model: Model3do):
+    if not model.geosets:
+        return
+
+    # Verify that all geosets have the same number of meshes
+    mesh_count = len(model.geosets[0].meshes)
+    if not all(len(geoset.meshes) == mesh_count for geoset in model.geosets):
+        raise # Maybe print some error or warning
+
+    # Create a mapping of old indices to new indices based on the hierarchy
+    index_map: Dict[int, int] = {}
+    new_index = 0
+    for node in model.meshHierarchy:
+        if node.meshIdx >= 0:
+            index_map[node.meshIdx] = new_index
+            node.meshIdx = new_index # Update mesh index
+            new_index += 1
+
+    # Reorder meshes in each geoset
+    for geoset in model.geosets:
+        new_meshes: List[Optional[Mesh3do]] = [None] * mesh_count
+        for old_index, mesh in enumerate(geoset.meshes):
+            if old_index in index_map:
+                mesh.idx = index_map[old_index]
+                new_meshes[mesh.idx] = mesh
+
+        # Fill in any gaps with remaining meshes
+        remaining_meshes = [mesh for i, mesh in enumerate(geoset.meshes) if i not in index_map]
+        for i, slot in enumerate(new_meshes):
+            if slot is None:
+                if remaining_meshes:
+                    new_meshes[i] = remaining_meshes.pop(0)
+                    new_meshes[i].idx = i
+                # else:
+                #     raise ValueError(f"Not enough meshes to fill all slots in geoset")
+
+        geoset.meshes = new_meshes
+
+def makeModel3doFromObj(name: str, obj: bpy.types.Object, uvAbsolute: bool = False, exportVertexColors: bool = False, sync_mesh_list: bool = True):
     model = Model3do(name)
     model.geosets.append(Model3doGeoSet())
 
@@ -327,4 +364,6 @@ def makeModel3doFromObj(name, obj: bpy.types.Object, uvAbsolute: bool = False, e
             _model3do_add_obj(model, child, parent=obj, scale=obj.scale, uvAbsolute=uvAbsolute, exportVertexColors=exportVertexColors)
 
     model.reorderNodes()
+    if sync_mesh_list:
+        _sync_model_meshes(model)
     return model

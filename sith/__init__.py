@@ -259,7 +259,7 @@ class ImportModel3do(bpy.types.Operator, ImportHelper):
     preserve_order = bpy.props.BoolProperty(
         name        = 'Preserve Mesh Hierarchy',
         description = f"Preserve 3DO mesh hierarchy in Blender.\n\nIf enabled, the order of the imported mesh hierarchy will be preserved by prefixing the name of each mesh object with '{kNameOrderPrefix}<seq_number>_'.",
-        default     = True,
+        default     = False,
     )
 
     mat_dir = bpy.props.StringProperty(
@@ -274,12 +274,12 @@ class ImportModel3do(bpy.types.Operator, ImportHelper):
 
     def draw(self, context):
         layout = self.layout
-        layout.prop(self, 'preserve_order')
         layout.prop(self, 'set_3d_view')
         layout.prop(self, 'clear_scene')
         layout.prop(self, 'uv_absolute_3do_2_1')
         layout.prop(self, 'vertex_colors')
         layout.prop(self, 'import_radius_objects')
+        layout.prop(self, 'preserve_order')
 
         mat_layout = layout.box().column()
         mat_layout.label(text='Texture(s)')
@@ -357,6 +357,12 @@ class ExportModel3do(bpy.types.Operator, ExportHelper):
         default     = False,
     )
 
+    sync_mesh_list = bpy.props.BoolProperty(
+        name        = 'Sync Mesh List with Node Hierarchy',
+        description = 'Reorder the mesh list to match the order of the hierarchy node listt, ensuring that the mesh sequence numbers correspond exactly to the node sequence numbers.\n\nThis alignment preserves the original model''s structure and prevents potential issues where discrepancies could disrupt the model in the game.',
+        default     = True,
+    )
+
     obj = None
 
     def draw(self, context):
@@ -365,6 +371,7 @@ class ExportModel3do(bpy.types.Operator, ExportHelper):
         if self.version == Model3doFileVersion.Version2_1.name:
             layout.prop(self, 'absolute_uv')
         layout.prop(self, 'export_vert_colors')
+        layout.prop(self, 'sync_mesh_list')
 
     def invoke(self, context, event):
         self.obj = _get_export_obj(context, self.report, 'mesh')
@@ -378,7 +385,7 @@ class ExportModel3do(bpy.types.Operator, ExportHelper):
             version = Model3doFileVersion[self.version]
             if version != Model3doFileVersion.Version2_1:
                 self.absolute_uv = False
-            export3do(self.obj, self.filepath, version, self.absolute_uv, self.export_vert_colors)
+            export3do(self.obj, self.filepath, version, self.absolute_uv, self.export_vert_colors, self.sync_mesh_list)
         except (AssertionError, ValueError) as e:
             print(f"\nAn exception was encountered while exporting object '{self.obj.name}' to 3DO format!\nError: {e}")
             self.report({'ERROR'}, f'Error: {e}')
