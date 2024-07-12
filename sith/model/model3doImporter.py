@@ -56,6 +56,7 @@ def import3do(file_path: Union[Path, str], mat_dirs: List[Union[Path, str]] = []
             clearAllScenes()
 
         # Load model's textures
+        mat_dirs = _convert_to_absolute_paths(mat_dirs, os.path.dirname(file_path)) # convert relative paths to file_path base folder
         with BenchmarkMeter('Info: \nLoaded materials from files in {:.4f} sec.', enabled=False):
             importMaterials(model.materials, getDefaultMatFolders(file_path) + mat_dirs, cmp)
 
@@ -82,6 +83,18 @@ def import3do(file_path: Union[Path, str], mat_dirs: List[Union[Path, str]] = []
             group = bpy.data.groups.new(kGModel3do)
         group.objects.link(baseObj)
         return baseObj
+
+def _convert_to_absolute_paths(path_list: List[Union[Path, str]], cwd: Union[Path, str]) -> List[Union[Path, str]]:
+    absolute_paths: List[Union[Path, str]] = []
+    for path in path_list:
+        if not os.path.isabs(path):
+            # Convert to absolute path if it's relative
+            absolute_path = os.path.abspath(Path(cwd) / path)
+        else:
+            # Keep the path as it is if it's already absolute
+            absolute_path = path
+        absolute_paths.append(absolute_path)
+    return absolute_paths
 
 def _set_obj_rotation(obj, rotation):
     objSetRotation(obj, rotation)
