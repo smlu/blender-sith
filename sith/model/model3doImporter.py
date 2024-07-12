@@ -19,7 +19,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-import bpy, bmesh, mathutils
+import bpy, bmesh, mathutils, os
 from sith.types import BenchmarkMeter
 from sith.utils import *
 from typing import List
@@ -31,7 +31,7 @@ from .model3do import (
     Mesh3do
 )
 
-def import3do(file_path, mat_dirs = [], cmp_file = '', uvAbsolute_2_1 = True, importVertexColors = True, importRadiusObj = False, preserveOrder = True, clearScene = True):
+def import3do(file_path: Union[Path, str], mat_dirs: List[Union[Path, str]] = [], cmp_file: str = '', uvAbsolute_2_1: bool = True, importVertexColors: bool = True, importRadiusObj: bool = False, preserveOrder: bool = True, clearScene: bool = True) -> bpy.types.Object:
     with BenchmarkMeter(' done in {:.4f} sec.'):
         print("importing 3DO: %r..." % (file_path), end="")
 
@@ -91,7 +91,7 @@ def _set_obj_pivot(obj, pivot):
     if  obj.type == 'MESH' and obj.data is not None and pvec.length > 0:
         obj.data.transform(mathutils.Matrix.Translation(pvec))
 
-def _make_radius_obj(name, parent, radius):
+def _make_radius_obj(name: str, parent, radius: float):
     if name in bpy.data.meshes:
         mesh = bpy.data.meshes[name]
     else:
@@ -108,16 +108,16 @@ def _make_radius_obj(name, parent, radius):
     bm.to_mesh(mesh)
     bm.free()
 
-def _set_model_radius(obj, radius):
+def _set_model_radius(obj: bpy.types.Object, radius: float):
     _make_radius_obj(kModelRadius + obj.name, obj, radius)
 
-def _set_mesh_radius(obj, radius):
+def _set_mesh_radius(obj: bpy.types.Object, radius: float):
     _make_radius_obj(kMeshRadius + obj.name, obj, radius)
 
 def _make_mesh(mesh3do: Mesh3do, uvAbsolute: bool, vertexColors: bool, mat_list: List):
     mesh = bpy.data.meshes.new(mesh3do.name)
 
-    faces = []
+    faces: List[List[int]] = []
     for face in mesh3do.faces:
         faces += [face.vertexIdxs]
 
@@ -215,7 +215,7 @@ def _create_objects_from_model(model: Model3do, uvAbsolute: bool, geosetNum: int
             if importRadiusObj:
                 _set_mesh_radius(obj, mesh3do.radius)
 
-            obj.draw_type             = getDrawType(mesh3do.geometryMode)
+            obj.draw_type                  = getDrawType(mesh3do.geometryMode)
             obj.sith_model3do_light_mode   = mesh3do.lightMode.name
             obj.sith_model3do_texture_mode = mesh3do.textureMode.name
             obj.draw_bounds_type      = 'SPHERE'

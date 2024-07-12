@@ -19,12 +19,12 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-from doctest import ELLIPSIS_MARKER
 import os
 from enum import Enum
+from pathlib import Path
 from sith.text.tokenizer import TokenType, Tokenizer
 from sith.types import Vector4f
-from typing import Tuple
+from typing import Tuple, Union
 
 from .model3do import *
 
@@ -37,7 +37,7 @@ class Model3doFileVersion(float, Enum):
     def contains(cls, value):
         return value in cls._value2member_map_
 
-def load3do(filePath) -> Tuple[Model3do, Model3doFileVersion]:
+def load3do(filePath: Union[str, Path] ) -> Tuple[Model3do, Model3doFileVersion]:
     f = open(filePath, 'r', encoding='utf-8')
     tok = Tokenizer(f)
 

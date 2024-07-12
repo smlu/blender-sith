@@ -24,8 +24,9 @@ import numpy as np
 
 from collections import namedtuple
 from enum import IntEnum
+from pathlib import Path
 from struct import Struct
-from typing import List, Optional, Tuple
+from typing import BinaryIO, List, NamedTuple, Optional, Union
 from .cmp import ColorMap
 
 file_magic        = b'MAT '
@@ -33,7 +34,6 @@ required_version  = 0x32
 color_tex_width   = 32
 color_tex_height  = 32
 max_texture_slots = 18 # blender 2.79 limitation
-
 
 class MatType(IntEnum):
     Color   = 0
@@ -44,74 +44,89 @@ class ColorMode(IntEnum):
     RGB      = 1
     RGBA     = 2
 
-color_format = namedtuple('color_format', [
-    'color_mode',
-    'bpp',
-    'red_bpp', 'green_bpp', 'blue_bpp',
-    'red_shl', 'green_shl', 'blue_shl',
-    'red_shr', 'green_shr', 'blue_shr',
-    'alpha_bpp', 'alpha_shl', 'alpha_shr'
-])
+class ColorFormat(NamedTuple):
+    color_mode: ColorMode
+    bpp: int
+    red_bpp: int
+    green_bpp: int
+    blue_bpp: int
+    red_shl: int
+    green_shl: int
+    blue_shl: int
+    red_shr: int
+    green_shr: int
+    blue_shr: int
+    alpha_bpp: int
+    alpha_shl: int
+    alpha_shr: int
+
 cf_serf = Struct('<14I')
 
-mat_header = namedtuple('mat_header', [
-    'magic',
-    'version',
-    'type',
-    'record_count',
-    'texture_count',
-    'color_info'
-])
+class MatHeader(NamedTuple):
+    magic: bytes
+    version: int
+    type: int
+    record_count: int
+    texture_count: int
+    color_info: ColorFormat
+
 mh_serf = Struct('<4siIii')
 
-mat_color_record = namedtuple('mat_color_record', [
-    'type',
-    'color_index',
-    'unknown_1',
-    'unknown_2',
-    'unknown_3',
-    'unknown_4',
-])
+class MatColorRecord(NamedTuple):
+    type: int
+    color_index: int
+    unknown_1: int
+    unknown_2: int
+    unknown_3: int
+    unknown_4: int
+
 mcr_serf = Struct('<6i')
 
-mat_texture_record = namedtuple('mat_texture_record', [
-    'type',
-    'color_index',
-    'unknown_1',
-    'unknown_2',
-    'unknown_3',
-    'unknown_4',
-    'unknown_5',
-    'unknown_6',
-    'unknown_7',
-    'cel_idx'
-])
+class MatTextureRecord(NamedTuple):
+    type: int
+    color_index: int
+    unknown_1: int
+    unknown_2: int
+    unknown_3: int
+    unknown_4: int
+    unknown_5: int
+    unknown_6: int
+    unknown_7: int
+    cel_idx: int
+
 mtr_serf = Struct('<10i')
 
-mat_mipmap_header = namedtuple('mat_mipmap_header', [
-    'width',
-    'height',
-    'transparent',
-    'unknown_1',
-    'transparent_color_num',
-    'levels',
-])
+class MatMipmapHeader(NamedTuple):
+    width: int
+    height: int
+    transparent: int
+    unknown_1: int
+    transparent_color_num: int
+    levels: int
+
 mmm_serf = Struct('<6i')
 
-mipmap = namedtuple("mipmap", [
-    'width',
-    'height',
-    'color_info',
-    'pixel_data_array'
-])
+class Pixel(NamedTuple):
+    red: float
+    green: float
+    blue: float
+    alpha: float
+
+Pixels = List[Pixel]
+
+class Mipmap(NamedTuple):
+    width: int
+    height: int
+    color_info: ColorFormat
+    pixel_data_array: Optional[List[Pixels]]
 
 _linear_coef = 1.0 / 255.0
 
-def _read_header(f):
-    rh = bytearray(f.read(mh_serf.size))
+def _read_header(f: BinaryIO):
+    rh  = bytearray(f.read(mh_serf.size))
     rcf = bytearray(f.read(cf_serf.size))
-    cf = color_format._make(cf_serf.unpack(rcf))
-    h = mat_header(*mh_serf.unpack(rh), cf)
+    cf  = ColorFormat._make(cf_serf.unpack(rcf))
+    h   = MatHeader(*mh_serf.unpack(rh), cf)
 
     if h.magic != file_magic:
         raise ImportError("Invalid MAT file")
@@ -129,20 +144,19 @@ def _read_header(f):
         raise ImportError(f"Invalid color depth: {h.color_info.bpp}")
     return h
 
-def _read_records(f, h: mat_header) -> List[Tuple[mat_color_record, mat_texture_record]]:
-    rh_list = []
+def _read_records(f: BinaryIO, h: MatHeader) -> List[Union[MatColorRecord, MatTextureRecord]]:
+    rh_list: List[Union[MatColorRecord, MatTextureRecord]] = []
     for _ in range(0, h.record_count):
         if h.type == MatType.Color:
-            mcr_serf
             mrh = mcr_serf.unpack(bytearray(f.read(mcr_serf.size)))
-            record = mat_color_record._make(mrh)
+            record = MatColorRecord._make(mrh)
         else:
             mrh = mtr_serf.unpack(bytearray(f.read(mtr_serf.size)))
-            record = mat_texture_record._make(mrh)
+            record = MatTextureRecord._make(mrh)
         rh_list.append(record)
     return rh_list
 
-def _decode_indexed_pixel_data(pd, width, height, cmp: ColorMap, transparent_color: Optional[int] = None) -> List[Tuple[float, float, float, float]]:
+def _decode_indexed_pixel_data(pd, width: int, height: int, cmp: ColorMap, transparent_color: Optional[int] = None) -> Pixels:
     idx = np.frombuffer(pd, dtype=np.uint8) # image index buffer
     pal = np.insert(cmp.palette, 3, 255, axis=1) # expand palette to contain 255 for alpha
     if transparent_color is not None:
@@ -157,14 +171,13 @@ def _decode_indexed_pixel_data(pd, width, height, cmp: ColorMap, transparent_col
     ).flatten() * _linear_coef # get byte array and convert to linear
     return raw_img
 
-
-def _get_pixel_data_size(width, height, bpp):
+def _get_pixel_data_size(width: int, height: int, bpp: int) -> int:
     return int(abs(width * height) * (bpp /8))
 
-def _get_color_mask(bpc):
+def _get_color_mask(bpc: int) -> int:
     return 0xFFFFFFFF >> (32 - bpc)
 
-def _decode_rgba_pixel_data(pd, width, height, ci: color_format) -> List[Tuple[float, float, float, float]]:
+def _decode_rgba_pixel_data(pd, width: int, height: int, ci: ColorFormat) -> Pixels:
     type = np.uint8 if (ci.bpp == 8 or ci.bpp == 24) else np.uint16 if ci.bpp == 16 else np.uint32
     raw_img = np.frombuffer(pd, type)
     if ci.bpp == 24: # expand array to contain 255 for alpha
@@ -196,44 +209,48 @@ def _decode_rgba_pixel_data(pd, width, height, ci: color_format) -> List[Tuple[f
     ).flatten() * _linear_coef # get byte array and convert to linear
     return raw_img
 
-def _read_pixel_data(f, width, height, ci: color_format, cmp: Optional[ColorMap] = None, transparent_color: Optional[int] = None) -> List[Tuple[float, float, float, float]]:
+def _read_pixel_data(f: BinaryIO, width: int, height: int, ci: ColorFormat, cmp: Optional[ColorMap] = None, transparent_color: Optional[int] = None) -> Pixels:
     pd_size = _get_pixel_data_size(width, height, ci.bpp)
     pd = bytearray(f.read(pd_size))
     if ci.color_mode == ColorMode.Indexed or ci.bpp == 8:
-        return _decode_indexed_pixel_data(pd, width, height, cmp, transparent_color)
+        if not cmp:
+            print("  Missing ColorMap, pixel data not decoded!")
+            return []
+        else:
+            return _decode_indexed_pixel_data(pd, width, height, cmp, transparent_color)
     # RGB(A)
     return _decode_rgba_pixel_data(pd, width, height, ci)
 
-def _read_mipmap(f, ci: color_format, cmp: Optional[ColorMap] = None) -> List[List[Tuple[float, float, float, float]]]:
+def _read_mipmap(f: BinaryIO, ci: ColorFormat, cmp: Optional[ColorMap] = None) -> Mipmap:
     """
     Reads MipMap textures and returns List of mipmap pixel data.
     If cmp is required and is None then no pixel data is set
     """
     # Read texture header
     mmh_raw = mmm_serf.unpack(bytearray(f.read(mmm_serf.size)))
-    mmh     = mat_mipmap_header._make(mmh_raw)
+    mmh     = MatMipmapHeader._make(mmh_raw)
 
-    pd = None
+    pd: Optional[List[Pixels]] = None
     if (ci.color_mode != ColorMode.Indexed and ci.bpp != 8) or cmp:
         # Read MipMap pixel data
         transparent_color =  mmh.transparent_color_num if ci.bpp == 8 and mmh.transparent else None
         pd = []
         for i in range(0, mmh.levels):
-            w = mmh.width >> i
-            h = mmh.height >> i
+            w: int = mmh.width >> i
+            h: int = mmh.height >> i
             pd += [_read_pixel_data(f, w, h, ci, cmp, transparent_color)]
     else:
         print("  Missing ColorMap, only texture size will be loaded!")
 
-    return mipmap(mmh.width, mmh.height, ci, pd)
+    return Mipmap(mmh.width, mmh.height, ci, pd)
 
-def _get_tex_name(idx, mat_name):
+def _get_tex_name(idx: int, mat_name: str) -> str:
     name = os.path.splitext(mat_name)[0]
     if idx > 0:
         name += '_cel_' + str(idx)
     return name
 
-def _mat_add_new_texture(mat: bpy.types.Material, width: int, height: int, texIdx: int, pixdata: Optional[List[Tuple[float, float, float, float]]], hasTransparency: bool):
+def _mat_add_new_texture(mat: bpy.types.Material, width: int, height: int, texIdx: int, pixdata: Optional[Pixels], hasTransparency: bool):
     img_name = _get_tex_name(texIdx, mat.name)
     if not img_name in bpy.data.images:
         img = bpy.data.images.new(
@@ -269,10 +286,10 @@ def _mat_add_new_texture(mat: bpy.types.Material, width: int, height: int, texId
 def _max_cels(len: int) -> int:
     return min(len, max_texture_slots)
 
-def _make_color_textures(mat: bpy.types.Material, records: List[mat_color_record], cmp: Optional[ColorMap]): # cmp is None then blank 64x64 textures is created
+def _make_color_textures(mat: bpy.types.Material, records: List[MatColorRecord], cmp: Optional[ColorMap]): # cmp is None then blank 64x64 textures is created
     # Creates 1 palette pixel color texture of size color_tex_height * color_tex_width
     for idx, r in zip(range(_max_cels(len(records))), records):
-        pixmap = None
+        pixmap: Optional[Pixels] = None
         if cmp:
             rgba   = (cmp.palette[r.color_index]) + (255,)
             pixmap = np.full((color_tex_height, color_tex_width, 4), rgba) \
@@ -280,10 +297,10 @@ def _make_color_textures(mat: bpy.types.Material, records: List[mat_color_record
         else:
             print("  Missing ColorMap, only texture size will be loaded!")
 
-        # Make new texture from pixelmap
+        # Make new texture from Pixels
         _mat_add_new_texture(mat, color_tex_width, color_tex_height, idx, pixmap, hasTransparency=False)
 
-def importMat(filePath, cmp: Optional[ColorMap] = None):
+def importMat(filePath: Union[Path, str], cmp: Optional[ColorMap] = None) -> bpy.types.Material:
     f = open(filePath, 'rb')
     h = _read_header(f)
     records = _read_records(f, h)
@@ -306,7 +323,7 @@ def importMat(filePath, cmp: Optional[ColorMap] = None):
     if h.type == MatType.Color:
         _make_color_textures(mat, records, cmp)
     else: # MAT contains textures
-        use_transparency        =  True if h.color_info.alpha_bpp > 0 else False
+        use_transparency        = True if h.color_info.alpha_bpp > 0 else False
         mat.use_transparency    = use_transparency
         mat.transparency_method = 'Z_TRANSPARENCY'
         mat.alpha               = 0.0

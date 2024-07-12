@@ -21,13 +21,14 @@
 
 from .model3do import *
 from .model3doLoader import Model3doFileVersion
+from pathlib import Path
 from sith.types import Vector4f
 from sith.text.serutils import *
-from typing import Tuple, List
+from typing import List, TextIO, Tuple, Union
 
 _file_magic = "3DO"
 
-def save3do(model: Model3do, filePath, version: Model3doFileVersion, headerComment):
+def save3do(model: Model3do, filePath: Union[Path, str], version: Model3doFileVersion, headerComment: str):
     """ Saves `model` to 3DO file """
     f = open(filePath, 'w', encoding='utf-8')
 
@@ -39,7 +40,7 @@ def save3do(model: Model3do, filePath, version: Model3doFileVersion, headerComme
     f.flush()
     f.close()
 
-def _vector_to_str(vector: Tuple, compact = True, align_width = 10):
+def _vector_to_str(vector: Tuple[float, ...], compact: bool = True, align_width: int = 10) -> str:
     out = "" if compact else '('
     if compact:
         format_text = " {:>" + str(align_width) + ".6f}"
@@ -55,10 +56,10 @@ def _vector_to_str(vector: Tuple, compact = True, align_width = 10):
         out += ')'
     return out
 
-def _radius_to_str(radius):
+def _radius_to_str(radius: float) -> str:
     return "{:>11.6f}".format(radius)
 
-def _write_section_header(file, model: Model3do, headerComment, version: Model3doFileVersion):
+def _write_section_header(file: TextIO, model: Model3do, headerComment: str, version: Model3doFileVersion):
     writeCommentLine(file, headerComment)
     writeNewLine(file)
 
@@ -66,7 +67,7 @@ def _write_section_header(file, model: Model3do, headerComment, version: Model3d
     writeKeyValue(file, _file_magic, version.value)
     writeNewLine(file)
 
-def _write_section_resources(file, model: Model3do):
+def _write_section_resources(file: TextIO, model: Model3do):
     num_mats = len(model.materials)
 
     writeSectionTitle(file, "modelresource")
@@ -81,7 +82,7 @@ def _write_section_resources(file, model: Model3do):
     writeNewLine(file)
     writeNewLine(file)
 
-def _color_to_str(color: Vector4f, version: Model3doFileVersion, compact = True, align_width = 0) -> str:
+def _color_to_str(color: Vector4f, version: Model3doFileVersion, compact: bool = True, align_width: int = 0) -> str:
     if version == Model3doFileVersion.Version2_1:
         color = tuple([(color.x + color.y + color.z) /3])
         compact = True
@@ -89,7 +90,7 @@ def _color_to_str(color: Vector4f, version: Model3doFileVersion, compact = True,
         color = color[0:3]
     return _vector_to_str(color, compact=compact, align_width=align_width)
 
-def _write_vertices(file, vertices, vertices_color, version: Model3doFileVersion):
+def _write_vertices(file: TextIO, vertices, vertices_color, version: Model3doFileVersion):
     writeKeyValue(file, "vertices", len(vertices))
     writeNewLine(file)
 
@@ -103,7 +104,7 @@ def _write_vertices(file, vertices, vertices_color, version: Model3doFileVersion
     writeNewLine(file)
     writeNewLine(file)
 
-def _write_tex_vertices(file, vertices):
+def _write_tex_vertices(file: TextIO, vertices):
     writeKeyValue(file, "texture vertices", len(vertices))
     writeNewLine(file)
 
@@ -115,7 +116,7 @@ def _write_tex_vertices(file, vertices):
     writeNewLine(file)
     writeNewLine(file)
 
-def _write_vert_normals(file, normals):
+def _write_vert_normals(file: TextIO, normals):
     writeLine(file, "vertex normals".upper())
     writeNewLine(file)
 
@@ -135,14 +136,14 @@ def _face_vertx_to_str(vert_idxs: List[int], text_vert_idxs: List[int]):
         out += "{:>3}, {:>2} ".format(vert_idxs[i], text_vert_idxs[i])
     return out
 
-def _write_faces(file, faces: List[Mesh3doFace], version: Model3doFileVersion):
+def _write_faces(file: TextIO, faces: List[Mesh3doFace], version: Model3doFileVersion):
     writeKeyValue(file, "faces", len(faces))
     writeNewLine(file)
 
     writeCommentLine(file, " num:  material:   type:  geo:  light:   tex:  extralight:  verts:")
-    face_normals = []
+    face_normals: List[Vector3f] = []
     for idx, face in enumerate(faces):
-        row = '{:>6}:'.format(idx)
+        row  = '{:>6}:'.format(idx)
         row += '{:>10}'.format(face.materialIdx)
         row += '  0x{:04x}'.format(face.type)
         row += '{:>6}'.format(face.geometryMode)
@@ -169,7 +170,7 @@ def _write_faces(file, faces: List[Mesh3doFace], version: Model3doFileVersion):
     writeNewLine(file)
     writeNewLine(file)
 
-def _write_mesh(file, mesh: Mesh3do, version: Model3doFileVersion):
+def _write_mesh(file: TextIO, mesh: Mesh3do, version: Model3doFileVersion):
     writeCommentLine(file, "Mesh definition")
     writeKeyValue(file, "mesh", mesh.idx)
     writeNewLine(file)
@@ -191,7 +192,7 @@ def _write_mesh(file, mesh: Mesh3do, version: Model3doFileVersion):
     _write_vert_normals(file, mesh.normals)
     _write_faces(file, mesh.faces, version)
 
-def _write_section_geometry(file, model: Model3do, version: Model3doFileVersion):
+def _write_section_geometry(file: TextIO, model: Model3do, version: Model3doFileVersion):
     writeSectionTitle(file, "geometrydef")
 
     writeCommentLine(file, "Object radius")
@@ -219,7 +220,7 @@ def _write_section_geometry(file, model: Model3do, version: Model3doFileVersion)
         for mesh in geoset.meshes:
             _write_mesh(file, mesh, version)
 
-def _write_section_hierarchydef(file, model: Model3do):
+def _write_section_hierarchydef(file: TextIO, model: Model3do):
     writeSectionTitle(file, "hierarchydef")
 
     writeCommentLine(file, "Hierarchy node list")

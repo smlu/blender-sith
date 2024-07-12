@@ -26,7 +26,7 @@ from sith.types import (
     Vector3f,
     Vector4f
 )
-from typing import List
+from typing import Dict, List
 
 @unique
 class FaceType(Flag):
@@ -328,7 +328,7 @@ class Model3doGeoSet:
         self.mesh_list = meshes
 
 class Mesh3doNode:
-    def __init__(self, name =""):
+    def __init__(self, name: str = ""):
         self._idx: int           = -1
         self.f: Mesh3doNodeFlags = Mesh3doNodeFlags.Nothing
         self.t: Mesh3doNodeType  = Mesh3doNodeType.Nothing
@@ -512,7 +512,7 @@ class Model3do:
         """
         Reorders nodes by their sequence number
         """
-        def get_node_seq(node, nodes):
+        def get_node_seq(node: Mesh3doNode, nodes: List[Mesh3doNode]):
             for idx,n in enumerate(nodes):
                 if n == node:
                     return idx

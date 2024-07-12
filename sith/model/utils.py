@@ -21,10 +21,11 @@
 
 import bpy, bmesh, mathutils, math, re
 
+from pathlib import Path
 from sith.material import ColorMap, importMat
 from sith.types import Vector3f, Vector4f
 from sith.utils import *
-from typing import List
+from typing import List, Optional, Union
 
 from .model3do import (
     FaceType,
@@ -46,7 +47,7 @@ kModelRadius       = "MODEL_RADIUS_"
 kNameOrderPrefix   = "no"
 
 
-def bmFaceSeqGetLayerString(faces: bmesh.types.BMFaceSeq, name: str, makeLayer=True) -> bmesh.types.BMLayerItem:
+def bmFaceSeqGetLayerString(faces: bmesh.types.BMFaceSeq, name: str, makeLayer: bool = True) -> Optional[bmesh.types.BMLayerItem]:
     return faces.layers.string.get(name) or (faces.layers.string.new(name) if makeLayer else None)
 
 def __bmface_get_int_property(face: bmesh.types.BMFace, tag: bmesh.types.BMLayerItem, default: int) -> int:
@@ -162,32 +163,31 @@ def bmFaceSetExtraLight(face: bmesh.types.BMFace, bmesh: bmesh.types.BMesh, colo
     tag = bmFaceSeqGetLayerString(bmesh.faces, k3doFaceExtraLight, makeLayer=False)
     __bmface_set_vector4_property(face, tag, color)
 
-
-def makeOrderedName(name, order, maxOrder):
+def makeOrderedName(name: str, order: int, maxOrder: int) -> str:
     padding = len(str(maxOrder))
     name_format = "{}" + "{:0" + str(padding) + "d}" + "_{}"
     return name_format.format(kNameOrderPrefix, order, name)
 
-def isOrderPrefixed(name):
-    return re.match(f"^{kNameOrderPrefix}([0-9]+)_", name)
+def isOrderPrefixed(name: str) -> bool:
+    return re.match(f"^{kNameOrderPrefix}([0-9]+)_", name) is not None
 
-def getOrderedNameIdx(name):
+def getOrderedNameIdx(name: str) -> int:
     str_idx = re.findall(f"^{kNameOrderPrefix}([0-9]+)_", name)[0]
     return int(str_idx)
 
-def stripOrderPrefix(name):
+def stripOrderPrefix(name: str) -> str:
     return re.sub(f"^{kNameOrderPrefix}([0-9]+)_", "", name)
 
-def _get_scene_obj(name):
+def _get_scene_obj(name: str) -> Optional[bpy.types.Object]:
     try:
         return bpy.context.scene.objects[name]
     except:
         return None
 
-def getModelRadiusObj(obj):
+def getModelRadiusObj(obj: bpy.types.Object) -> Optional[bpy.types.Object]:
     return _get_scene_obj(kModelRadius + stripOrderPrefix(obj.name))
 
-def getMeshObjectByName(meshName: str):
+def getMeshObjectByName(meshName: str) -> bpy.types.Object:
     if meshName in bpy.context.scene.objects:
         return bpy.context.scene.objects[meshName]
     for o in bpy.context.scene.objects:
@@ -197,14 +197,14 @@ def getMeshObjectByName(meshName: str):
             return o
     raise ValueError(f"Could not find mesh object with name '{meshName}'")
 
-def getMeshRadiusObj(mesh):
+def getMeshRadiusObj(mesh) -> Optional[bpy.types.Object]: # mesh is Mesh3do
     try:
         obj = getMeshObjectByName(mesh.name)
         return _get_scene_obj(kMeshRadius + stripOrderPrefix(obj.name))
     except:
         return None
 
-def makeRotationMatrix(pitch, yaw, roll):
+def makeRotationMatrix(pitch: float, yaw: float, roll: float) -> mathutils.Matrix:
     p = math.radians(pitch)
     y = math.radians(yaw)
     r = math.radians(roll)
@@ -280,7 +280,7 @@ def objPivot(obj: bpy.types.Object) -> mathutils.Vector:
             return mathutils.Vector(pivot)
     return mathutils.Vector((0.0, 0.0, 0.0))
 
-def objRadius(obj, scale: mathutils.Vector = mathutils.Vector((1.0,) * 3)):
+def objRadius(obj, scale: mathutils.Vector = mathutils.Vector((1.0,) * 3)) -> float:
     r = 0
     if obj is not None and obj.type == 'MESH':
         for v in obj.data.vertices:
@@ -289,7 +289,7 @@ def objRadius(obj, scale: mathutils.Vector = mathutils.Vector((1.0,) * 3)):
                 r = vl
     return r
 
-def getDrawType(geo_mode: GeometryMode):
+def getDrawType(geo_mode: GeometryMode) -> str:
     if geo_mode == GeometryMode.NotDrawn:
         return 'BOUNDS'
     if geo_mode == GeometryMode.VertexOnly:
@@ -302,8 +302,8 @@ def getDrawType(geo_mode: GeometryMode):
         return 'TEXTURED'
     raise ValueError(f"Unknown geometry mode {geo_mode}")
 
-def objGeometryMode(obj: bpy.types.Object):
-    dt = obj.draw_type
+def objGeometryMode(obj: bpy.types.Object) -> GeometryMode:
+    dt: str = obj.draw_type
     if dt == 'BOUNDS':
         return GeometryMode.NotDrawn
     elif dt == 'WIRE':
@@ -314,7 +314,7 @@ def objGeometryMode(obj: bpy.types.Object):
         return GeometryMode.Texture
     raise ValueError(f'Unknown draw type {dt}')
 
-def importMaterials(mat_names: List, search_paths: List, cmp: ColorMap):
+def importMaterials(mat_names: List[Union[Path, str]], search_paths: List[Union[Path, str]], cmp: ColorMap):
     def skip_loading_mat(mat):
         for s in mat.texture_slots:
             if s is not None and s.texture is not None:

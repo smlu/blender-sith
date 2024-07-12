@@ -31,7 +31,7 @@ from typing import Optional
 from .key import *
 from . import keyLoader
 
-def importKey(keyPath, scene: bpy.types.Scene, clearScene: bool, validateActiveObject: bool, namedMarkers: bool):
+def importKey(keyPath: str, scene: bpy.types.Scene, clearScene: bool, validateActiveObject: bool, namedMarkers: bool):
     with BenchmarkMeter(' done in {:.4f} sec.'):
         print("importing KEY: %r..." % (keyPath), end="")
 
@@ -41,10 +41,10 @@ def importKey(keyPath, scene: bpy.types.Scene, clearScene: bool, validateActiveO
         obj = scene.objects.active
         if obj:
             obj = _get_parent(obj)
-            if validateActiveObject and not _check_obj(obj, key.nodes, key.joints):
+            if validateActiveObject and not _check_obj(obj, key.nodes, key.numJoints):
                 raise ValueError(f"Selected object '{obj.name}' doesn't contain all required nodes to animate!")
         else:
-            obj = _find_anim_obj_in_scene(scene, key.nodes, key.joints)
+            obj = _find_anim_obj_in_scene(scene, key.nodes, key.numJoints)
             if obj is None:
                 raise ValueError(f"Couldn't find a valid object to animate!")
 
@@ -52,7 +52,7 @@ def importKey(keyPath, scene: bpy.types.Scene, clearScene: bool, validateActiveO
             clearSceneAnimData(scene)
 
         scene.frame_start     = 0
-        scene.frame_end       = key.numFrames - 1 if clearScene else  max(scene.frame_end, key.numFrames - 1)
+        scene.frame_end       = key.numFrames - 1 if clearScene else max(scene.frame_end, key.numFrames - 1)
         scene.frame_step      = 1
         scene.render.fps      = key.fps
         scene.render.fps_base = 1.0
@@ -69,7 +69,7 @@ def importKey(keyPath, scene: bpy.types.Scene, clearScene: bool, validateActiveO
 
         for node in key.nodes:
             # Get object to animate
-            aobj = _find_joint_obj_for_anim_node(obj, node, key.joints)
+            aobj = _find_joint_obj_for_anim_node(obj, node, key.numJoints)
             if aobj is None:
                 print(f"Couldn't find joint object '{node.meshName}' to animate!")
                 continue
@@ -121,13 +121,13 @@ def _find_joint_obj_for_anim_node(obj: bpy.types.Object, node: KeyNode, maxJoint
             return jobj
     return None
 
-def _check_obj(obj, nodes: List[KeyNode], maxJoints: int ) -> bool:
+def _check_obj(obj, nodes: List[KeyNode], maxJoints: int) -> bool:
     for node in nodes:
         if _find_joint_obj_for_anim_node(obj, node, maxJoints) is None:
             return False
     return True
 
-def _find_anim_obj_in_scene(scene: bpy.types.Scene, nodes: List[KeyNode], maxJoints: int):
+def _find_anim_obj_in_scene(scene: bpy.types.Scene, nodes: List[KeyNode], maxJoints: int) -> Optional[bpy.types.Object]:
     for obj in scene.objects:
         if obj.parent is not None:
             continue
@@ -135,7 +135,7 @@ def _find_anim_obj_in_scene(scene: bpy.types.Scene, nodes: List[KeyNode], maxJoi
             return obj
     return None
 
-def _get_parent(obj):
+def _get_parent(obj: bpy.types.Object) -> bpy.types.Object:
     while obj.parent is not None:
         obj = obj.parent
     return obj
@@ -161,7 +161,7 @@ def _fix_obj_anim_interpolation(obj: bpy.types.Object):
         action.fcurves.find('rotation_quaternion', index = 3), # z
     ]
 
-    def _get_quat_at_frame(frame):
+    def _get_quat_at_frame(frame: int):
         return mathutils.Quaternion((
             fq[0].keyframe_points[frame].co[1], # w
             fq[1].keyframe_points[frame].co[1], # x
@@ -169,11 +169,11 @@ def _fix_obj_anim_interpolation(obj: bpy.types.Object):
             fq[3].keyframe_points[frame].co[1], # z
         ))
 
-    def _set_interpolation_for_frame(frame, interpolation):
+    def _set_interpolation_for_frame(frame: int, interpolation: str):
         for f in fq:
             f.keyframe_points[frame].interpolation = interpolation
 
-    def _negate_quat_at_frame(frame):
+    def _negate_quat_at_frame(frame: int):
         for f in fq:
             f.keyframe_points[frame].co[1] = -f.keyframe_points[frame].co[1]
 

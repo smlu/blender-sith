@@ -32,7 +32,7 @@ supported_versions = [
 
 class CmpHeader(NamedTuple):
     format = Struct('<4sii52s')
-    signature: str
+    signature: bytes
     version: int
     hasAlphaTable: bool
     unknown: bytes

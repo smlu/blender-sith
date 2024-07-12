@@ -21,7 +21,7 @@
 
 import bpy, os.path
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Union, Tuple
 
 from sith.material import ColorMap
 from sith import bl_info
@@ -44,12 +44,12 @@ def assertName(name: str):
     if not isASCII(name):
         raise AssertionError(f"name error: '{name}' len does not contain all ASCII chars")
 
-def findCmpFileInPath(cmpFile, path) -> Optional[Path]:
-    cmpFile  = Path(cmpFile)
-    modelDir = Path(os.path.dirname(path))
+def findCmpFileInPath(cmpFile: Union[Path, str], path: Union[Path, str]) -> Optional[Path]:
+    cmpFile = Path(cmpFile)
+    modelDir: Path = Path(os.path.dirname(path))
 
     # try model folder
-    path = modelDir/ cmpFile
+    path = modelDir / cmpFile
     if path.exists() and path.is_file():
         return path
 
@@ -75,7 +75,7 @@ def findCmpFileInPath(cmpFile, path) -> Optional[Path]:
 
     return None
 
-def getCmpFileOrDefault(filepath: str, searchPath: str) -> Optional[ColorMap]:
+def getCmpFileOrDefault(filepath: Union[Path, str], searchPath: Union[Path, str]) -> Optional[ColorMap]:
     cmp_file = Path(filepath)
     if len(filepath) == 0:
         cmp_file = Path(kDefaultCmp)
@@ -86,30 +86,30 @@ def getCmpFileOrDefault(filepath: str, searchPath: str) -> Optional[ColorMap]:
         cmp = ColorMap.load(cmp_file)
     return cmp
 
-def getDefaultMatFolders(model3doPath):
+def getDefaultMatFolders(model3doPath: Union[Path, str]):
     path1 = os.path.dirname(model3doPath)
     path2 = os.path.join(path1, 'mat')
     path3 = os.path.abspath(os.path.join(path1, os.pardir))
     path3 = os.path.join(path3, 'mat')
     return [path1, path2, path3]
 
-def getFilePathInDir(fileName: str, dirPath: str, insensitive=True):
+def getFilePathInDir(filename: str, dirPath: Union[Path, str], insensitive: bool = True):
     "Returns string file path in dir if file exists otherwise None"
 
-    if not os.path.isdir(dirPath) or len(fileName) < 1:
+    if not os.path.isdir(dirPath) or len(filename) < 1:
         return None
 
-    def file_exists(filePath):
+    def file_exists(filePath: str):
         return os.path.isfile(filePath) and os.access(filePath, os.R_OK)
 
-    filePath = os.path.join(dirPath, fileName)
+    filePath = os.path.join(dirPath, filename)
     if file_exists(filePath):
         return filePath
 
     if _fsys_case_sensitive and insensitive:
         # Try to find the file by lower-cased name
-        fileName = fileName.lower()
-        filePath = os.path.join(dirPath, fileName)
+        filename = filename.lower()
+        filePath = os.path.join(dirPath, filename)
         if file_exists(filePath):
             return filePath
 
@@ -118,7 +118,7 @@ def getFilePathInDir(fileName: str, dirPath: str, insensitive=True):
         # to other file names.
         for f in os.listdir(dirPath):
             filePath = os.path.join(dirPath, f)
-            if file_exists(filePath) and f.lower() == fileName:
+            if file_exists(filePath) and f.lower() == filename:
                 return filePath
 
 def getGlobalMaterial(name: str):
@@ -189,9 +189,9 @@ def clearAllScenes():
             if hasattr(bpy_data_iter, 'remove'): # Some bpy_prop_collection don't have this method.
                 bpy_data_iter.remove(id_data)
 
-def getExportFileHeader(prefix):
-    version = bl_info['version']
-    version = '.'.join([str(v) for v in version])
+def getExportFileHeader(prefix: str):
+    version: Tuple[int] = bl_info['version']
+    verstr = '.'.join([str(v) for v in version])
     if 'pre_release' in bl_info:
-        version += '-' + bl_info['pre_release']
-    return f"{prefix} created with Blender Sith addon v{version} by {bl_info['author']}"
+        verstr += '-' + bl_info['pre_release']
+    return f"{prefix} created with Blender Sith addon v{verstr} by {bl_info['author']}"

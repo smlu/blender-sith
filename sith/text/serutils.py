@@ -19,29 +19,31 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-def makeComment(comment):
+from typing import TextIO, Union
+
+def makeComment(comment: str):
     cline = ""
     if len(comment) > 0:
         cline = '# ' + comment
     return cline
 
-def writeNewLine(file):
+def writeNewLine(file: TextIO):
     file.write("\n")
 
-def writeLine(file, line):
+def writeLine(file: TextIO, line: str):
     file.write(line)
     writeNewLine(file)
 
-def writeCommentLine(file, comment):
+def writeCommentLine(file: TextIO, comment: str):
     cline = makeComment(comment)
     if len(cline) > 0:
         writeLine(file, cline)
 
-def writeKeyValue(file, key: str, value, width = 0):
+def writeKeyValue(file: TextIO, key: str, value: Union[str, int], width: int = 0):
     line = key.upper().ljust(width) + " " + str(value)
     writeLine(file, line)
 
-def writeSectionTitle(file, section):
+def writeSectionTitle(file: TextIO, section: str):
     writeLine(file, "###############")
     writeLine(file, "SECTION: " + section.upper())
     writeNewLine(file)

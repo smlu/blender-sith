@@ -76,194 +76,193 @@ class KeyMarkerType(IntEnum):
 
 @unique
 class KeyframeFlag(IntEnum):
-    NoChange          = 0,
-    PositionChange    = 1,
-    OrientationChange = 2,
+    NoChange          = 0
+    PositionChange    = 1
+    OrientationChange = 2
     AllChange         = 3
 
 class KeyMarker:
     def __init__(self):
-        self.f : float = 0.0
-        self.t : KeyMarkerType = KeyMarkerType.Finished
+        self._frame : float = 0.0
+        self._type : KeyMarkerType = KeyMarkerType.Finished
 
     @property
     def frame(self) -> float:
-        return self.f
+        return self._frame
 
     @frame.setter
     def frame(self, frame: float):
-        self.f = frame
+        self._frame = frame
 
     @property
     def type(self) -> KeyMarkerType:
-        return self.t
+        return self._type
 
     @type.setter
     def type(self, type: KeyMarkerType):
-        self.t = type
-
+        self._type = type
 
 class Keyframe:
     def __init__(self):
-        self.f: KeyframeFlag = KeyframeFlag.NoChange
-        self.frme : int      = 0
-        self.pos: Vector3f   = Vector3f(0.0, 0.0, 0.0) # x,y,z
-        self.orien: Vector3f = Vector3f(0.0, 0.0, 0.0) # pitch, yaw, roll:
-        self.dpos: Vector3f  = Vector3f(0.0, 0.0, 0.0) # x,y,z
-        self.drot: Vector3f  = Vector3f(0.0, 0.0, 0.0) # pitch, yaw, roll:
+        self._flags: KeyframeFlag = KeyframeFlag.NoChange
+        self._frame : int      = 0
+        self._pos: Vector3f    = Vector3f(0.0, 0.0, 0.0) # x,y,z
+        self._orient: Vector3f = Vector3f(0.0, 0.0, 0.0) # pitch, yaw, roll:
+        self._dpos: Vector3f   = Vector3f(0.0, 0.0, 0.0) # x,y,z
+        self._drot: Vector3f   = Vector3f(0.0, 0.0, 0.0) # pitch, yaw, roll:
 
     @property
     def flags(self) -> KeyframeFlag:
-        return self.f
+        return self._flags
 
     @flags.setter
     def flags(self, flags: KeyframeFlag):
-        self.f = flags
+        self._flags = flags
 
     @property
     def frame(self) -> int:
-        return self.frme
+        return self._frame
 
     @frame.setter
     def frame(self, frame: int):
-        self.frme = frame
+        self._frame = frame
 
     @property
     def position(self) -> Vector3f:
-        return self.pos
+        return self._pos
 
     @position.setter
     def position(self, pos: Vector3f):
-        self.pos = pos
+        self._pos = pos
 
     @property
     def orientation(self) -> Vector3f:
-        return self.orien
+        return self._orient
 
     @orientation.setter
     def orientation(self, orien: Vector3f):
-        self.orien = orien
+        self._orient = orien
 
     @property
     def deltaPosition(self) -> Vector3f:
-        return self.dpos
+        return self._dpos
 
     @deltaPosition.setter
     def deltaPosition(self, dpos: Vector3f):
-        self.dpos = dpos
+        self._dpos = dpos
 
     @property
     def deltaRotation(self) -> Vector3f:
-        return self.drot
+        return self._drot
 
     @deltaRotation.setter
     def deltaRotation(self, drot: Vector3f):
-        self.drot = drot
+        self._drot = drot
 
 class KeyNode:
     def __init__(self):
-        self.n : int = 0
-        self.mesh_name : str = ""
-        self.kfs : List[Keyframe] = []
+        self._idx : int = 0
+        self._meshName : str = ""
+        self._kfs : List[Keyframe] = []
 
     @property
     def idx(self) -> int:
-        return self.n
+        return self._idx
 
     @idx.setter
     def idx(self, idx: int):
-        self.n = idx
+        self._idx = idx
 
     @property
     def meshName(self) -> str:
-        return self.mesh_name
+        return self._meshName
 
     @meshName.setter
-    def meshName(self, mesh_name: str):
-        self.mesh_name = mesh_name
+    def meshName(self, meshName: str):
+        self._meshName = meshName
 
     @property
-    def keyframes(self) -> str:
-        return self.kfs
+    def keyframes(self) -> List[Keyframe]:
+        return self._kfs
 
     @keyframes.setter
     def keyframes(self, keyframes: List[Keyframe]):
-        self.kfs = keyframes
+        self._kfs = keyframes
 
 class Key:
     def __init__(self, name: str):
-        self.n = name
-        self.f: KeyFlag = KeyFlag.Loop
-        self.t: Mesh3doNodeType = Mesh3doNodeType.Nothing
-        self.frames: int = 0
-        self.nfps: float = 0.0
-        self.joints: int = 0
+        self._name = name
+        self._flags: KeyFlag = KeyFlag.Loop
+        self._types: Mesh3doNodeType = Mesh3doNodeType.Nothing
+        self._numFrames: int = 0
+        self._fps: float = 0.0
+        self._numJoints: int = 0
 
-        self.m : List[KeyMarker] = []
-        self.n : List[KeyNode]   = []
+        self._markers : List[KeyMarker] = []
+        self._nodes   : List[KeyNode]   = []
 
     @property
     def name(self) -> str:
-        return self.n
+        return self._name
 
     @name.setter
     def name(self, name: str):
-        self.n = name
+        self._name = name
 
     @property
     def flags(self) -> KeyFlag:
-        return self.f
+        return self._flags
 
     @flags.setter
     def flags(self, flags: KeyFlag):
-        self.f = flags
+        self._flags = flags
 
     @property
     def nodeTypes(self) -> Mesh3doNodeType:
         """ Returns high animation priority node types """
-        return self.t
+        return self._types
 
     @nodeTypes.setter
     def nodeTypes(self, type: Mesh3doNodeType):
         """ Sets high animation priority node types """
-        self.t = type
+        self._types = type
 
     @property
     def numFrames(self) -> int:
-        return self.frames
+        return self._numFrames
 
     @numFrames.setter
     def numFrames(self, numFrames: int):
-        self.frames = numFrames
+        self._numFrames = numFrames
 
     @property
     def numJoints(self) -> int:
-        return self.joints
+        return self._numJoints
 
     @numJoints.setter
     def numJoints(self, numJoints: int):
-        self.joints = numJoints
+        self._numJoints = numJoints
 
     @property
     def fps(self) -> float:
-        return self.nfps
+        return self._fps
 
     @fps.setter
     def fps(self, fps: float):
-        self.nfps = fps
+        self._fps = fps
 
     @property
     def markers(self) -> List[KeyMarker]:
-        return self.m
+        return self._markers
 
     @markers.setter
     def markers(self, markers: List[KeyMarker]):
-        self.m = markers
+        self._markers = markers
 
     @property
     def nodes(self) -> List[KeyNode]:
-        return self.n
+        return self._nodes
 
     @nodes.setter
     def nodes(self, nodes: List[KeyNode]):
-        self.n = nodes
+        self._nodes = nodes

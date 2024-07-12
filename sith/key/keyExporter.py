@@ -69,7 +69,7 @@ def _set_keyframe_delta(kf1: Keyframe, kf2: Keyframe, dtype: KeyframeFlag):
         elif kf1.flags != dtype:
             kf1.flags = KeyframeFlag.AllChange
 
-def _make_key_from_obj(key_name, obj: bpy.types.Object, scene: bpy.types.Scene):
+def _make_key_from_obj(key_name: str, obj: bpy.types.Object, scene: bpy.types.Scene) -> Key:
     key           = Key(key_name)
     key.flags     = KeyFlag.fromSet(scene.sith_key_flags)
     key.nodeTypes = Mesh3doNodeType.fromHex(scene.sith_key_types)

@@ -20,7 +20,7 @@
 # SOFTWARE.
 
 from enum import Enum
-from typing import Callable, Tuple
+from typing import Callable, Tuple, TextIO
 from ..types.vector import *
 
 class TokenType(Enum):
@@ -34,9 +34,8 @@ class TokenType(Enum):
     String     = 8
     Punctuator = 9
 
-
 class Token:
-    def __init__(self, t = TokenType.Invalid):
+    def __init__(self, t: TokenType = TokenType.Invalid):
         self.t = t
         self.v = ""
 
@@ -69,11 +68,11 @@ class Token:
         self.v = v
 
     @property
-    def fileName(self) -> str:
+    def filename(self) -> str:
         return self.file_name
 
-    @fileName.setter
-    def fileName(self, name: str):
+    @filename.setter
+    def filename(self, name: str):
         self.file_name = name
 
     def setFileName(self, name: str):
@@ -135,25 +134,25 @@ class Token:
             raise TypeError("Token type is not float number")
         return float(self.value)
 
-def _ctoi(c):
+def _ctoi(c: str) -> int:
     if type(c) == type(""):
         return ord(c)
     else:
-        return c
+        return -1
 
-def isupper(c): return 65 <= _ctoi(c) <= 90
-def islower(c): return 97 <= _ctoi(c) <= 122
-def isdigit(c): return 48 <= _ctoi(c) <= 57
-def isalpha(c): return isupper(c) or islower(c)
-def isalnum(c): return isalpha(c) or isdigit(c)
-def isgraph(c): return 33 <= _ctoi(c) <= 126
-def ispunct(c): return isgraph(c) and not isalnum(c)
-def isxdigit(c): return isdigit(c) or \
+def isupper(c: str): return 65 <= _ctoi(c) <= 90
+def islower(c: str): return 97 <= _ctoi(c) <= 122
+def isdigit(c: str): return 48 <= _ctoi(c) <= 57
+def isalpha(c: str): return isupper(c) or islower(c)
+def isalnum(c: str): return isalpha(c) or isdigit(c)
+def isgraph(c: str): return 33 <= _ctoi(c) <= 126
+def ispunct(c: str): return isgraph(c) and not isalnum(c)
+def isxdigit(c: str): return isdigit(c) or \
     (65 <= _ctoi(c) <= 70) or (97 <= _ctoi(c) <= 102)
 
 class Tokenizer:
-    def __init__(self, file_object):
-        self.f          = file_object
+    def __init__(self, file: TextIO):
+        self.f          = file
         self.report_eol = False
         self.line       = 1
         self.column     = 1
@@ -292,7 +291,7 @@ class Tokenizer:
         if t.type != TokenType.Identifier or t.value.lower() != id.lower():
             raise AssertionError(f"Expected identifier '{id}', found '{t.value}'! line: {self.line} column: {self.column}")
 
-    def assertInteger(self, num: str):
+    def assertInteger(self, num: int):
         t = self.getToken()
         if t.type != TokenType.Integer or t.toIntNumber() != num:
             raise AssertionError(f"Expected integer '{num}', found '{t.toIntNumber()}'! line: {self.line} column: {self.column}")
@@ -311,7 +310,7 @@ class Tokenizer:
         if t.type != TokenType.EOF :
             raise AssertionError(f'Expected end of file! line: {self.line} column: {self.column}')
 
-    def _read_ch(self):
+    def _read_ch(self) -> str:
         c = self.f.read(1)
         if not c:
             return ''
@@ -422,13 +421,13 @@ class Tokenizer:
             self._read_next()
 
             if self.current_ch == '':
-                token.lastLine = self.line
-                token.lastColumn = self.column
+                token.endLine   = self.line
+                token.endColumn = self.column
                 raise IOError(f'Unexpected end of a file! line: {self.line} column: {self.column}')
 
             if self.current_ch == '\n':
-                token.lastLine = self.line
-                token.lastColumn = self.column
+                token.endLine   = self.line
+                token.endColumn = self.column
                 raise IOError(f'Unexpected newline in string literal! line: {self.line} column: {self.column}')
 
             if self.current_ch == '"':
@@ -436,16 +435,16 @@ class Tokenizer:
                 self._read_next()
                 return token
 
-            if self.current_ch == '\\': # Escape sequence
+            if self.current_ch == '\\':  # Escape sequence
                 self._read_next()
 
-                if self.current_ch  == '\n':
+                if self.current_ch == '\n':
                     pass
-                elif self.current_ch  == '\'' or self.current_ch  == '"' or self.current_ch  == '\\':
+                elif self.current_ch in ['\'', '"', '\\']:
                     token.value += self.current_ch
-                elif self.current_ch  == 'n':
+                elif self.current_ch == 'n':
                     token.value += '\n'
-                elif self.current_ch  == 't':
+                elif self.current_ch == 't':
                     token.value += '\t'
                 else:
                     token.type = TokenType.Invalid

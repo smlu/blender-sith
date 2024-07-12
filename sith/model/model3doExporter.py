@@ -25,6 +25,7 @@ import numpy as np
 from sith.types import BenchmarkMeter
 from sith.utils import *
 from typing import List
+from typing import Dict, List, Optional
 
 from .model3do import *
 from .model3doLoader import Model3doFileVersion
@@ -71,14 +72,14 @@ def _set_hnode_pose(node: Mesh3doNode, scale: mathutils.Vector):
         node.position = Vector3f(*(scaledLocation - pivot))
         node.pivot    = Vector3f(*pivot)
 
-def _get_mat_name_org(mat: bpy.types.Material):
+def _get_mat_name_org(mat: bpy.types.Material) -> str:
     return mat.name.lower() if mat else ""
 
-def _get_mat_name(mat: bpy.types.Material):
+def _get_mat_name(mat: bpy.types.Material) -> str:
     name = _get_mat_name_org(mat)
     return name.partition('.')[0] + '.mat' # remove any extension and add .mat
 
-def _is_aux_obj(obj: bpy.types.Object):
+def _is_aux_obj(obj: bpy.types.Object) -> bool:
     return (kModelRadius in obj.name) or (kMeshRadius in obj.name)
 
 def _uv_add_image_size(uv: mathutils.Vector, mat) -> mathutils.Vector:
@@ -273,10 +274,10 @@ def _model3do_add_obj(model: Model3do, obj: bpy.types.Object, parent: bpy.types.
     for child in obj.children:
         _model3do_add_obj(model, child, parent=obj, scale=objScale, uvAbsolute=uvAbsolute, exportVertexColors=exportVertexColors)
 
-def _get_model_radius(obj, scale: mathutils.Vector = mathutils.Vector((1.0,)*3)):
+def _get_model_radius(obj: bpy.types.Object, scale: mathutils.Vector = mathutils.Vector((1.0,)*3)):
     min = mathutils.Vector((999999.0,)*3)
     max = mathutils.Vector((-999999.0,)*3)
-    def do_bb(o, s):
+    def do_bb(o: bpy.types.Object, s: mathutils.Vector):
         if o.type != 'MESH': return
         nonlocal min, max
         for  v in o.data.vertices:
@@ -297,7 +298,7 @@ def _get_model_radius(obj, scale: mathutils.Vector = mathutils.Vector((1.0,)*3))
             if v_world.z > max.z:
                 max.z = v_world.z
 
-    def traverse_children(o, s):
+    def traverse_children(o: bpy.types.Object, s: mathutils.Vector):
         for c in o.children:
             s = vectorMultiply(s, c.scale)
             do_bb(c, s)

@@ -20,10 +20,11 @@
 # SOFTWARE.
 
 from sith.text.serutils import *
-from typing import Tuple
+from pathlib import Path
+from typing import TextIO, Tuple, Union
 from .key import *
 
-def saveKey(key: Key, filePath, headerComment):
+def saveKey(key: Key, filePath: Union[Path, str], headerComment: str):
     """ Saves `key` to .key file """
     f = open(filePath, 'w', encoding='utf-8')
 
@@ -34,30 +35,30 @@ def saveKey(key: Key, filePath, headerComment):
     f.flush()
     f.close()
 
-def _flags2str(flags: int):
+def _flags2str(flags: int) -> str:
     return '0x{:04X}'.format(flags)
 
-def _vector_to_str(vector: Tuple):
+def _vector_to_str(vector: Tuple[float, ...]) -> str:
     out = ""
     vert_format  = " {:>" + str(12) + ".8f}"
     for e in vector:
         out += vert_format.format(e)
     return out
 
-def _write_section_header(file, key: Key, headerComment: str):
+def _write_section_header(file: TextIO, key: Key, headerComment: str):
     writeCommentLine(file, headerComment)
     writeNewLine(file)
 
     writeSectionTitle(file, "header")
-    writeKeyValue(file, "flags"  , _flags2str(key.flags)   , 6)
+    writeKeyValue(file, "flags"  , _flags2str(key.flags)    , 6)
     writeKeyValue(file, "type"   , _flags2str(key.nodeTypes), 6)
-    writeKeyValue(file, "frames" , key.numFrames           , 6)
-    writeKeyValue(file, "fps"    , "{:.3f}".format(key.fps), 6)
-    writeKeyValue(file, "joints" , int(key.numJoints)      , 6)
+    writeKeyValue(file, "frames" , key.numFrames            , 6)
+    writeKeyValue(file, "fps"    , "{:.3f}".format(key.fps) , 6)
+    writeKeyValue(file, "joints" , int(key.numJoints)       , 6)
     writeNewLine(file)
     writeNewLine(file)
 
-def _write_section_markers(file, key: Key):
+def _write_section_markers(file: TextIO, key: Key):
     num_marker = len(key.markers)
     if num_marker < 1:
         return
@@ -71,7 +72,7 @@ def _write_section_markers(file, key: Key):
     writeNewLine(file)
     writeNewLine(file)
 
-def _write_section_keyframe_nodes(file, key: Key):
+def _write_section_keyframe_nodes(file: TextIO, key: Key):
     writeSectionTitle(file, "keyframe nodes")
     writeKeyValue(file, "nodes", len(key.nodes))
     writeNewLine(file)

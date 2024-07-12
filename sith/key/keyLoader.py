@@ -20,11 +20,13 @@
 # SOFTWARE.
 
 import os
+from .key import *
+from pathlib import Path
 from sith.text.tokenizer import TokenType, Tokenizer
-from sith.key import *
 from sith.model import Mesh3doNodeType
+from typing import Union
 
-def loadKey(filePath) -> Key:
+def loadKey(filePath: Union[Path, str]) -> Key:
     """ Loads Key from .key file """
     f = open(filePath, 'r', encoding='utf-8')
     tok = Tokenizer(f)
@@ -64,13 +66,13 @@ def _parse_key_section_header(tok: Tokenizer, key: Key):
     key.nodeTypes = Mesh3doNodeType(tok.getIntNumber())
 
     tok.assertIdentifier("FRAMES")
-    key.frames = tok.getIntNumber()
+    key.numFrames = tok.getIntNumber()
 
     tok.assertIdentifier("FPS")
-    key.fps    = tok.getFloatNumber()
+    key.fps = tok.getFloatNumber()
 
     tok.assertIdentifier("JOINTS")
-    key.joints = tok.getIntNumber()
+    key.numJoints = tok.getIntNumber()
 
 def _parse_key_section_markers(tok: Tokenizer, key: Key):
     tok.assertIdentifier("MARKERS")
