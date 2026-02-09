@@ -1,0 +1,21 @@
+schema_version = "1.0.0"
+
+id = "sith"
+name = "Sith Game Engine Formats (.3do, .mat, .key)"
+version = "1.0.0-rc4"
+tagline = "Import/export 3DO models, MAT textures & KEY animations for games based on the Sith game engine"
+maintainer = "Crt Vavros"
+type = "add-on"
+
+website = "https://github.com/smlu/blender-sith"
+tags = ["Import-Export"]
+
+blender_version_min = "5.0.0"
+
+license = ["SPDX:GPL-3.0-or-later"]
+copyright = [
+    "2019-2026 Crt Vavros"
+]
+
+[permissions]
+files = "Import/export 3DO, MAT and KEY files"

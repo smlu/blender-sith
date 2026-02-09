@@ -1,30 +1,25 @@
 # Sith Blender Addon
-# Copyright (c) 2019-2024 Crt Vavros
-
-# Permission is hereby granted, free of charge, to any person obtaining a copy
-# of this software and associated documentation files (the "Software"), to deal
-# in the Software without restriction, including without limitation the rights
-# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-# copies of the Software, and to permit persons to whom the Software is
-# furnished to do so, subject to the following conditions:
-
-# The above copyright notice and this permission notice shall be included in all
-# copies or substantial portions of the Software.
-
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-# SOFTWARE.
+# Copyright (C) 2019-2026 Crt Vavros
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 from xmlrpc.client import Boolean
 import bpy, mathutils
 
-from sith.model.utils import *
-from sith.types import BenchmarkMeter
-from sith.utils import *
+from ..model.utils import *
+from ..types import BenchmarkMeter
+from ..utils import *
 
 from typing import Optional
 
@@ -38,7 +33,7 @@ def importKey(keyPath: str, scene: bpy.types.Scene, clearScene: bool, validateAc
         key = keyLoader.loadKey(keyPath)
 
         # Check selected object or find anim object in the scene
-        obj = scene.objects.active
+        obj = bpy.context.view_layer.objects.active
         if obj:
             obj = _get_parent(obj)
             if validateActiveObject and not _check_obj(obj, key.nodes, key.numJoints):
@@ -54,7 +49,7 @@ def importKey(keyPath: str, scene: bpy.types.Scene, clearScene: bool, validateAc
         scene.frame_start     = 0
         scene.frame_end       = key.numFrames - 1 if clearScene else max(scene.frame_end, key.numFrames - 1)
         scene.frame_step      = 1
-        scene.render.fps      = key.fps
+        scene.render.fps      = int(key.fps)
         scene.render.fps_base = 1.0
 
         if clearScene:
@@ -65,7 +60,7 @@ def importKey(keyPath: str, scene: bpy.types.Scene, clearScene: bool, validateAc
             marker_name = str(m.type.value)
             if namedMarkers:
                 marker_name = m.type.name
-            scene.timeline_markers.new(marker_name, m.frame)
+            scene.timeline_markers.new(marker_name, frame=int(m.frame))
 
         for node in key.nodes:
             # Get object to animate
@@ -148,17 +143,33 @@ def _get_rotation_data_path(obj: bpy.types.Object) -> str:
     else:
         return 'rotation_euler'
 
+def _get_channelbag_fcurves(obj: bpy.types.Object):
+    """Get fcurves from the channelbag for the object's action slot (Blender 5.0+)."""
+    action = obj.animation_data.action
+    slot = obj.animation_data.action_slot
+    if not slot or not action.layers:
+        return None
+    for layer in action.layers:
+        for strip in layer.strips:
+            if hasattr(strip, 'channelbag'):
+                cb = strip.channelbag(slot)
+                if cb is not None:
+                    return cb.fcurves
+    return None
+
 def _fix_obj_anim_interpolation(obj: bpy.types.Object):
     """ fixes broken quaternion interpolation between frames and sets it to LINEAR"""
 
     interpolation = 'LINEAR'
-    action = obj.animation_data.action
+    fcurves = _get_channelbag_fcurves(obj)
+    if fcurves is None:
+        return
 
     fq = [
-        action.fcurves.find('rotation_quaternion', index = 0), # w
-        action.fcurves.find('rotation_quaternion', index = 1), # x
-        action.fcurves.find('rotation_quaternion', index = 2), # y
-        action.fcurves.find('rotation_quaternion', index = 3), # z
+        fcurves.find('rotation_quaternion', index = 0), # w
+        fcurves.find('rotation_quaternion', index = 1), # x
+        fcurves.find('rotation_quaternion', index = 2), # y
+        fcurves.find('rotation_quaternion', index = 3), # z
     ]
 
     def _get_quat_at_frame(frame: int):

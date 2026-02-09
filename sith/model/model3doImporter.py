@@ -1,27 +1,22 @@
 # Sith Blender Addon
-# Copyright (c) 2019-2024 Crt Vavros
-
-# Permission is hereby granted, free of charge, to any person obtaining a copy
-# of this software and associated documentation files (the "Software"), to deal
-# in the Software without restriction, including without limitation the rights
-# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-# copies of the Software, and to permit persons to whom the Software is
-# furnished to do so, subject to the following conditions:
-
-# The above copyright notice and this permission notice shall be included in all
-# copies or substantial portions of the Software.
-
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-# SOFTWARE.
+# Copyright (C) 2019-2026 Crt Vavros
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import bpy, bmesh, mathutils, os
-from sith.types import BenchmarkMeter
-from sith.utils import *
+from ..types import BenchmarkMeter
+from ..utils import *
 from typing import List
 
 from . import model3doLoader
@@ -65,8 +60,8 @@ def import3do(file_path: Union[Path, str], mat_dirs: List[Union[Path, str]] = []
 
         # Set model's insert offset and radius
         baseObj = bpy.data.objects.new(model.name, None)
-        baseObj.empty_draw_size = (0.0)
-        bpy.context.scene.objects.link(baseObj)
+        baseObj.empty_display_size = (0.0)
+        bpy.context.scene.collection.objects.link(baseObj)
 
         baseObj.location = model.insert_offset
         if importRadiusObj:
@@ -76,12 +71,6 @@ def import3do(file_path: Union[Path, str], mat_dirs: List[Union[Path, str]] = []
         firstChild.parent_type = 'OBJECT'
         firstChild.parent      = baseObj
 
-        # Add model to the "Model3do" group
-        if kGModel3do in bpy.data.groups:
-            group = bpy.data.groups[kGModel3do]
-        else:
-            group = bpy.data.groups.new(kGModel3do)
-        group.objects.link(baseObj)
         return baseObj
 
 def _convert_to_absolute_paths(path_list: List[Union[Path, str]], cwd: Union[Path, str]) -> List[Union[Path, str]]:
@@ -106,15 +95,13 @@ def _set_obj_pivot(obj, pivot):
 
 def _make_radius_obj(name: str, parent, radius: float):
     if name in bpy.data.meshes:
-        mesh = bpy.data.meshes[name]
-    else:
         mesh = bpy.data.meshes.new(name)
         ro = bpy.data.objects.new(name , mesh)
-        ro.draw_type = 'WIRE'
-        ro.hide = True
+        ro.display_type = 'WIRE'
+        ro.hide_viewport = True
         ro.parent_type = 'OBJECT'
         ro.parent = parent
-        bpy.context.scene.objects.link(ro)
+        bpy.context.scene.collection.objects.link(ro)
 
     bm = bmesh.new()
     bmesh.ops.create_uvsphere(bm, u_segments=32, v_segments=16, diameter=radius)
@@ -136,7 +123,6 @@ def _make_mesh(mesh3do: Mesh3do, uvAbsolute: bool, vertexColors: bool, mat_list:
 
     # Construct mesh
     mesh.from_pydata(mesh3do.vertices, [], faces)
-    mesh.show_double_sided = True
 
     bm = bmesh.new()
     bm.from_mesh(mesh)
@@ -144,7 +130,6 @@ def _make_mesh(mesh3do: Mesh3do, uvAbsolute: bool, vertexColors: bool, mat_list:
 
     vert_color = bm.loops.layers.color.verify()
     uv_layer   = bm.loops.layers.uv.verify()
-    bm.faces.layers.tex.verify()
     bmMeshInit3doLayers(bm)
 
     # Set mesh materials and UV map
@@ -175,13 +160,13 @@ def _make_mesh(mesh3do: Mesh3do, uvAbsolute: bool, vertexColors: bool, mat_list:
                 mesh.materials.append(mat)
             face.material_index = mesh.materials.find(mat.name)
 
-        # Set face texture
+        # Get image from node-based material for UV absolute conversion
         img = None
-        if mat and mat.texture_slots[0].texture:
-            tex = mat.texture_slots[0].texture
-            img = tex.image
-            tex_layer = bm.faces.layers.tex[uv_layer.name]
-            face[tex_layer].image = img
+        if mat and mat.use_nodes and mat.node_tree:
+            for node in mat.node_tree.nodes:
+                if node.type == 'TEX_IMAGE' and node.image:
+                    img = node.image
+                    break
 
         # Set vertices color and face uv map
         for idx, loop in enumerate(face.loops): # update vertices
@@ -228,15 +213,15 @@ def _create_objects_from_model(model: Model3do, uvAbsolute: bool, geosetNum: int
             if importRadiusObj:
                 _set_mesh_radius(obj, mesh3do.radius)
 
-            obj.draw_type                  = getDrawType(mesh3do.geometryMode)
+            obj.display_type               = getDrawType(mesh3do.geometryMode)
             obj.sith_model3do_light_mode   = mesh3do.lightMode.name
             obj.sith_model3do_texture_mode = mesh3do.textureMode.name
-            obj.draw_bounds_type      = 'SPHERE'
-            bpy.context.scene.objects.link(obj)
+            obj.display_bounds_type   = 'SPHERE'
+            bpy.context.scene.collection.objects.link(obj)
         else:
             obj = bpy.data.objects.new(node.name, None)
-            obj.empty_draw_size = (0.0)
-            bpy.context.scene.objects.link(obj)
+            obj.empty_display_size = (0.0)
+            bpy.context.scene.collection.objects.link(obj)
 
         # Make obj name prefixed by idx num.
         # This will make the hierarchy of model 3do ordered by index instead by name in Blender.
@@ -255,11 +240,11 @@ def _create_objects_from_model(model: Model3do, uvAbsolute: bool, geosetNum: int
 
         node.obj = obj
 
-    bpy.context.scene.update()
+    bpy.context.view_layer.update()
 
     # Set parent hierarchy
     for node in model.meshHierarchy:
         if node.parentIdx != -1:
             node.obj.parent_type = 'OBJECT'
             node.obj.parent      = model.meshHierarchy[node.parentIdx].obj
-    bpy.context.scene.update()
+    bpy.context.view_layer.update()

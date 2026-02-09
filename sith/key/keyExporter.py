@@ -1,33 +1,28 @@
 # Sith Blender Addon
-# Copyright (c) 2019-2024 Crt Vavros
-
-# Permission is hereby granted, free of charge, to any person obtaining a copy
-# of this software and associated documentation files (the "Software"), to deal
-# in the Software without restriction, including without limitation the rights
-# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-# copies of the Software, and to permit persons to whom the Software is
-# furnished to do so, subject to the following conditions:
-
-# The above copyright notice and this permission notice shall be included in all
-# copies or substantial portions of the Software.
-
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-# SOFTWARE.
+# Copyright (C) 2019-2026 Crt Vavros
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import bpy, mathutils, os.path
-import sith.key.keyWriter as keyWriter
+from . import keyWriter
 from collections import defaultdict, OrderedDict
 
-from sith.key import *
-from sith.model.utils import *
-from sith.model import makeModel3doFromObj, Mesh3doNodeType
-from sith.types import BenchmarkMeter
-from sith.utils import *
+from .key import *
+from ..model.utils import *
+from ..model import makeModel3doFromObj, Mesh3doNodeType
+from ..types import BenchmarkMeter
+from ..utils import *
 
 def exportKey(obj: bpy.types.Object, scene: bpy.types.Scene, path: str):
     with BenchmarkMeter(' done in {:.4f} sec.'):
@@ -74,10 +69,10 @@ def _make_key_from_obj(key_name: str, obj: bpy.types.Object, scene: bpy.types.Sc
     key.flags     = KeyFlag.fromSet(scene.sith_key_flags)
     key.nodeTypes = Mesh3doNodeType.fromHex(scene.sith_key_types)
     key.numFrames = scene.frame_end + 1
-    key.fps       = scene.render.fps
+    key.fps       = float(scene.render.fps)
     for marker in scene.timeline_markers:
         m       = KeyMarker()
-        m.frame = marker.frame
+        m.frame = float(marker.frame)
         try:
             m.type = KeyMarkerType[marker.name]
         except:
@@ -97,10 +92,29 @@ def _make_key_from_obj(key_name: str, obj: bpy.types.Object, scene: bpy.types.Sc
         cobj = hnode.obj
         if cobj.animation_data and cobj.animation_data.action:
 
-            # Get object's animation data
+            # Get object's animation data via channelbag (Blender 5.0+)
             cobj_pivot = objPivot(cobj)
             fcs = defaultdict(OrderedDict)
-            for fc in cobj.animation_data.action.fcurves:
+
+            # Get fcurves from channelbag
+            action = cobj.animation_data.action
+            slot = cobj.animation_data.action_slot
+            channelbag_fcurves = None
+            if slot and action.layers:
+                for layer in action.layers:
+                    for strip in layer.strips:
+                        if hasattr(strip, 'channelbag'):
+                            cb = strip.channelbag(slot)
+                            if cb is not None:
+                                channelbag_fcurves = cb.fcurves
+                                break
+                    if channelbag_fcurves:
+                        break
+
+            if channelbag_fcurves is None:
+                continue
+
+            for fc in channelbag_fcurves:
                 if fc.is_valid and fc.data_path.endswith(('location','rotation_euler','rotation_quaternion')):
                     fcdp = fcs[fc.data_path]
                     for k in fc.keyframe_points :

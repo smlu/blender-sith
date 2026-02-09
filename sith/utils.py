@@ -1,35 +1,69 @@
 # Sith Blender Addon
-# Copyright (c) 2019-2024 Crt Vavros
-
-# Permission is hereby granted, free of charge, to any person obtaining a copy
-# of this software and associated documentation files (the "Software"), to deal
-# in the Software without restriction, including without limitation the rights
-# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-# copies of the Software, and to permit persons to whom the Software is
-# furnished to do so, subject to the following conditions:
-
-# The above copyright notice and this permission notice shall be included in all
-# copies or substantial portions of the Software.
-
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-# SOFTWARE.
+# Copyright (C) 2019-2026 Crt Vavros
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import bpy, os.path
 from pathlib import Path
 from typing import Optional, Union, Tuple
 
-from sith.material import ColorMap
-from sith import bl_info
+from .material import ColorMap
 
 kMaxNameLen = 64
 kDefaultCmp = 'dflt.cmp'
 
 _fsys_case_sensitive = not Path(str(Path.home()).upper()).exists()
+
+# Cache for addon version info (read once, use many times)
+_addon_version_cache = None
+
+def _get_addon_version_info():
+    """Get addon version and maintainer from manifest file"""
+    global _addon_version_cache
+
+    # Return cached value if already read
+    if _addon_version_cache is not None:
+        return _addon_version_cache
+
+    try:
+        # Read from blender_manifest.toml
+        addon_dir = Path(__file__).parent
+        manifest_path = addon_dir / "blender_manifest.toml"
+
+        if manifest_path.exists():
+            with open(manifest_path, 'r', encoding='utf-8') as f:
+                version = None
+                maintainer = None
+                for line in f:
+                    line = line.strip()
+                    if line.startswith('version = '):
+                        version = line.split('=', 1)[1].strip().strip('"\'')
+                    elif line.startswith('maintainer = '):
+                        maintainer = line.split('=', 1)[1].strip().strip('"\'')
+
+                    if version and maintainer:
+                        break
+
+                if version and maintainer:
+                    _addon_version_cache = (version, maintainer)
+                    return _addon_version_cache
+    except Exception:
+        pass
+
+    # Fallback to hardcoded values
+    _addon_version_cache = ("1.x.x", "Crt Vavros")
+    return _addon_version_cache
 
 def isValidNameLen(name: str):
     return len(name) <= kMaxNameLen
@@ -135,10 +169,21 @@ def getGlobalMaterial(name: str):
 
 def makeNewGlobalMaterial(name: str):
     mat = bpy.data.materials.new(name)
-    mat.texture_slots.add()
-    ts = mat.texture_slots[0]
-    ts.texture_coords = 'UV'
-    ts.uv_layer       = 'UVMap'
+    mat.use_nodes = True
+    nodes = mat.node_tree.nodes
+    links = mat.node_tree.links
+    # Clear default nodes
+    nodes.clear()
+    # Create Principled BSDF and Output
+    bsdf = nodes.new('ShaderNodeBsdfPrincipled')
+    bsdf.location = (0, 0)
+    output = nodes.new('ShaderNodeOutputMaterial')
+    output.location = (300, 0)
+    links.new(bsdf.outputs['BSDF'], output.inputs['Surface'])
+    # Create Image Texture node
+    tex_node = nodes.new('ShaderNodeTexImage')
+    tex_node.location = (-300, 0)
+    links.new(tex_node.outputs['Color'], bsdf.inputs['Base Color'])
     return mat
 
 def clearSceneAnimData(scene):
@@ -151,10 +196,16 @@ def clearAllScenes():
         for obj in scene.objects:
             if obj.mode != "OBJECT":
                 bpy.ops.object.mode_set(mode='OBJECT')
-            scene.objects.unlink(obj)
 
-        for layer in scene.render.layers:
-            try: scene.render.layers.remove(layer)
+        for collection in scene.collection.children:
+            scene.collection.children.unlink(collection)
+
+        # Remove all objects from the scene's master collection
+        for obj in list(scene.collection.objects):
+            scene.collection.objects.unlink(obj)
+
+        for vl in list(scene.view_layers):
+            try: scene.view_layers.remove(vl)
             except: pass
 
         # Remove animation data:
@@ -168,15 +219,15 @@ def clearAllScenes():
         bpy.data.armatures,
         bpy.data.objects,
         bpy.data.meshes,
-        bpy.data.lamps,
+        bpy.data.lights,
         bpy.data.images,
         bpy.data.curves,
         bpy.data.materials,
         bpy.data.cameras,
         bpy.data.textures,
-        bpy.data.groups,
+        bpy.data.collections,
         bpy.data.lattices,
-        bpy.data.grease_pencil,
+        bpy.data.annotations,
         bpy.data.libraries,
         bpy.data.metaballs,
         bpy.data.movieclips,
@@ -190,8 +241,6 @@ def clearAllScenes():
                 bpy_data_iter.remove(id_data)
 
 def getExportFileHeader(prefix: str):
-    version: Tuple[int] = bl_info['version']
-    verstr = '.'.join([str(v) for v in version])
-    if 'pre_release' in bl_info:
-        verstr += '-' + bl_info['pre_release']
-    return f"{prefix} created with Blender Sith addon v{verstr} by {bl_info['author']}"
+    """Generate export file header with current addon version from manifest"""
+    version, maintainer = _get_addon_version_info()
+    return f"{prefix} created with Blender Sith addon v{version} by {maintainer}"

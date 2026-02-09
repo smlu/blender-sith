@@ -1,30 +1,25 @@
 # Sith Blender Addon
-# Copyright (c) 2019-2024 Crt Vavros
-
-# Permission is hereby granted, free of charge, to any person obtaining a copy
-# of this software and associated documentation files (the "Software"), to deal
-# in the Software without restriction, including without limitation the rights
-# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-# copies of the Software, and to permit persons to whom the Software is
-# furnished to do so, subject to the following conditions:
-
-# The above copyright notice and this permission notice shall be included in all
-# copies or substantial portions of the Software.
-
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-# SOFTWARE.
+# Copyright (C) 2019-2026 Crt Vavros
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import bpy, bmesh, mathutils, math, re
 
 from pathlib import Path
-from sith.material import ColorMap, importMat
-from sith.types import Vector3f, Vector4f
-from sith.utils import *
+from ..material import ColorMap, importMat
+from ..types import Vector3f, Vector4f
+from ..utils import *
 from typing import List, Optional, Union
 
 from .model3do import (
@@ -210,8 +205,8 @@ def makeRotationMatrix(pitch: float, yaw: float, roll: float) -> mathutils.Matri
     r = math.radians(roll)
 
     # rotate arount yaw then pitch and then roll
-    return mathutils.Matrix.Rotation(y, 3, 'Z') * \
-           mathutils.Matrix.Rotation(p, 3, 'X') * \
+    return mathutils.Matrix.Rotation(y, 3, 'Z') @ \
+           mathutils.Matrix.Rotation(p, 3, 'X') @ \
            mathutils.Matrix.Rotation(r, 3, 'Y')
 
 
@@ -303,7 +298,7 @@ def getDrawType(geo_mode: GeometryMode) -> str:
     raise ValueError(f"Unknown geometry mode {geo_mode}")
 
 def objGeometryMode(obj: bpy.types.Object) -> GeometryMode:
-    dt: str = obj.draw_type
+    dt: str = obj.display_type
     if dt == 'BOUNDS':
         return GeometryMode.NotDrawn
     elif dt == 'WIRE':
@@ -316,9 +311,10 @@ def objGeometryMode(obj: bpy.types.Object) -> GeometryMode:
 
 def importMaterials(mat_names: List[Union[Path, str]], search_paths: List[Union[Path, str]], cmp: ColorMap):
     def skip_loading_mat(mat):
-        for s in mat.texture_slots:
-            if s is not None and s.texture is not None:
-                return True
+        if mat.use_nodes and mat.node_tree:
+            for node in mat.node_tree.nodes:
+                if node.type == 'TEX_IMAGE' and node.image:
+                    return True
         return False
 
     for name in mat_names:

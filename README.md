@@ -1,77 +1,171 @@
-# Blender 2.79 addon for the games based on Sith game engine
+<div align="center">
+
+# 🎮 Sith Engine Toolkit for Blender
+
+[![Blender](https://img.shields.io/badge/Blender-5.0+-orange.svg?style=flat&logo=blender)](https://www.blender.org/)
+[![License](https://img.shields.io/badge/License-GPL--3.0--or--later-blue.svg?style=flat)](LICENSE)
+[![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-purple.svg?style=flat)]()
+
+**Import/Export assets for classic LucasArts games**
+
 [<img src="demo/blsthbn_sm.png"/>](demo/blsthbn.png)
 
-Addon provides Blender game assets import/export scripts for the games based on Sith game engine:
-  - Star Wars Jedi Knight: Dark Forces II
-  - Star Wars Jedi Knight: Mysteries of the Sith
-  - Star Wars: DroidWorks
-  - Indiana Jones and the Infernal Machine
-  - Grim Fandango - *Importing of text format 3DO models is only supported*
+[🚀 Installation](#-installation) • [📖 Usage Guide](USAGE.md) • [🔧 Troubleshooting](USAGE.md#-troubleshooting)
 
-## Features
-  - Import/Export .3do models
-  - Edit 3DO mesh & polygon properties in Blender
-  - Import/Export .key mesh animations  
-    Armature animations not supported (yet)
-  - Import .mat textures
+</div>
 
-<img src="demo/gif/in_hat2.gif" width="50%"/>
-<img src="demo/gif/kych.gif" width="50%"/><img src="demo/gif/diswim.gif" width="50%"/>
+---
 
-## Requirements
-The latest Blender 2.79b, you can download it [here](https://download.blender.org/release/Blender2.79/latest/). 
+## 📑 Table of Contents
 
-## Installation
-   1. Download `sith.zip` file from the [Releases](https://github.com/smlu/blender-sith/releases) page.
-   2. Open Blender and select `File > User Preferences > Add-ons > Install Add-on from File`  
-      and select the downloaded `sith.zip` file.
-   3. Enable the addon by clicking the checkbox next to the add-on name.
-   4. Click the `Save User Settings` button in the lower left and close the preferences window.
+- [Supported Games](#️-supported-games)
+- [Features](#-features)
+- [Quick Start](#-quick-start)
+- [Requirements](#-requirements)
+- [Installation](#-installation)
+- [Usage](USAGE.md)
+- [Contributing](#-contributing)
 
-## Usage
-### Importing 3DO model
-   1. Go to `File > Import > Sith Game Engine 3D Model (.3do)`
-   2. Find and select `*.3do` model file  
-   3. Import options  
-      In the opened import dialog window you have import options under `Import 3DO` section (bottom left). Here you can check/uncheck different options and set path to the folder containing texture files (.mat) and ColorMap file (.cmp)  
-      ![iopt](demo/iopt.png)  
-      *Note: By default addon tries to find required texture(s) and ColorMap file of the imported model at the location of it's file.  
-      I.e.: <model_path>/mat, <model_path>/misc/cmp, <model_path>/../mat, <model_path>/../misc/cmp, <model_path>/../../misc/cmp*
-   4. Then click the `Import 3DO` button to import model into Blender.  
+---
 
-### Exporting 3DO model
-   1. Go to `File > Export > Sith Game Engine 3D Model (.3do)`
-   2. Select path, name the file  
-      *Note: The file name must not be longer than 32 characters (IJIM 64 characters).*
-   3. In the export options section select the 3DO file version  
-      ![eopt](demo/eopt.png)
-   4. Then click the `Export 3DO` button to export object(s) to 3DO file.
+## 🕹️ Supported Games
 
-### Importing KEY animation
-   1. First import 3DO model that animation is for  
-      *Note: Which key file belongs to which 3DO model cannot be easy to figured out because single model can have many different animations.
-      One thing to do is opening puppet file (`.pup`) located in misc/pup folder and see which animations belongs to the same game "actor". Another way is to open up `.3do` and `.key` file and see if `.3do` file contains all mesh names used by the `.key` file.*
-   2. Go to `File > Import > Sith Game Engine Animation (.key)`
-   3. Select the `*.key` file and click the `Import KEY` button
+- Star Wars Jedi Knight: Dark Forces II
+- Star Wars Jedi Knight: Mysteries of the Sith
+- Star Wars: DroidWorks
+- Indiana Jones and the Infernal Machine
+- Grim Fandango *(text format 3DO import only)*
 
-### Exporting KEY animation
-   1. Go to `File > Export > Sith Game Engine Animation (.key)`
-   2. (Optional) Set additional export options in the `Export KEY` section (bottom left)  
-      ![ekopt](demo/ekopt.png)
-   3. Select path, name the file and click `Export KEY`  
-      *Note: The file name must not be longer than 32 characters (IJIM 64 characters).*
+---
 
-### Importing MAT texture
-   1. Go to `File > Import > Sith Game Engine Texture (.mat)`
-   3. Select the `*.mat` file and click the `Import MAT` button  
+## ✨ Features
+<div align="center">
+<img src="demo/gif/in_hat2.gif" width="48%"/>
+</div>
+<div align="center">
+</div>
 
-### Editing
-Additional from importing and exporting Sith engine formats addon adds extra UI panels for editing 3DO file specific data.
+---
 
-#### 1. Object 3DO Properties  
-   ![o3dop](demo/o3dop.png)
-   The Sequence number is the node position number in the mesh node hierarchy list in the 3DO file. 
-   When creating the new model by default this number is `-1` and addon will auto-set the node position in the hierarchy list based on the object's hierarchy in Blender when exporting to 3DO file. If the node name is not set addon will take the object mesh name from Blender when exporting to 3DO file.  
+<table>
+<tr>
+<td width="50%">
 
-#### 2. Mesh Face Properties   
-   ![3dofp](demo/3dofp.png)
+### 📦  3DO Models
+- ✅ Import/Export all versions (2.1, 2.2, 2.3)
+- 🎨 Full mesh hierarchy support
+- 🔧 Edit properties in Blender UI
+- 🎯 Vertex colors & UV mapping
+
+### 🎬 KEY Animations
+- ✅ Import/Export mesh animations
+- 🎞️  Keyframe markers support
+- ⚙️ High-priority node configuration
+- 📊 Frame rate control (15-60 fps)
+
+</td>
+<td width="50%">
+
+### 🖼️ MAT Textures
+- ✅ Import as Blender materials
+- 🎞️ Import all texture cells
+- 🎨 8-bit, 16-bit, 24-bit & 32-bit formats
+- 🔧 ColorMap (.cmp) support
+
+### 🛠️ Advanced Editing
+- 🎛️ Per-face properties & flags
+- 🔦 Lighting & texture modes
+- 🎨 Extra light color support
+- ⚡ Multi-face batch editing
+
+</td>
+</tr>
+</table>
+
+
+
+## ⚡ Quick Start
+
+1. **Install**: Download from [Releases](https://github.com/smlu/blender-sith/releases) and install via Blender Extensions
+2. **Import Model**: `File > Import > Sith Game Engine 3D Model (.3do)`
+3. **Import Textures**: Use MAT Directory option or let auto-search find them
+4. **Import Animation**: `File > Import > Sith Game Engine Animation (.key)`
+5. **Edit Properties**: Use the 3DO Properties panels (see [Usage Guide](USAGE.md))
+6. **Export**: `File > Export` to save your modifications
+
+> 📖 **Detailed instructions**: See the [Usage Guide](USAGE.md) for complete documentation.
+
+---
+
+## 📋 Requirements
+
+> **Blender 5.0+** is required for this version of the add-on.
+
+🔗 [Download Blender](https://www.blender.org/download/)
+
+---
+
+## 🚀 Installation
+
+### Method 1: From Release (Recommended)
+
+1. 📥 **Download** the latest ZIP from the [Releases](https://github.com/smlu/blender-sith/releases) page
+2. 🔧 **Open Blender** and go to `Edit > Preferences > Add-ons`
+3. 📂 **Install**: Click the dropdown menu (▼) at the top-right and select `Install from Disk...`
+4. 📁 **Select** the downloaded ZIP file
+5. ✅ **Enable** the add-on: Check the box next to **Sith Game Engine Formats (.3do, .mat, .key)**
+6. 🎉 **Done!** Import/export options appear in `File > Import` and `File > Export` menus
+
+### Method 2: From Source
+
+```bash
+# Clone or download the repository
+git clone https://github.com/smlu/blender-sith.git
+
+# ZIP the `sith` folder and install via Blender Preferences
+```
+
+> 💡 **Note**: In Blender 5.0, add-ons are managed through the Extensions system.
+
+---
+
+## 📖 Usage
+
+For complete documentation on importing, exporting, and editing, see the **[Usage Guide](USAGE.md)**.
+
+### Quick Reference
+
+- **Import 3DO**: `File > Import > Sith Game Engine 3D Model (.3do)`
+- **Export 3DO**: `File > Export > Sith Game Engine 3D Model (.3do)`
+- **Import KEY**: `File > Import > Sith Game Engine Animation (.key)`
+- **Export KEY**: `File > Export > Sith Game Engine Animation (.key)`
+- **Import MAT**: `File > Import > Sith Game Engine Texture (.mat)`
+- **Edit Properties**: `Properties Panel > Object Properties > 3DO Properties`
+- **Edit Faces**: `Properties Panel > Data Properties > 3DO Mesh Face Properties` (Edit Mode)
+
+> 📖 See [USAGE.md](USAGE.md) for detailed options, screenshots, and troubleshooting.
+
+---
+
+## 🤝 Contributing
+
+Contributions are welcome! Feel free to:
+- 🐛 Report bugs via [Issues](https://github.com/smlu/blender-sith/issues)
+- 💡 Suggest features or improvements
+- 🔧 Submit pull requests
+
+---
+
+##  Links
+
+- 📦 [Releases](https://github.com/smlu/blender-sith/releases) - Download the latest version
+- 🐛 [Issue Tracker](https://github.com/smlu/blender-sith/issues) - Report bugs or request features
+- 🌐 [Blender.org](https://www.blender.org/) - Get Blender
+
+---
+
+<div align="center">
+
+**⭐ If you find this project useful, consider giving it a star!**
+
+</div>

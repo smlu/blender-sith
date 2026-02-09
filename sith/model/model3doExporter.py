@@ -1,29 +1,24 @@
 # Sith Blender Addon
-# Copyright (c) 2019-2024 Crt Vavros
-
-# Permission is hereby granted, free of charge, to any person obtaining a copy
-# of this software and associated documentation files (the "Software"), to deal
-# in the Software without restriction, including without limitation the rights
-# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-# copies of the Software, and to permit persons to whom the Software is
-# furnished to do so, subject to the following conditions:
-
-# The above copyright notice and this permission notice shall be included in all
-# copies or substantial portions of the Software.
-
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-# SOFTWARE.
+# Copyright (C) 2019-2026 Crt Vavros
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import bpy, bmesh, mathutils, os
 import numpy as np
 
-from sith.types import BenchmarkMeter
-from sith.utils import *
+from ..types import BenchmarkMeter
+from ..utils import *
 from typing import Dict, List, Optional
 
 from .model3do import *
@@ -82,9 +77,10 @@ def _is_aux_obj(obj: bpy.types.Object) -> bool:
     return (kModelRadius in obj.name) or (kMeshRadius in obj.name)
 
 def _uv_add_image_size(uv: mathutils.Vector, mat) -> mathutils.Vector:
-    for s in mat.texture_slots:
-        if s and s.texture_coords == 'UV' and s.texture and s.texture.type == 'IMAGE':
-            return vectorMultiply(uv, mathutils.Vector(s.texture.image.size))
+    if mat.use_nodes and mat.node_tree:
+        for node in mat.node_tree.nodes:
+            if node.type == 'TEX_IMAGE' and node.image:
+                return vectorMultiply(uv, mathutils.Vector(node.image.size))
     return uv
 
 def _find_vertex(vlist: List[Vector3f], v: Vector3f, vcolors: List[Vector4f], vcolor: Vector4f) -> int:
@@ -162,7 +158,10 @@ def _model3do_add_mesh(model: Model3do, mesh: bpy.types.Mesh, scale: mathutils.V
             # Set UV coordinates
             uv = loop[uv_layer].uv
             if uvAbsolute and mat is not None:
-                if len(mat.texture_slots) == 0:
+                has_image = mat.use_nodes and mat.node_tree and any(
+                    n.type == 'TEX_IMAGE' and n.image for n in mat.node_tree.nodes
+                )
+                if not has_image:
                     print(f"\nWarning: Using absolute UV coords for mesh:'{mesh3do.name}' face:{len(mesh3do.faces)} due to face hasn't any texture set!")
                     face3do.materialIdx = -1
                 else:
@@ -281,7 +280,7 @@ def _get_model_radius(obj: bpy.types.Object, scale: mathutils.Vector = mathutils
         nonlocal min, max
         for  v in o.data.vertices:
 
-            v_world = vectorMultiply(o.matrix_local * v.co, s)
+            v_world = vectorMultiply(o.matrix_local @ v.co, s)
             if v_world.x < min.x:
                 min.x = v_world.x
             if v_world.x > max.x:

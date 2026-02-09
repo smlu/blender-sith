@@ -1,23 +1,18 @@
 # Sith Blender Addon
-# Copyright (c) 2019-2024 Crt Vavros
-
-# Permission is hereby granted, free of charge, to any person obtaining a copy
-# of this software and associated documentation files (the "Software"), to deal
-# in the Software without restriction, including without limitation the rights
-# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-# copies of the Software, and to permit persons to whom the Software is
-# furnished to do so, subject to the following conditions:
-
-# The above copyright notice and this permission notice shall be included in all
-# copies or substantial portions of the Software.
-
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-# SOFTWARE.
+# Copyright (C) 2019-2026 Crt Vavros
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import bpy, os
 import numpy as np
@@ -33,7 +28,6 @@ file_magic        = b'MAT '
 required_version  = 0x32
 color_tex_width   = 32
 color_tex_height  = 32
-max_texture_slots = 18 # blender 2.79 limitation
 
 class MatType(IntEnum):
     Color   = 0
@@ -265,26 +259,52 @@ def _mat_add_new_texture(mat: bpy.types.Material, width: int, height: int, texId
 
     if pixdata is not None:
         img.pixels[:] = pixdata
-        img.pack(as_png=True)
+        img.file_format = 'PNG'
+        img.pack()
         img.update()
     else:
         img.generated_type   = 'UV_GRID'
         img.generated_width  = width
         img.generated_height = height
 
-    tex                   = bpy.data.textures.new(img_name, 'IMAGE')
-    tex.image             = img
-    tex.use_preview_alpha = hasTransparency
+    # Store image reference on the material for multi-cel support
+    if not hasattr(mat, '_sith_images'):
+        mat['_sith_images'] = []
 
-    ts                = mat.texture_slots.add()
-    ts.use            = False # Disable slot by default
-    ts.texture        = tex
-    ts.use_map_alpha  = hasTransparency
-    ts.texture_coords = 'UV'
-    ts.uv_layer       = 'UVMap'
+    # For the first texture (cel 0), set up the node tree
+    if texIdx == 0:
+        mat.use_nodes = True
+        nodes = mat.node_tree.nodes
+        links = mat.node_tree.links
+        # Clear default nodes
+        nodes.clear()
+
+        # Create Principled BSDF and Output
+        bsdf = nodes.new('ShaderNodeBsdfPrincipled')
+        bsdf.location = (0, 0)
+        bsdf.inputs['Specular IOR Level'].default_value = 0.0
+        bsdf.inputs['Roughness'].default_value = 1.0
+        output = nodes.new('ShaderNodeOutputMaterial')
+        output.location = (300, 0)
+        links.new(bsdf.outputs['BSDF'], output.inputs['Surface'])
+
+        # Create Image Texture node
+        tex_node = nodes.new('ShaderNodeTexImage')
+        tex_node.name = 'SithTexImage'
+        tex_node.label = 'SithTexImage'
+        tex_node.location = (-300, 0)
+        tex_node.image = img
+        links.new(tex_node.outputs['Color'], bsdf.inputs['Base Color'])
+
+        if hasTransparency:
+            links.new(tex_node.outputs['Alpha'], bsdf.inputs['Alpha'])
+            if hasattr(mat, 'blend_method'):
+                mat.blend_method = 'BLEND'
+            if hasattr(mat, 'shadow_method'):
+                mat.shadow_method = 'CLIP'
 
 def _max_cels(len: int) -> int:
-    return min(len, max_texture_slots)
+    return len  # No longer limited by texture_slots
 
 def _make_color_textures(mat: bpy.types.Material, records: List[MatColorRecord], cmp: Optional[ColorMap]): # cmp is None then blank 64x64 textures is created
     # Creates 1 palette pixel color texture of size color_tex_height * color_tex_width
@@ -309,27 +329,21 @@ def importMat(filePath: Union[Path, str], cmp: Optional[ColorMap] = None) -> bpy
     if mat_name in bpy.data.materials:
         mat = bpy.data.materials[mat_name]
         print(f"Info: MAT file '{mat_name}' already loaded, reloading textures!")
-        for idx, s in enumerate(mat.texture_slots):
-            if s is not None:
-                if s.texture is not None:
-                    bpy.data.textures.remove(s.texture)
-                mat.texture_slots.clear(idx)
+        # Remove old images associated with this material
+        if mat.use_nodes and mat.node_tree:
+            for node in mat.node_tree.nodes:
+                if node.type == 'TEX_IMAGE' and node.image:
+                    bpy.data.images.remove(node.image)
+            mat.node_tree.nodes.clear()
     else:
         mat = bpy.data.materials.new(mat_name)
 
-    mat.use_shadeless    = True
-    mat.use_object_color = True
-    mat.use_face_texture = True
     if h.type == MatType.Color:
         _make_color_textures(mat, records, cmp)
     else: # MAT contains textures
-        use_transparency        = True if h.color_info.alpha_bpp > 0 else False
-        mat.use_transparency    = use_transparency
-        mat.transparency_method = 'Z_TRANSPARENCY'
-        mat.alpha               = 0.0
+        use_transparency = True if h.color_info.alpha_bpp > 0 else False
         for i in range(0, _max_cels(h.texture_count)):
             mm = _read_mipmap(f, h.color_info, cmp)
             _mat_add_new_texture(mat, mm.width, mm.height, i, mm.pixel_data_array[0] if mm.pixel_data_array else None, hasTransparency=use_transparency)
 
-    mat.use_textures[0] = True # Enable only 1st slot
     return mat
