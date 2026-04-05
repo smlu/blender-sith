@@ -113,6 +113,7 @@ class Mipmap(NamedTuple):
     height: int
     color_info: ColorFormat
     pixel_data_array: Optional[List[Pixels]]
+    transparent: bool
 
 _linear_coef = 1.0 / 255.0
 
@@ -236,7 +237,12 @@ def _read_mipmap(f: BinaryIO, ci: ColorFormat, cmp: Optional[ColorMap] = None) -
     else:
         print("  Missing ColorMap, only texture size will be loaded!")
 
-    return Mipmap(mmh.width, mmh.height, ci, pd)
+    # Note: 8bpp/Indexed headers are the source of truth for transparency, not color_info.alpha_bpp
+    is_transparent = ci.alpha_bpp > 0
+    if ci.bpp == 8 or ci.color_mode == ColorMode.Indexed:
+        is_transparent = bool(mmh.transparent)
+
+    return Mipmap(mmh.width, mmh.height, ci, pd, is_transparent)
 
 def _get_tex_name(idx: int, mat_name: str) -> str:
     name = os.path.splitext(mat_name)[0]
@@ -246,7 +252,7 @@ def _get_tex_name(idx: int, mat_name: str) -> str:
 
 def _mat_add_new_texture(mat: bpy.types.Material, width: int, height: int, texIdx: int, pixdata: Optional[Pixels], hasTransparency: bool):
     img_name = _get_tex_name(texIdx, mat.name)
-    if not img_name in bpy.data.images:
+    if img_name not in bpy.data.images:
         img = bpy.data.images.new(
             img_name,
             width  = width,
@@ -266,10 +272,6 @@ def _mat_add_new_texture(mat: bpy.types.Material, width: int, height: int, texId
         img.generated_type   = 'UV_GRID'
         img.generated_width  = width
         img.generated_height = height
-
-    # Store image reference on the material for multi-cel support
-    if not hasattr(mat, '_sith_images'):
-        mat['_sith_images'] = []
 
     # For the first texture (cel 0), set up the node tree
     if texIdx == 0:
@@ -298,10 +300,6 @@ def _mat_add_new_texture(mat: bpy.types.Material, width: int, height: int, texId
 
         if hasTransparency:
             links.new(tex_node.outputs['Alpha'], bsdf.inputs['Alpha'])
-            if hasattr(mat, 'blend_method'):
-                mat.blend_method = 'BLEND'
-            if hasattr(mat, 'shadow_method'):
-                mat.shadow_method = 'CLIP'
 
 def _max_cels(len: int) -> int:
     return len  # No longer limited by texture_slots
@@ -339,11 +337,28 @@ def importMat(filePath: Union[Path, str], cmp: Optional[ColorMap] = None) -> bpy
         mat = bpy.data.materials.new(mat_name)
 
     if h.type == MatType.Color:
+        mat.blend_method = 'OPAQUE'
         _make_color_textures(mat, records, cmp)
     else: # MAT contains textures
-        use_transparency = True if h.color_info.alpha_bpp > 0 else False
+        # 1. Read all mipmaps first to determine global transparency
+        mipmaps = []
         for i in range(0, _max_cels(h.texture_count)):
-            mm = _read_mipmap(f, h.color_info, cmp)
-            _mat_add_new_texture(mat, mm.width, mm.height, i, mm.pixel_data_array[0] if mm.pixel_data_array else None, hasTransparency=use_transparency)
+            mipmaps.append(_read_mipmap(f, h.color_info, cmp))
+
+        # 2. Check if ANY cel uses transparency
+        use_transparency = any(mm.transparent for mm in mipmaps)
+        mat.blend_method = 'BLEND' if use_transparency else 'OPAQUE'
+
+        mat.use_transparent_shadow = False
+        if hasattr(mat, 'use_tranparency_overlap'):
+            mat.use_tranparency_overlap = use_transparency
+        elif hasattr(mat, 'show_transparent_back'):
+            mat.show_transparent_back = use_transparency
+
+        # 3. Create textures and setup nodes
+        for i, mm in enumerate(mipmaps):
+            # Pass the SPECIFIC transparency of this cel to _mat_add_new_texture
+            # This ensures opaque cels in a mixed material don't get an alpha link (which causes glitches)
+            _mat_add_new_texture(mat, mm.width, mm.height, i, mm.pixel_data_array[0] if mm.pixel_data_array else None, hasTransparency=mm.transparent)
 
     return mat
