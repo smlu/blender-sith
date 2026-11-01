@@ -18,30 +18,42 @@ from typing import Optional
 import bpy
 
 def HexProperty(varName: str, name: Optional[str] = '', description: Optional[str] = '', default : Optional[str] = '', maxlen: Optional[int] = None, options: Optional[set] = set(), pad: bool = False) -> bpy.props.StringProperty:
+    """Hex digits with an optional input prefix; maxlen limits canonical digits.
+
+    Validate after removing the prefix, not with RNA's raw string limit, which
+    raises callback errors for valid inputs such as 0xFFFF in a four-digit field.
+    Invalid/negative/out-of-range input leaves the previous value unchanged.
+    """
+    def normalize(value):
+        number = int(value or default or '0', 16)
+        if number < 0:
+            raise ValueError('Hex flags cannot be negative')
+        value = format(number, 'X')
+        if pad:
+            value = value.zfill(len(value) + len(value) % 2)
+        if maxlen and len(value) > maxlen:
+            raise ValueError('Hex flags exceed the digit limit')
+        return value
+
+    default_value = normalize(default)
+
     def __get_hexvalue(self):
         if varName in self:
             return self[varName]
-        return ''
+        return default_value
 
     def __set_hexvalue(self, value):
         try:
-            if len(value) == 0:
-                value = default
-            int(value, 16)
-            self[varName] = value.upper().lstrip('0X')
-            if len(self[varName]) == 0:
-                self[varName] = '0'
-            if pad:
-                l = len(self[varName])
-                l += l % 2
-                self[varName] = self[varName].zfill(l)
-        except: pass
+            normalized = normalize(value)
+        except (ValueError, TypeError):
+            return
+        self[varName] = normalized
 
     return bpy.props.StringProperty(
         name = name,
         description = description,
-        default = default,
-        maxlen = maxlen,
+        default = default_value,
+        maxlen = 0,
         get = __get_hexvalue,
         set = __set_hexvalue,
         options = options
