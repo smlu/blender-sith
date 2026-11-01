@@ -1,0 +1,62 @@
+# Original synthetic topology/UV/color vector, not copied from game assets.
+SECTION: HEADER
+3DO 2.3
+SECTION: MODELRESOURCE
+MATERIALS 1
+0: corners.mat
+SECTION: GEOMETRYDEF
+RADIUS 20
+INSERT OFFSET 0 0 0
+GEOSETS 1
+GEOSET 0
+MESHES 1
+MESH 0
+NAME degenerate_faces
+RADIUS 20
+GEOMETRYMODE 4
+LIGHTINGMODE 3
+TEXTUREMODE 3
+VERTICES 6
+0: 0 0 0 1 0 0 0.25
+1: 1 0 0 0 1 0 0.5
+2: 0 1 0 0 0 1 0.75
+3: 2 0 0 -0.25 2 0.5 1
+4: 0 0 0 0.2 0.4 0.6 0.8
+5: 9 9 9 2 -0.5 0.25 0
+TEXTURE VERTICES 5
+0: 0 0
+1: 1 0
+2: 0 1
+3: 0.25 0.75
+4: 0.8 0.2
+VERTEX NORMALS
+0: 0 0 1
+1: 0 0 1
+2: 0 0 1
+3: 0 0 0
+4: 0 0 0
+5: 0 0 0
+FACES 9
+# Valid face before, between and after degenerate faces keeps metadata aligned.
+0: 0 0x1 4 3 3 (0.1/0.2/0.3/1) 3 0,0 1,1 2,2
+1: 0 0x2 4 3 3 (0.2/0.3/0.4/0.9) 3 1,0 0,3 0,4
+2: 0 0x4 4 3 3 (0.3/0.4/0.5/0.8) 3 0,1 0,2 2,3
+3: 0 0x8 4 3 3 (0.4/0.5/0.6/0.7) 4 0,0 1,1 0,3 2,2
+4: 0 0x10 4 3 3 (0.5/0.6/0.7/0.6) 4 0,0 1,1 2,2 0,4
+5: 0 0x20 4 3 3 (0.6/0.7/0.8/0.5) 3 1,0 1,1 1,2
+6: 0 0x40 4 3 3 (0.7/0.8/0.9/0.4) 3 0,0 1,1 3,2
+7: 0 0x80 4 3 3 (0.8/0.9/1/0.3) 3 0,0 4,4 2,2
+8: 0 0x100 4 3 3 (0.9/1/1.1/0.2) 3 2,2 1,1 0,0
+FACE NORMALS
+0: 0 0 1
+1: 0 0 0
+2: 0 0 0
+3: 0 0 0
+4: 0 0 1
+5: 0 0 0
+6: 0 0 0
+7: 0 0 0
+8: 0 0 -1
+SECTION: HIERARCHYDEF
+HIERARCHY NODES 1
+0: 0x1 0x8 0 -1 -1 -1 0 0 0 0 0 0 0 0 0 0 joint
