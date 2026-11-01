@@ -100,7 +100,7 @@ class KeyMarker:
 class Keyframe:
     def __init__(self):
         self._flags: KeyframeFlag = KeyframeFlag.NoChange
-        self._frame : int      = 0
+        self._frame : float    = 0.0
         self._pos: Vector3f    = Vector3f(0.0, 0.0, 0.0) # x,y,z
         self._orient: Vector3f = Vector3f(0.0, 0.0, 0.0) # pitch, yaw, roll:
         self._dpos: Vector3f   = Vector3f(0.0, 0.0, 0.0) # x,y,z
@@ -115,11 +115,11 @@ class Keyframe:
         self._flags = flags
 
     @property
-    def frame(self) -> int:
+    def frame(self) -> float:
         return self._frame
 
     @frame.setter
-    def frame(self, frame: int):
+    def frame(self, frame: float):
         self._frame = frame
 
     @property
