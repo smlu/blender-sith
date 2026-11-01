@@ -61,7 +61,7 @@
 - ✅ Import/Export mesh animations
 - 🎞️  Keyframe markers support
 - ⚙️ High-priority node configuration
-- 📊 Frame rate control (15-60 fps)
+- 📊 Numeric and fractional playback rates within Blender's supported limits
 
 </td>
 <td width="50%">
@@ -122,8 +122,22 @@
 # Clone or download the repository
 git clone https://github.com/smlu/blender-sith.git
 
-# ZIP the `sith` folder and install via Blender Preferences
+# Build the installable extension archive (Python 3.11+, standard library only)
+python scripts/make_addon.py
 ```
+
+Install the resulting `build/sith.zip` using **Install from Disk...**. The builder
+is independent of the working directory and accepts `--output /path/to/sith.zip`.
+It packages the current `sith` extension with its manifest at the archive root,
+omits development/Blender backup files, and leaves sources untouched. An existing
+archive is replaced only after a successful build; an unreadable source directory
+aborts the build instead of silently omitting modules. The output must stay outside
+the source tree, including physical aliases through alternate namespaces or mounts.
+`scripts/make_addon.sh` is a
+compatibility wrapper for Bash users; no external `zip` command is required.
+
+Blender's 3DO workflow imports/exports **LOD 0 only**. Extra geosets in a source
+model are not retained by the Blender round trip; see the [Usage Guide](USAGE.md).
 
 > 💡 **Note**: In Blender 5.0, add-ons are managed through the Extensions system.
 
@@ -156,7 +170,27 @@ Contributions are welcome! Feel free to:
 
 ---
 
-##  Links
+## Tests
+
+Resource codecs run in ordinary Python without Blender:
+
+```sh
+python -m pip install -r tests/requirements.txt
+python tests/run.py --suite core
+```
+
+Blender import/export tests run in a separate Blender 5.0+ process:
+
+```sh
+blender --background --factory-startup --python-exit-code 1 --python tests/run.py -- --suite app
+```
+
+Both suites use standard-library `unittest` and synthetic fixtures. GitHub Actions
+runs the core suite on Windows, macOS and Linux, and the application suite in
+headless Blender on Linux. See [tests/README.md](tests/README.md) for coverage,
+commands and interpolation limitations.
+
+## Links
 
 - 📦 [Releases](https://github.com/smlu/blender-sith/releases) - Download the latest version
 - 🐛 [Issue Tracker](https://github.com/smlu/blender-sith/issues) - Report bugs or request features
