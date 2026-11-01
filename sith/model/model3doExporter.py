@@ -15,7 +15,6 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import bpy, bmesh, mathutils, os
-import numpy as np
 
 from ..types import BenchmarkMeter
 from ..utils import *
@@ -83,14 +82,6 @@ def _uv_add_image_size(uv: mathutils.Vector, mat) -> mathutils.Vector:
                 return vectorMultiply(uv, mathutils.Vector(node.image.size))
     return uv
 
-def _find_vertex(vlist: List[Vector3f], v: Vector3f, vcolors: List[Vector4f], vcolor: Vector4f) -> int:
-    def np_array(o):
-        return np.array(o, dtype="f,f,f")
-    for vidx in np.where(np_array(vlist) == np_array(v))[0]:
-        if vidx < len(vcolors) and vcolors[vidx] == vcolor:
-            return vidx
-    return -1
-
 def _model3do_add_mesh(model: Model3do, mesh: bpy.types.Mesh, scale: mathutils.Vector, uvAbsolute: bool, exportVertexColors: bool) -> int:
     if mesh is None:
         return -1
@@ -123,6 +114,11 @@ def _model3do_add_mesh(model: Model3do, mesh: bpy.types.Mesh, scale: mathutils.V
     bm.faces.ensure_lookup_table()
     vcolor_layer = bm.loops.layers.color.verify()
     uv_layer     = bm.loops.layers.uv.verify()
+    # 3DO has one normal per vertex. Split vertices at normal discontinuities,
+    # including sharp faces/edges and custom normals. BMesh vertex normals lose
+    # these distinctions; read Mesh corner normals in original polygon order.
+    corner_normals = mesh.corner_normals
+    vertex_indices = {}
 
     for face in bm.faces:
         face3do = Mesh3doFace()
@@ -144,15 +140,18 @@ def _model3do_add_mesh(model: Model3do, mesh: bpy.types.Mesh, scale: mathutils.V
         face3do.normal       = Vector3f(*face.normal)
 
         # Set face vertex and texture index
-        for loop in face.loops:
+        for loop, loop_idx in zip(face.loops, mesh.polygons[face.index].loop_indices):
             vertx  = Vector3f(*vectorMultiply(loop.vert.co, scale))
             vcolor = Vector4f(*loop[vcolor_layer]) if exportVertexColors else kDefaultVertexColor
-            vidx   = _find_vertex(mesh3do.vertices, vertx, mesh3do.vertexColors, vcolor)
+            normal = Vector3f(*corner_normals[loop_idx].vector)
+            vertex_key = (vertx, vcolor, normal)
+            vidx   = vertex_indices.get(vertex_key, -1)
             if vidx < 0:
                 vidx = len(mesh3do.vertices)
+                vertex_indices[vertex_key] = vidx
                 mesh3do.vertices.append(vertx)
                 mesh3do.vertexColors.append(vcolor)
-                mesh3do.normals.append(Vector3f(*loop.vert.normal))
+                mesh3do.normals.append(normal)
             face3do.vertexIdxs.append(vidx)
 
             # Set UV coordinates
