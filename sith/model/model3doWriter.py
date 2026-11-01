@@ -18,41 +18,68 @@ from .model3do import *
 from .model3doLoader import Model3doFileVersion
 from pathlib import Path
 from ..types import Vector4f
+from ..types.vector import validateFloat32
 from ..text.serutils import *
 from typing import List, TextIO, Tuple, Union
 
 _file_magic = "3DO"
 
-def save3do(model: Model3do, filePath: Union[Path, str], version: Model3doFileVersion, headerComment: str):
+def save3do(model: Model3do, filePath: Union[Path, str], version: Model3doFileVersion, headerComment: str, *, warnings=None):
     """ Saves `model` to 3DO file """
-    f = open(filePath, 'w', encoding='utf-8')
+    for name in [*model.materials, *(node.name for node in model.meshHierarchy)]:
+        assertName(name, maxLength=None)
+    for geoset in model.geosets:
+        for mesh in geoset.meshes:
+            assertName(mesh.name, allowSpaces=True, maxLength=None)
 
-    _write_section_header(f, model, headerComment, version)
-    _write_section_resources(f, model)
-    _write_section_geometry(f, model, version)
-    _write_section_hierarchydef(f, model)
+    # Fail before opening the destination: nonfinite numbers serialize as tokens
+    # the text format cannot read, and must not overwrite a previous good export.
+    def finite(values):
+        validateFloat32(values, '3DO numeric data')
 
-    f.flush()
-    f.close()
+    finite((model.radius, *model.insertOffset))
+    for node in model.meshHierarchy:
+        finite((*node.position, *node.rotation, *node.pivot))
+    for geoset in model.geosets:
+        for mesh in geoset.meshes:
+            finite((mesh.radius,))
+            for vectors in (mesh.vertices, mesh.vertexColors, mesh.normals, mesh.uvs):
+                finite(value for vector in vectors for value in vector)
+            for face in mesh.faces:
+                finite((*face.normal, *face.color))
+
+    # Long names remain useful for custom engines. Warn about legacy buffers,
+    # but preserve identifiers verbatim rather than truncate or reject them.
+    name_limit = 31 if version == Model3doFileVersion.Version2_1 else 63
+    joint_limit = 31 if version == Model3doFileVersion.Version2_1 else 127
+    names = [('model filename', Path(filePath).name, name_limit)]
+    names.extend(('material name', name, name_limit) for name in model.materials)
+    names.extend(('joint name', node.name, joint_limit) for node in model.meshHierarchy)
+    names.extend(('mesh name', mesh.name, name_limit) for geoset in model.geosets for mesh in geoset.meshes)
+    for label, name, limit in names:
+        if len(name) > limit:
+            message = (f"3DO {label} '{name}' has {len(name)} characters; the legacy compatibility "
+                       f"limit is {limit}. Exported without truncation.")
+            print('Warning: ' + message)
+            if warnings is not None:
+                warnings.append(message)
+
+    with open(filePath, 'w', encoding='utf-8') as f:
+        _write_section_header(f, model, headerComment, version)
+        _write_section_resources(f, model)
+        _write_section_geometry(f, model, version)
+        _write_section_hierarchydef(f, model)
 
 def _vector_to_str(vector: Tuple[float, ...], compact: bool = True, align_width: int = 10) -> str:
-    out = "" if compact else '('
+    # Fixed decimals erase small geometry, UVs, normals and lighting values.
+    # Float repr retains their stored precision and signed zero in every version.
+    values = [repr(float(value)) for value in vector]
     if compact:
-        format_text = " {:>" + str(align_width) + ".6f}"
-    else:
-        format_text = "{:.6f}"
-
-    for count, e in enumerate(vector):
-        if count > 0 and not compact:
-            out += '/'
-        out += format_text.format(e)
-
-    if not compact:
-        out += ')'
-    return out
+        return ''.join(' ' + value.rjust(align_width) for value in values)
+    return '(' + '/'.join(values) + ')'
 
 def _radius_to_str(radius: float) -> str:
-    return "{:>11.6f}".format(radius)
+    return repr(float(radius)).rjust(11)
 
 def _write_section_header(file: TextIO, model: Model3do, headerComment: str, version: Model3doFileVersion):
     writeCommentLine(file, headerComment)
@@ -83,6 +110,7 @@ def _color_to_str(color: Vector4f, version: Model3doFileVersion, compact: bool =
         compact = True
     elif version == Model3doFileVersion.Version2_2:
         color = color[0:3]
+        compact = True  # 2.2 stores plain RGB numbers, not parenthesized RGBA.
     return _vector_to_str(color, compact=compact, align_width=align_width)
 
 def _write_vertices(file: TextIO, vertices, vertices_color, version: Model3doFileVersion):
