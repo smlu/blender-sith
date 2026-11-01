@@ -19,7 +19,11 @@ from .cmp import (
     ColorMap
 )
 
-from .mat import importMat
+def __getattr__(name):
+    if name == 'importMat':
+        from .mat import importMat
+        return importMat
+    raise AttributeError(f'module {__name__!r} has no attribute {name!r}')
 
 __all__ = [
     "CmpPaletteRGB",
