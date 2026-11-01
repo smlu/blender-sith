@@ -236,6 +236,12 @@ def _read_mipmap(f: BinaryIO, ci: ColorFormat, cmp: Optional[ColorMap] = None) -
             pd += [_read_pixel_data(f, w, h, ci, cmp, transparent_color)]
     else:
         print("  Missing ColorMap, only texture size will be loaded!")
+        # A missing palette prevents decoding, not consumption of the cel's
+        # pixel data. Otherwise the next cel header is read from these bytes.
+        for i in range(mmh.levels):
+            size = _get_pixel_data_size(mmh.width >> i, mmh.height >> i, ci.bpp)
+            if len(f.read(size)) != size:
+                raise EOFError("Truncated MAT mipmap pixel data")
 
     # Note: 8bpp/Indexed headers are the source of truth for transparency, not color_info.alpha_bpp
     is_transparent = ci.alpha_bpp > 0
