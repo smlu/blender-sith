@@ -426,7 +426,7 @@ PowerShell, replacing the script path with this checkout's absolute path:
 
 The GitHub Actions workflow `tests.yml` has independent jobs: core tests on
 Windows/macOS/Linux with Python 3.11 and 3.13, and application tests using the
-official, checksum-verified portable Blender 5.0.1 on Linux. No game executable,
+official, checksum-verified portable Blender 5.2.3 LTS on Linux. No game executable,
 GPU rendering, desktop session or add-on installation is required.
 
 ## Animation Fidelity

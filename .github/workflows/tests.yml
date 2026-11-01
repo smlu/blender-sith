@@ -1,0 +1,57 @@
+name: Tests
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  core:
+    name: Core / ${{ matrix.os }} / Python ${{ matrix.python }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python: ['3.11', '3.13']
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+          cache-dependency-path: tests/requirements.txt
+      - name: Install resource decoder dependency
+        run: python -m pip install -r tests/requirements.txt
+      - name: Test core without Blender
+        run: python -B tests/run.py --suite core
+
+  app:
+    name: App / Blender 5.2.3 LTS / Linux
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      BLENDER_VERSION: '5.2.3'
+    steps:
+      - uses: actions/checkout@v7
+      - name: Download and verify official portable Blender
+        working-directory: ${{ runner.temp }}
+        shell: bash
+        run: |
+          archive="blender-${BLENDER_VERSION}-linux-x64.tar.xz"
+          checksum="blender-${BLENDER_VERSION}.sha256"
+          base="https://download.blender.org/release/Blender5.2"
+          curl --fail --location --retry 3 --output "$archive" "$base/$archive"
+          curl --fail --location --retry 3 --output "$checksum" "$base/$checksum"
+          sha256sum --check --ignore-missing "$checksum"
+          tar -xf "$archive"
+      - name: Test Blender import and export
+        shell: bash
+        run: |
+          "$RUNNER_TEMP/blender-${BLENDER_VERSION}-linux-x64/blender" \
+            --background --factory-startup --python-exit-code 1 \
+            --python tests/run.py -- --suite app
