@@ -3,7 +3,7 @@ schema_version = "1.0.0"
 id = "sith"
 name = "Sith Game Engine Formats (.3do, .mat, .key)"
 version = "1.0.0-rc4"
-tagline = "Import/export 3DO models, MAT textures & KEY animations for games based on the Sith game engine"
+tagline = "Import and export 3DO and KEY files, and import MAT textures"
 maintainer = "Crt Vavros"
 type = "add-on"
 
