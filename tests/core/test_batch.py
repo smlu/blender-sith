@@ -119,7 +119,9 @@ class BatchTests(unittest.TestCase):
 
     def test_full_batch_inventory_checks_siblings_after_an_internal_alias(self):
         with tempfile.TemporaryDirectory() as directory:
-            root, output = Path(directory) / 'assets', Path(directory) / 'report'
+            # Match the canonical paths used by run() before installing the alias mock.
+            directory = Path(directory).resolve()
+            root, output = directory / 'assets', directory / 'report'
             inner = root / 'inner'
             inner.mkdir(parents=True)
             alias, target, sibling = root / 'a_link.mat', inner / 'target.mat', root / 'b_regular.mat'
@@ -152,7 +154,9 @@ class BatchTests(unittest.TestCase):
         for pattern, expected_name in (('*target*', 'z_target.mat'), ('*alias*', 'a_alias.mat')):
             for limit in (0, 1):
                 with self.subTest(pattern=pattern, limit=limit), tempfile.TemporaryDirectory() as directory:
-                    root, output = Path(directory) / 'assets', Path(directory) / 'report'
+                    # Temporary paths may contain symlinks or Windows short names.
+                    directory = Path(directory).resolve()
+                    root, output = directory / 'assets', directory / 'report'
                     root.mkdir()
                     alias, target = root / 'a_alias.mat', root / 'z_target.mat'
                     alias.write_bytes(b'Simulated file alias')

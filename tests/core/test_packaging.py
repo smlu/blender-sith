@@ -40,7 +40,8 @@ class PackagingTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(prefix='sith package ')
         self.addCleanup(self.temp.cleanup)
-        self.root = Path(self.temp.name)
+        # The samefile mock must match the canonical paths used by the packager.
+        self.root = Path(self.temp.name).resolve()
         self.source = self.root / 'source with spaces'
         self.source.mkdir()
         (self.source / '__init__.py').write_text('# test extension\n')
