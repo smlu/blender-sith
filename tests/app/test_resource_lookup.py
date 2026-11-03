@@ -199,3 +199,34 @@ class ResourceLookupTests(unittest.TestCase):
             with self.volume.mounted(), patch.object(utils.ColorMap, 'load', return_value='modeled') as load:
                 self.assertEqual(utils.getCmpFileOrDefault('', source), 'modeled')
                 self.assertEqual(Path(load.call_args.args[0]), expected)
+
+    def test_material_roots_include_direct_and_nested_layouts(self):
+        source = self.volume.root / 'Game/Models/Hero.3do'
+        extra = self.volume.root / 'Game/Assets'
+        self.volume.directory(source.parent)
+        for supplied in (extra, Path('../Assets')):
+            folders = utils.getDefaultMatFolders(source, [supplied])
+            expected = [source.parent, source.parent / 'mat', source.parent.parent / 'mat',
+                        source.parent / '3do/mat', extra, extra / 'mat', extra / '3do/mat']
+            self.assertEqual([self.volume.key(folder) for folder in folders],
+                             [self.volume.key(folder) for folder in expected])
+
+    def test_material_root_case_fallback_covers_all_supplied_layouts(self):
+        source = self.volume.root / 'Game/Models/Hero.3do'
+        self.volume.directory(source.parent)
+        for layout in ('', 'MAT', '3DO/MAT'):
+            expected = self.volume.file('Game/Assets/' + (layout + '/' if layout else '') + 'Paint.MAT')
+            with self.volume.mounted(), patch.object(model_utils, 'importMat') as load:
+                model_utils.importMaterials(['paint.mat'], utils.getDefaultMatFolders(source, ['../assets']), None)
+                self.assertEqual(self.volume.key(load.call_args.args[0]), self.volume.key(expected))
+            self.volume.files.remove(self.volume.key(expected))
+
+    def test_palette_supplied_roots_resolve_relative_and_absolute_paths(self):
+        source = self.volume.root / 'Game/Models/Hero.3do'
+        self.volume.directory(source.parent)
+        expected = self.volume.file('Game/Assets/MISC/CMAP/Chosen.CMP')
+        for supplied in (self.volume.root / 'Game/Assets', Path('../assets')):
+            with self.subTest(supplied=supplied), self.volume.mounted(), \
+                 patch.object(utils.ColorMap, 'load', return_value='palette') as load:
+                self.assertEqual(utils.getCmpFileOrDefault('chosen.cmp', source, searchPaths=[supplied]), 'palette')
+                self.assertEqual(self.volume.key(load.call_args.args[0]), self.volume.key(expected))

@@ -2,6 +2,10 @@
 
 Complete guide for using the Sith Engine Toolkit add-on for Blender 5.0.
 
+For file layouts and conversion details, see the [technical documentation](docs/README.md).
+The [Blender pipeline guide](docs/blender-pipeline.md) includes diagrams and a
+worked node/mesh sync example, including meshless joints.
+
 ---
 
 ## 📥 Importing 3DO Models
@@ -14,13 +18,14 @@ Complete guide for using the Sith Engine Toolkit add-on for Blender 5.0.
 |--------|-------------|
 | 🎥 **Adjust 3D View** | Auto-frames model with optimal camera distance |
 | 🧹 **Clear Scene** | Clears all scenes and their content in the current `.blend`, not just the active scene |
-| 📐 **3DO 2.1 - Absolute UV** | Converts absolute to relative UVs (JKDF2/MOTS) |
+| 📐 **v2.1 Absolute UV** | Converts absolute pixel-space UVs used by JKDF2, MOTS, Grim Fandango and DroidWorks to normalized Blender UVs |
 | 🎨 **Import Vertex Colors** | Imports per-vertex color data |
+| **Import Vertex Normals (Text)** | Also preserves authored normals on legacy text models without Grim-specific markers |
 | ⭕ **Import Radius Objects** | Creates wireframe sphere objects for radii |
 | 📋 **Preserve Mesh Hierarchy** | Prefixes Blender object names with source node indices |
 | **Try Recover Broken File** | Opt-in best-effort recovery; located immediately before the texture settings and off by default |
 | 📁 **MAT Directory** | Folder path for `.mat` texture files |
-| 🎨 **ColorMap File** | Path to `.cmp` file (JKDF2/MOTS) |
+| 🎨 **ColorMap File** | Path to `.cmp` palette for indexed MATs (JKDF2/MOTS/DroidWorks/Grim Fandango) |
 
 ![Import Options](demo/iopt.png)
 
@@ -38,13 +43,23 @@ operator fails, the model remains imported and a warning reports the framing
 failure; retrying the resource import is not necessary.
 
 **Resource search:** MAT files are searched beside the model, in that directory's
-`mat` subdirectory, in the parent directory's `mat` subdirectory, then in the
-explicit **MAT Directory**. A relative MAT Directory is relative to the model.
+`mat` subdirectory, in the parent directory's `mat` subdirectory, and in
+`3do/mat` below the model directory. The explicit **MAT Directory** is searched
+after those defaults, both directly and through its `mat` and `3do/mat`
+subdirectories. A relative MAT Directory is relative to the model, not Blender's
+working directory. A model filename without a directory uses the current folder.
 
 For CMP files, the explicit/current-directory path is checked first. Fallbacks
 are the model directory, its `misc/cmp` subdirectory, the parent directory, the
-parent's `misc/cmp`, then the grandparent's `misc/cmp`. An empty **ColorMap File**
-uses `dflt.cmp`.
+parent's `misc/cmp`, then the grandparent's `misc/cmp`. Additional fallbacks include
+`misc/cmap`, `cmp` and `cmap` below the model directory, and ancestor `misc/cmap`
+directories. The supplied MAT Directory is also a palette search root: its own
+directory, `misc/cmp`, `misc/cmap`, `cmp` and `cmap`, followed by its parent and the
+parent's `misc/cmp` and `misc/cmap`. This also finds palettes alongside a supplied
+`mat` folder. Relative CMP paths are checked against these roots too.
+An empty **ColorMap File** first searches for `dflt.cmp`, then Grim's
+`dfltcmp.cmp`. It never chooses an arbitrary room/costume palette; select the
+correct CMP explicitly when the default does not give the intended colors.
 
 File and directory components use exact spelling first, then a case-insensitive
 fallback on the actual resource volume. This also finds `MAT`, `MISC/CMP` and
@@ -90,7 +105,7 @@ Review the report and repair the model before export: recovery is not a repair,
 and exporting can retain placeholder UVs or incomplete geometry.
 
 The source file is never modified. Unsupported versions and invalid format headers
-remain errors, as do files with no recoverable geometry or hierarchy. Strict import
+remain errors, as do files with no recoverable geometry or hierarchy. Strict text import
 remains the default and requires one HEADER, MODELRESOURCE, GEOMETRYDEF and
 HIERARCHYDEF section in that order, nonnegative counts and safe references.
 Complete empty resources are valid; missing sections are not empty resources.
@@ -115,8 +130,8 @@ that option still intentionally discards existing scene content once import star
 
 | Option | Description |
 |--------|-------------|
-| 🎯 **Version** | 2.1 (JKDF2/MOTS), 2.2 (IJIM RGB), 2.3 (IJIM RGBA) |
-| 📐 **Absolute UV** | Fixed UV coordinates (2.1 only) |
+| 🎯 **Format** | Text 2.1 (JKDF2/MOTS), 2.2 (IJIM RGB), 2.3 (IJIM RGBA), or Grim Fandango binary |
+| 📐 **v2.1 Absolute UV** | Absolute pixel-space UVs for JKDF2, MOTS, Grim Fandango and DroidWorks |
 | 🎨 **Export Vertex Colors** | Includes vertex color data |
 | 🔄 **Sync Mesh List** | Aligns mesh sequence with hierarchy nodes |
 
@@ -124,7 +139,7 @@ that option still intentionally discards existing scene content once import star
 ![Export Options](demo/eopt.png)
 
 
-3DO exports preserve long names and report legacy compatibility warnings in the
+Text 3DO exports preserve long names and report legacy compatibility warnings in the
 export UI and console. They do not truncate names or block export for length.
 For 2.1, warnings begin above 31 characters; for 2.2/2.3, filename/material/mesh
 names allow 63 characters and hierarchy names allow 127 before a warning.
@@ -134,13 +149,80 @@ the old 64-byte storage cap, independently of Blender's object display name.
 Names with a shared long prefix therefore remain distinct after import/export
 and `.blend` storage. KEY target name limits still apply separately.
 
-3DO numeric fields are written without fixed-decimal truncation, so small nonzero
+Text 3DO numeric fields are written without fixed-decimal truncation, so small nonzero
 geometry, UVs, lighting and radius values remain nonzero. Nonfinite values and
 values outside finite float32 storage fail before replacing an existing export.
 
 The Blender importer creates **LOD 0 only**, and export writes that edited geoset.
 Additional source LODs are not retained or recreated. The core resource codec can
 parse/write multiple geosets, but this is separate from the Blender workflow.
+
+### Grim Fandango Binary Models
+
+Binary `.3do` models are detected by their `LDOM` magic, independently of the file
+extension. Import uses the same hierarchy, vertex-color, radius and texture options
+as text models. To export binary, choose **Format > Grim Fandango**. For text
+export, select **2.1** instead.
+Keep **v2.1 Absolute UV** enabled for Grim's pixel-sized UV coordinates. Indexed MATs
+also need the appropriate CMP palette; palette selection is not inferred from a
+costume or level. Existing resource search and missing-texture fallback still apply.
+For example, Manny's action_manny.3do uses action.cmp, as specified by ma.cos.
+Enter action.cmp in **ColorMap File** when importing that model from DATA000_LAB.
+Grim type-3 indexed MATs are supported, including both the full and compact first
+record layouts used by files such as `blue.mat` and `orange.mat`. Pixel colors
+come from the selected external CMP, matching the game's material loading; extra
+MAT trailer data is not substituted for that palette. Missing palettes still
+produce size-correct placeholders, so material lookup and UV dimensions work even
+before the correct ColorMap is selected.
+
+The binary format stores one scalar intensity per vertex/face, not RGB or alpha.
+Import displays it as grayscale; export averages RGB and omits alpha, as with text
+2.1. **Shadow (Grim Fandango)** follows the **Texture** dropdown in the object's
+3DO mesh properties. It includes the mesh in the engine's separate projected
+actor-shadow pass, not Blender's shadow settings or ordinary mesh shading.
+Ordinary Sith text export targets omit that Grim-only keyword.
+
+Lighting **Mesh Intensity (Grim Fandango)** stores mode 6: the inspected Grim
+software renderer reuses a cached mesh intensity, which can be inherited from an
+ancestor mesh. Texture **Unknown (2)** preserves mode 2 without claiming an
+unverified perspective-mapping algorithm. These engine settings do not configure
+Blender viewport lighting or texture interpolation. See
+[Grim rendering controls](docs/formats/3do.md#grim-rendering-controls) for details.
+
+Fixed binary fields allow at most 32 ASCII bytes for model/material/mesh names and
+64 for joint names. Overlong, non-ASCII, NUL-containing or control-character names
+are errors, not silently truncated identifiers. Unlike advisory text-format limits,
+these are physical record sizes. Imported name padding and undocumented mesh,
+vertex, face, node and footer fields are retained by the resource codec. In Blender,
+opaque ID properties and source-index attributes keep those fields associated with
+the original records through mesh/hierarchy reordering. New records use defaults;
+deleting these attributes or properties discards that association.
+
+Authored binary vertex normals are displayed as custom normals. Their original
+float32 values are reused while the displayed normals are unchanged, avoiding
+Blender's internal custom-normal quantization on an untouched round trip. Deliberate
+normal edits export the current Blender values. Face normals follow the geometry.
+Identified Grim text models preserve their authored normals too. For ambiguous
+2.1 text models without `SHADOW` or Grim lighting markers, enable **Import Vertex
+Normals (Text)** explicitly; it is off by default to retain other games' existing
+import behavior. The Python API exposes this as `importVertexNormals=True`.
+The existing LOD-0 and baked-pivot limitations still apply; a Blender round trip is
+not a byte-identical substitute for the unmodified resource-codec round trip.
+
+Retail skeleton-only models can have an infinite cached model radius despite
+having no vertices. They use finite zero bounds in Blender, retain the sentinel in
+their metadata, and restore it on binary export while the model remains empty.
+Infinite bounds on actual geometry, invalid numeric data, unsafe counts/indices,
+hierarchy cycles, trailing data and incomplete records are rejected before clearing
+the scene or replacing an export. **Try Recover Broken File** does not guess or
+recover truncated binary records; partial recovery remains a text-format feature.
+
+The codec was reconstructed using the [3doobj structure definitions](https://github.com/cplhenshaw/3doobj/blob/master/modl.h)
+and its reader/writer, cross-checked with [ScummVM's Grim model reader](https://github.com/scummvm/scummvm/blob/master/engines/grim/model.cpp).
+In particular, the footer contains radius, 36 opaque bytes, then the insertion
+offset; the early 3doobj reader places the offset differently. No game assets are
+included with the add-on or its synthetic test vectors. See the
+[format reference](docs/formats/README.md) for model, animation and material layouts.
 
 ### Export Selection
 
@@ -161,6 +243,17 @@ support for complete empty resources independently of Blender export selection.
 
 ## 🎬 Importing KEY Animations
 
+Text KEY and Grim Fandango binary FYEK files are detected automatically.
+Binary null records are not additional animated joints. The importer uses Grim's
+animation-level interpolation rule rather than treating entry change flags as
+Sith channel gates. The core codec preserves stored FPS, unused marker slots,
+opaque words and duplicate empty records; it never modifies the original file.
+Blender uses stored FPS rather than applying an external engine's fixed-rate
+playback workaround. Numeric data must be finite, and tracks must pass existing
+Blender timing/preflight checks before actions are cleared. Adjacent equal-frame
+entries use Grim's last-entry rule. Zero-duration pose clips use a single display
+frame and retain their original zero duration on binary export.
+
 **Menu**: `File > Import > Sith Game Engine Animation (.key)`
 
 ### Steps
@@ -171,6 +264,8 @@ support for complete empty resources independently of Blender export selection.
    - ✅ **Validate**: Checks for required animation nodes
    - 🧹 **Clear scene**: Removes existing animation data
    - 🏷️ **Import markers by name**: Uses marker type names instead of numeric type IDs
+   - **Require Frame Zero** (on by default): Disable for tracks whose first entry is later than zero; active deltas are extrapolated backward without retiming the animation
+   - **Try Recover Broken File** (off by default): Omit corrupt tracks and retain complete valid animation, with warnings in **View KEY Import Report** under **3DO Properties**
 
 ![Export Options](demo/ikopt.png)
 
@@ -179,6 +274,18 @@ support for complete empty resources independently of Blender export selection.
 ---
 
 ## 🎬 Exporting KEY Animations
+
+Choose **Target > Grim Fandango** for binary output. Other targets retain text
+output. Grim supports eight markers, resource names up to 36 ASCII characters
+and joint names up to 32 ASCII characters. Export validates the complete binary
+before replacing a file. New null slots are generated for unanimated joints.
+Original opaque records are reused only for a replacement import whose animated
+joint identities still match; merges and hierarchy edits use new defaults.
+
+Grim animation flag 0x100 disables interpolation globally. Binary export with
+that flag rejects moving linear segments instead of silently changing playback.
+Use stepped animation or clear the flag in the scene's retained flags.
+See [KEY formats](docs/formats/key.md) for the binary layout.
 
 **Menu**: `File > Export > Sith Game Engine Animation (.key)`
 
@@ -231,9 +338,17 @@ another scene, activate it or supply a matching Blender scene/view-layer context
 override first. Model roots and eligible joints must all belong to that scene;
 parenting alone does not establish scene membership. These checks also apply with
 **Validate** disabled and run before clearing or merging any animation.
-Every nonempty track must start at frame zero in float32 storage, as required by
-Sith playback. A later first entry is rejected, not silently held or retimed;
-empty tracks remain valid and do not create animation channels.
+By default every nonempty track must start at frame zero in float32 storage.
+Disable **Require Frame Zero** to import late-start tracks, evaluating the first
+entry's active deltas backward to zero instead of silently holding or retiming it.
+Empty tracks remain valid and do not create animation channels. This option does
+not disable numeric, precision, skeleton or destination-safety checks.
+
+**Try Recover Broken File** is separate: it omits complete corrupt tracks rather
+than guessing missing poses. A damaged text tail can be discarded after a valid
+track; unsafe headers and truncated binary records still fail. Recovery does not
+disable **Require Frame Zero**. Reports identify omitted tracks and markers, and
+source files are never modified. Inspect recovered animation before exporting.
 Complete and partial skeleton matching use only actual Mesh/Empty joints. The
 model wrapper, radius helpers and unsupported subtrees cannot stand in for a
 missing joint through either index or name matching. With **Validate** enabled,
@@ -364,10 +479,16 @@ buffer limits. Infernal Machine is the default (64 joints, 16 markers,
 63-character names). JKDF2 and MOTS use 64 joints, 8 markers and 31-character names.
 **Generic** does not impose those engine-specific limits; select it
 for another engine such as DroidWorks only after checking that engine's limits.
+Generic also allows nonzero first frames and samples from the scene start frame
+without rebasing timestamps. With scene start zero, an unchanged replacement
+import preserves original late-start entries. Game-specific targets sample from
+zero, including a relaxed import's backward-extrapolated prefix.
 This opts out of engine-specific validation, not all validation. Shared KEY name
 validation still allows at most 64 characters, and structural/numeric safety
-checks remain enabled for every target.
-Shared unquoted-token validation still applies. Names cannot contain whitespace,
+checks remain enabled for every target. **Grim Fandango** instead writes binary
+and enforces its physical ASCII field sizes; it does not use text identifier
+rules or an unverified hardcoded joint-count cap.
+For text targets, unquoted-token validation applies. Names cannot contain whitespace,
 control characters, quotes or `#`.
 The 3DO mesh display `NAME` is a whole-line field and may contain spaces; it is
 validated separately from hierarchy names and KEY joint identifiers.
@@ -657,12 +778,12 @@ The add-on provides custom UI panels for editing 3DO-specific data directly in B
 #### Type Flags
 - ↔️ **Double Sided** - Renders both sides
 - 🌫️ **Translucent** - Alpha blending enabled
-- 📏 **Clamp Horizontal/Vertical** - Texture clamping
-- 🚫 **Disable Bilinear Filtering** - Point filtering
-- 📺 **Disable ZWrite** - Depth buffer control
-- 🧗 **IJIM: Ledge** - Climbable surface
-- 🌁 **IJIM: Enable Fog** - Fog rendering
-- 🔗 **IJIM: Whip Aim** - Whip target spot
+- 📏 **Clamp Horizontal/Vertical (IJIM)** - Texture clamping
+- 🚫 **Disable Bilinear Filtering (IJIM)** - Point filtering
+- 📺 **Disable ZWrite (IJIM)** - Depth buffer control
+- 🧗 **Ledge (IJIM)** - Climbable surface
+- 🌁 **Enable Fog (IJIM)** - Fog rendering
+- 🔗 **Whip Aim (IJIM)** - Whip target spot
 
 #### Modes
 - 📐 **Geometry Mode**: Not Drawn, Wireframe, Solid Color, Texture
@@ -675,11 +796,48 @@ The add-on provides custom UI panels for editing 3DO-specific data directly in B
 Toggling a known face flag changes only that bit. Unknown/custom engine flags,
 including high bits, and each selected face's other flags are preserved.
 
+The **(IJIM)** suffix identifies Infernal Machine-specific meanings, not universal
+3DO flags. Do not assume the same bit has the same effect, or is ignored, in
+another game. For example, `0x10` means nearest filtering in IJIM but forces
+lighting mode 1 in MOTS and Grim Fandango. The add-on preserves these bits rather
+than translating or removing them for another engine. See the
+[face-flag reference](docs/formats/3do.md#render-modes-and-face-flags).
+
 Face **Extra Light** accepts signed/HDR values throughout finite float32 storage.
 The normal slider range is `[0,1]`, not a storage limit. Synchronizing the panel
 and editing one color component do not clamp the other components. The output
 version still determines whether face lighting is scalar (2.1), RGB (2.2) or
 RGBA (2.3).
+
+### Extra Light Preview
+
+**Location**: `Object Properties > 3DO Properties > Preview > Extra Light`
+
+The scene-wide preview is **on by default**. Use Material Preview or Rendered
+viewport shading to see it; Solid shading does not evaluate this material setup.
+Editing Extra Light updates the selected faces immediately. Imports prepare the
+preview automatically and preserve the scene's chosen on/off state, including
+imports using Clear Scene. The choice is retained in the .blend file.
+
+The preview uses numeric face attributes, not vertex-color layers. Vertex colors,
+their active layer, UVs and texture pixels are unchanged. Export still reads the
+original face Extra Light field; preview attributes and shader nodes are not
+converted into file vertex lighting. The switch is independent of Export Vertex
+Colors. Material reloads retain the preview, and shared materials can show
+different Extra Light values on different meshes.
+
+Positive RGB adds texture-modulated emission; negative RGB dims the material.
+Only preview values are limited to `[-1,1]`; signed/HDR source values are retained
+for export. Extra Light alpha does not override texture transparency. Existing
+material alpha links remain intact.
+
+This is an editing aid, not exact native-engine lighting. It works with editable
+Principled materials; linked materials, animated node trees and unsupported shader
+types are left unchanged. Faces without an assigned material remain unassigned.
+The preview also affects Blender renders while enabled; turn it off for ordinary
+material shading. Disabling the add-on restores the shader inputs it installed.
+See the [technical pipeline](docs/blender-pipeline.md#extra-light-preview) for the
+data flow and preservation boundaries.
 
 ---
 

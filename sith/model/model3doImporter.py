@@ -14,7 +14,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-import bpy, bmesh, mathutils, os
+import bpy, bmesh, mathutils, math, os, json
 from ..types import BenchmarkMeter
 from ..utils import *
 from typing import List, Optional
@@ -26,7 +26,7 @@ from .model3do import (
     Mesh3do
 )
 
-def import3do(file_path: Union[Path, str], mat_dirs: List[Union[Path, str]] = [], cmp_file: str = '', uvAbsolute_2_1: bool = True, importVertexColors: bool = True, importRadiusObj: bool = False, preserveOrder: bool = True, clearScene: bool = True, *, allowErrors: bool = False, warnings: Optional[List[str]] = None) -> bpy.types.Object:
+def import3do(file_path: Union[Path, str], mat_dirs: List[Union[Path, str]] = [], cmp_file: str = '', uvAbsolute_2_1: bool = True, importVertexColors: bool = True, importRadiusObj: bool = False, preserveOrder: bool = True, clearScene: bool = True, *, allowErrors: bool = False, warnings: Optional[List[str]] = None, importVertexNormals: bool = False) -> bpy.types.Object:
     """Import strictly by default; opt-in recovery retains incomplete geometry.
 
     Recovery diagnostics are returned through ``warnings`` and saved as a Blender
@@ -44,28 +44,38 @@ def import3do(file_path: Union[Path, str], mat_dirs: List[Union[Path, str]] = []
         if warnings is not None:
             warnings.extend(diagnostics)
 
-        isJkdf2 = (fileVersion == model3doLoader.Model3doFileVersion.Version2_1)
+        usesIndexedMaterials = fileVersion in (model3doLoader.Model3doFileVersion.Version2_1,
+                                               model3doLoader.Model3doFileFormat.GrimFandango)
         if not model.meshHierarchy:
             if model.geosets and any(geoset.meshes for geoset in model.geosets):
                 raise ValueError('3DO hierarchy is missing; enable Try Recover Broken File to recover available meshes')
             print("Info: Nothing to load because 3DO model doesn't contain a hierarchy.")
             return
 
+        # Geometry-free retail skeletons use an infinite cached radius. Blender
+        # needs finite bounds; retain the original sentinel for binary re-export.
+        if model.binaryData is not None and model.radius == math.inf:
+            model.binaryData['emptyRadius'] = True
+            model.radius = 0.0
         _validate_import(model)
 
-        # 2. Version 2.1 uses a palette ColorMap for material decoding. Resolve
+        # 2. Legacy text and Grim MODL use palette ColorMaps for material decoding. Resolve
         # external resources separately from the already-validated model data.
+        mat_dirs = _convert_to_absolute_paths(mat_dirs, os.path.dirname(file_path))
         cmp = None
-        if isJkdf2:
+        if usesIndexedMaterials:
             try:
-                cmp = getCmpFileOrDefault(cmp_file, file_path)
+                cmp = getCmpFileOrDefault(cmp_file, file_path, searchPaths=mat_dirs)
             except Exception as e:
                 print(f"Warning: Failed to load ColorMap '{cmp_file}': {e}")
             if not cmp:
-                print("Warning: Loading 3DO version 2.1 and no ColorMap was found!")
+                print("Warning: Loading an indexed 3DO model and no ColorMap was found!")
 
         if clearScene:
+            from .model3doPreview import getPreviewEnabled, setPreviewEnabled
+            previewEnabled = getPreviewEnabled(bpy.context.scene)
             clearAllScenes()
+            setPreviewEnabled(bpy.context.scene, previewEnabled)
 
         # 3. Track newly created datablocks for failure cleanup. This is not an
         # undo of Clear Scene; only pre-existing data still present is protected.
@@ -74,16 +84,15 @@ def import3do(file_path: Union[Path, str], mat_dirs: List[Union[Path, str]] = []
 
         try:
             # Load model's textures
-            mat_dirs = _convert_to_absolute_paths(mat_dirs, os.path.dirname(file_path))
             with BenchmarkMeter('Info: \nLoaded materials from files in {:.4f} sec.', enabled=False):
-                importMaterials(model.materials, getDefaultMatFolders(file_path) + mat_dirs, cmp)
+                importMaterials(model.materials, getDefaultMatFolders(file_path, mat_dirs), cmp)
 
             # 4. Create LOD 0 geometry and joints, then add a wrapper carrying
             # INSERT OFFSET and the authored model radius outside the skeleton.
             _create_objects_from_model(
-                model, uvAbsolute=(isJkdf2 and uvAbsolute_2_1), geosetNum=0,
+                model, uvAbsolute=(usesIndexedMaterials and uvAbsolute_2_1), geosetNum=0,
                 vertexColors=importVertexColors, importRadiusObj=importRadiusObj,
-                preserveOrder=preserveOrder
+                preserveOrder=preserveOrder, preserveNormals=importVertexNormals
             )
 
             baseObj = bpy.data.objects.new(model.name, None)
@@ -91,6 +100,8 @@ def import3do(file_path: Union[Path, str], mat_dirs: List[Union[Path, str]] = []
             bpy.context.scene.collection.objects.link(baseObj)
             baseObj.location = model.insert_offset
             baseObj[kModel3doRadius] = model.radius
+            if model.binaryData is not None:
+                baseObj[kModel3doBinaryModel] = json.dumps(model.binaryData)
             if importRadiusObj:
                 _set_model_radius(baseObj, model.radius)
 
@@ -106,6 +117,10 @@ def import3do(file_path: Union[Path, str], mat_dirs: List[Union[Path, str]] = []
                              + '\n\nRecovery is not a repair. Verify missing geometry, UVs and node placement before export.\n')
                 report.use_fake_user = True
                 baseObj[kModel3doImportReport] = report.name
+
+            from .model3doPreview import ensureObjectMaterials
+            for node in model.meshHierarchy:
+                ensureObjectMaterials(node.obj)
 
             return baseObj
 
@@ -160,6 +175,8 @@ def _validate_import(model: Model3do):
             finite((value for vector in values for value in vector), f"Mesh '{mesh.name}' data")
         for index, face in enumerate(mesh.faces):
             finite((*face.normal, *face.color), f"Mesh '{mesh.name}', face {index} data")
+            if len(face.vertexIdxs) < 3:
+                raise ValueError(f"Mesh '{mesh.name}', face {index}: polygon has fewer than three corners")
             if any(vertex < 0 or vertex >= len(mesh.vertices) for vertex in face.vertexIdxs):
                 raise ValueError(f"Mesh '{mesh.name}', face {index}: invalid vertex index")
             if face.materialIdx < -1 or face.materialIdx >= len(model.materials):
@@ -244,7 +261,7 @@ def _set_model_radius(obj: bpy.types.Object, radius: float):
 def _set_mesh_radius(obj: bpy.types.Object, radius: float):
     _make_radius_obj(kMeshRadius + obj.name, obj, radius)
 
-def _make_mesh(mesh3do: Mesh3do, uvAbsolute: bool, vertexColors: bool, mat_list: List):
+def _make_mesh(mesh3do: Mesh3do, uvAbsolute: bool, vertexColors: bool, mat_list: List, preserveNormals: bool = False):
     """Build Blender geometry, preserving engine face modes, colors and UV units."""
     mesh = bpy.data.meshes.new(mesh3do.name)
 
@@ -308,6 +325,13 @@ def _make_mesh(mesh3do: Mesh3do, uvAbsolute: bool, vertexColors: bool, mat_list:
             if mat.name not in mesh.materials:
                 mesh.materials.append(mat)
             face.material_index = mesh.materials.find(mat.name)
+        elif face3do.materialIdx < 0:
+            # A missing binding must not inherit another face's material slot 0.
+            emptySlot = next((index for index, value in enumerate(mesh.materials) if value is None), None)
+            if emptySlot is None:
+                emptySlot = len(mesh.materials)
+                mesh.materials.append(None)
+            face.material_index = emptySlot
 
         # Use the same bound/color image as export when converting UV units.
         img = None
@@ -368,6 +392,25 @@ def _make_mesh(mesh3do: Mesh3do, uvAbsolute: bool, vertexColors: bool, mat_list:
             active_color_name = point_colors.name
 
     mesh.update()
+    if mesh3do.binaryData is not None or preserveNormals:
+        # Positive source IDs survive Blender vertex/face reordering; zero means
+        # newly authored geometry with no original undocumented record to copy.
+        vertex_ids = mesh.attributes.new(k3doBinaryVertex, 'INT', 'POINT')
+        vertex_ids.data.foreach_set('value', [index + 1 for index in vertexSources])
+        face_ids = mesh.attributes.new(k3doBinaryFace, 'INT', 'FACE')
+        face_ids.data.foreach_set('value', list(range(1, len(mesh.polygons) + 1)))
+        metadata = mesh3do.binaryData if mesh3do.binaryData is not None else {'vertexData': [0] * len(mesh3do.vertices)}
+        mesh[kModel3doBinaryMesh] = json.dumps({'mesh': metadata,
+                                              'faces': [face.binaryData for face in mesh3do.faces],
+                                              'name': mesh3do.name, 'blenderName': mesh.name,
+                                              'normals': [list(normal) for normal in mesh3do.normals],
+                                              'shadow': mesh3do.shadow})
+        if mesh.polygons:
+            # MODL carries authored vertex normals. Preserve their corner values
+            # instead of replacing intentional smooth shading with Blender's
+            # recomputed normals. Face winding/normals still follow the geometry.
+            mesh.normals_split_custom_set([mesh3do.normals[vertexSources[loop.vertex_index]]
+                                           for loop in mesh.loops])
     if active_color_name is not None:
         # Attribute order can change when POINT and CORNER domains coexist.
         # Select by name rather than assuming the original layer stayed at 0.
@@ -376,9 +419,12 @@ def _make_mesh(mesh3do: Mesh3do, uvAbsolute: bool, vertexColors: bool, mat_list:
     return mesh
 
 
-def _create_objects_from_model(model: Model3do, uvAbsolute: bool, geosetNum: int, vertexColors: bool, importRadiusObj:bool, preserveOrder: bool):
+def _create_objects_from_model(model: Model3do, uvAbsolute: bool, geosetNum: int, vertexColors: bool, importRadiusObj:bool, preserveOrder: bool, preserveNormals: bool = False):
     """Create every joint first, then link parents using the resource node IDs."""
     meshes = model.geosets[geosetNum].meshes if model.geosets else []
+    grimNormals = preserveNormals or model.binaryData is not None or any(
+        mesh.shadow is not None or int(mesh.lightMode) == 6 for mesh in meshes
+    )
 
     # 1. A node's meshIdx is independent of its node index. Nodes without a mesh
     # become EMPTY joints and still participate in the hierarchy and KEY tracks.
@@ -391,7 +437,7 @@ def _create_objects_from_model(model: Model3do, uvAbsolute: bool, geosetNum: int
                 raise IndexError(f"Mesh index {meshIdx} out of range ({len(meshes)})!")
 
             mesh3do = meshes[meshIdx]
-            mesh    = _make_mesh(mesh3do, uvAbsolute, vertexColors, model.materials)
+            mesh    = _make_mesh(mesh3do, uvAbsolute, vertexColors, model.materials, preserveNormals=grimNormals)
             obj     = bpy.data.objects.new(mesh3do.name, mesh)
 
             # Set mesh radius object, draw type, custom property for lighting and texture mode
@@ -402,6 +448,8 @@ def _create_objects_from_model(model: Model3do, uvAbsolute: bool, geosetNum: int
             obj.display_type              = getDrawType(mesh3do.geometryMode)
             obj.sith_model3do_light_mode   = mesh3do.lightMode.name
             obj.sith_model3do_texture_mode = mesh3do.textureMode.name
+            if mesh3do.shadow is not None:
+                setattr(obj, kModel3doShadow, bool(mesh3do.shadow))
             obj.display_bounds_type   = 'SPHERE'
             bpy.context.scene.collection.objects.link(obj)
         else:
@@ -418,10 +466,22 @@ def _create_objects_from_model(model: Model3do, uvAbsolute: bool, geosetNum: int
         obj.sith_model3do_hnode_name  = node.name
         obj.sith_model3do_hnode_flags = format(int(node.flags), 'x')
         obj.sith_model3do_hnode_type  = format(int(node.type), 'x')
+        if node.binaryData is not None:
+            obj[kModel3doBinaryNode] = json.dumps(node.binaryData)
 
         # Bake mesh pivots, but retain local node position and PYR rotation on
         # the object so parenting reconstructs the resource's relative poses.
         _set_obj_pivot(obj, node.pivot)
+        if obj.type == 'MESH' and kModel3doBinaryMesh in obj.data:
+            # Blender compresses custom normals. Snapshot the displayed values
+            # after pivot baking so unchanged corners can export the original
+            # float32 normals, while later normal edits use their new values.
+            obj.data.update()
+            data = getModel3doBinaryData(obj.data, kModel3doBinaryMesh)
+            data['loopNormals'] = [list(normal.vector) for normal in obj.data.corner_normals]
+            normalIds = obj.data.attributes.new(k3doBinaryNormal, 'INT', 'CORNER')
+            normalIds.data.foreach_set('value', list(range(1, len(obj.data.loops) + 1)))
+            obj.data[kModel3doBinaryMesh] = json.dumps(data)
         obj.location = node.position
         _set_obj_rotation(obj, node.rotation)
 

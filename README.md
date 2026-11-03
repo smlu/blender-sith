@@ -25,6 +25,7 @@
 - [Requirements](#-requirements)
 - [Installation](#-installation)
 - [Usage](USAGE.md)
+- [Technical Documentation](docs/README.md)
 - [Contributing](#-contributing)
 
 ---
@@ -35,7 +36,7 @@
 - Star Wars Jedi Knight: Mysteries of the Sith
 - Star Wars: DroidWorks
 - Indiana Jones and the Infernal Machine
-- Grim Fandango *(text format 3DO import only)*
+- Grim Fandango
 
 ---
 
@@ -54,12 +55,15 @@
 
 ### 📦  3DO Models
 - ✅ Import/Export all versions (2.1, 2.2, 2.3)
+- ✅ Grim Fandango MODL binary import/export
 - 🎨 Full mesh hierarchy support
 - 🔧 Edit properties in Blender UI
 - 🎯 Vertex colors & UV mapping
 
 ### 🎬 KEY Animations
 - ✅ Import/Export mesh animations
+- ✅ Grim Fandango FYEK binary import/export
+- Opt-in KEY recovery with reports, optional frame-zero import checks and late-start Generic export
 - 🎞️  Keyframe markers support
 - ⚙️ High-priority node configuration
 - 📊 Numeric and fractional playback rates within Blender's supported limits
@@ -72,11 +76,13 @@
 - 🎞️ Import all texture cells
 - 🎨 8-bit, 16-bit, 24-bit & 32-bit formats
 - 🔧 ColorMap (.cmp) support
+- ✅ Grim Fandango indexed MAT variants
 
 ### 🛠️ Advanced Editing
 - 🎛️ Per-face properties & flags
 - 🔦 Lighting & texture modes
 - 🎨 Extra light color support
+- Live Extra Light preview without baking vertex colors
 - ⚡ Multi-face batch editing
 
 </td>
@@ -147,6 +153,10 @@ model are not retained by the Blender round trip; see the [Usage Guide](USAGE.md
 ## 📖 Usage
 
 For complete documentation on importing, exporting, and editing, see the **[Usage Guide](USAGE.md)**.
+For byte layouts, field tables and ASCII structure diagrams, see the
+[technical documentation](docs/README.md) and [format reference](docs/formats/README.md).
+The [Blender pipeline guide](docs/blender-pipeline.md) explains model/animation
+conversion, baked pivots, UV units, hierarchy ordering and mesh-list sync.
 
 ### Quick Reference
 

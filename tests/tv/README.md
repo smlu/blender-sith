@@ -4,6 +4,15 @@ All files here are hand-authored test data, not game assets or output from the
 production writer. Tests must assert independent expected fields as well as round
 trips. Malformed vectors are deliberately invalid and must not be "repaired".
 
+Grim Fandango binary records are constructed independently with `struct` in
+`tests/grim_fixtures.py`, like the existing synthetic MAT/CMP byte vectors. They
+include nonzero name padding, non-boolean pointer-presence words, unknown raw data,
+signed/HDR intensities, a loose vertex, multiple geosets and optional records. A
+footer vector deliberately differs from INSERT OFFSET to catch field-order mistakes.
+The codec suite tests every truncated prefix and corrupts individual count/index
+fields; the Blender suite also checks opaque metadata, custom normals and authoring
+changes. No original Grim assets are included or downloaded by the test suites.
+
 ## Models
 
 - `order_colors.3do`: opposing name/node order, empty root/intermediate joint,

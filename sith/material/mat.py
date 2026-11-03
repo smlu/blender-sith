@@ -34,8 +34,9 @@ color_tex_height  = 32
 kMatCelImagePrefix = '_sith_mat_cel_'
 
 class MatType(IntEnum):
-    Color   = 0
-    Texture = 2
+    Color       = 0
+    Texture     = 2
+    GrimTexture = 3
 
 class ColorMode(IntEnum):
     Indexed  = 0
@@ -143,9 +144,9 @@ def _read_header(f: BinaryIO):
         raise ImportError("Invalid MAT file")
     if h.version != required_version:
         raise ImportError(f"Invalid MAT file version: {h.version}")
-    if h.type != MatType.Color and h.type != MatType.Texture:
+    if h.type not in (MatType.Color, MatType.Texture, MatType.GrimTexture):
         raise ImportError(f"Invalid MAT file type: {h.type}")
-    if h.type == MatType.Texture and h.record_count != h.texture_count:
+    if h.type != MatType.Color and h.record_count != h.texture_count:
         raise ImportError("MAT file record and texture count missmatch")
     if h.record_count <= 0:
         raise ImportError("MAT file contains no record(s)")
@@ -153,18 +154,32 @@ def _read_header(f: BinaryIO):
         raise ImportError(f"Invalid color mode: {h.color_info.color_mode}")
     if h.color_info.bpp not in (8, 16, 24, 32):
         raise ImportError(f"Invalid color depth: {h.color_info.bpp}")
+    if h.type == MatType.GrimTexture and (h.color_info.color_mode != ColorMode.Indexed or h.color_info.bpp != 8):
+        raise ImportError('Grim MAT textures require 8-bit indexed color')
     return h
 
 def _read_records(f: BinaryIO, h: MatHeader) -> List[Union[MatColorRecord, MatTextureRecord]]:
     rh_list: List[Union[MatColorRecord, MatTextureRecord]] = []
-    for _ in range(0, h.record_count):
+    for index in range(h.record_count):
         if h.type == MatType.Color:
             mrh = mcr_serf.unpack(_read_exact(f, mcr_serf.size))
             record = MatColorRecord._make(mrh)
             if not 0 <= record.color_index < 256:
                 raise ImportError(f'Invalid MAT palette index: {record.color_index}')
         else:
-            mrh = mtr_serf.unpack(_read_exact(f, mtr_serf.size))
+            # Grim's first type-3 record has either the usual 40-byte texture
+            # layout (tag 8), or a compact 24-byte layout (tag 0, e.g. orange.mat).
+            # Only that first record changes size; later records remain 40 bytes.
+            if h.type == MatType.GrimTexture and index == 0:
+                prefix = _read_exact(f, 4)
+                tag, = Struct('<I').unpack(prefix)
+                if tag not in (0, 8):
+                    raise ImportError(f'Invalid Grim MAT record tag: {tag}')
+                size = mcr_serf.size if tag == 0 else mtr_serf.size
+                raw = prefix + _read_exact(f, size - len(prefix))
+                mrh = mtr_serf.unpack(raw.ljust(mtr_serf.size, b'\0'))
+            else:
+                mrh = mtr_serf.unpack(_read_exact(f, mtr_serf.size))
             record = MatTextureRecord._make(mrh)
         rh_list.append(record)
     return rh_list
@@ -377,7 +392,7 @@ def importMat(filePath: Union[Path, str], cmp: Optional[ColorMap] = None) -> bpy
         records = _read_records(f, h)
 
         mipmaps = []
-        if h.type == MatType.Texture:
+        if h.type != MatType.Color:
             for _ in range(_max_cels(h.texture_count)):
                 mipmaps.append(_read_mipmap(f, h.color_info, cmp))
 
@@ -428,4 +443,10 @@ def importMat(filePath: Union[Path, str], cmp: Optional[ColorMap] = None) -> bpy
             if suffix.isdecimal() and int(suffix) >= num_cels:
                 del mat[name]
 
+    # Reloading cel 0 rebuilds its shader. Reattach only a preview previously
+    # installed for this material, without requiring any mesh/vertex-color edits.
+    if getattr(mat, 'node_tree', None) is not None:
+        from ..model.model3doPreview import kPreviewMaterial, ensureMaterialPreview
+        if mat.get(kPreviewMaterial):
+            ensureMaterialPreview(mat)
     return mat

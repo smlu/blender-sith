@@ -20,8 +20,16 @@ from typing import TextIO, Tuple, Union
 from .key import *
 from .keyValidation import validateKeyNumericData
 
-def saveKey(key: Key, filePath: Union[Path, str], headerComment: str):
+def saveKey(key: Key, filePath: Union[Path, str], headerComment: str, *, fileFormat=KeyFileFormat.Text):
     """ Saves `key` to .key file """
+    if fileFormat == KeyFileFormat.GrimBinary:
+        from .keyBinary import encodeBinaryKey
+        data = encodeBinaryKey(key)
+        with open(filePath, 'wb') as stream:
+            stream.write(data)
+        return
+    if fileFormat != KeyFileFormat.Text:
+        raise ValueError(f'Unsupported KEY file format: {fileFormat}')
     for node in key.nodes:
         assertName(node.meshName)
     validateKeyNumericData(key)

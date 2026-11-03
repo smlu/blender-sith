@@ -18,9 +18,11 @@ sys.meta_path.insert(0, NoBlender())
 import sith
 from sith.key.keyLoader import loadKey
 from sith.key.keyWriter import saveKey
+from sith.key.keyBinary import readBinaryKey, encodeBinaryKey
 from sith.key.keyValidation import validateKeyForTarget
 from sith.model.model3doLoader import load3do
 from sith.model.model3doWriter import save3do
+from sith.model.model3doBinary import readBinary3do, encodeBinary3do
 from sith.material import ColorMap
 from sith.material.mat import _read_header, _read_mipmap
 from sith.types import Flag, Vector3f

@@ -17,6 +17,7 @@
 import bpy, bmesh, mathutils, math, re
 import hashlib
 import struct
+import json
 import numpy as np
 
 from pathlib import Path
@@ -51,6 +52,27 @@ kModel3doRadius       = "_sith_radius"
 kModel3doRadiusShape  = "_sith_radius_shape"
 kModel3doRadiusKind   = "_sith_radius_kind"
 kModel3doImportReport = "_sith_import_report"
+kModel3doShadow       = "sith_model3do_shadow"
+kModel3doBinaryModel  = "_sith_modl_model"
+kModel3doBinaryMesh   = "_sith_modl_mesh"
+kModel3doBinaryNode   = "_sith_modl_node"
+k3doBinaryVertex     = "3do_binary_vertex"
+k3doBinaryFace       = "3do_binary_face"
+k3doBinaryNormal     = "3do_binary_normal"
+
+
+def getModel3doBinaryData(owner, key):
+    """Read opaque MODL metadata without silently accepting damaged .blend data."""
+    value = owner.get(key)
+    if value is None:
+        return None
+    try:
+        result = json.loads(value)
+    except (TypeError, ValueError) as error:
+        raise ValueError(f"Invalid Grim Fandango metadata on '{owner.name}'") from error
+    if not isinstance(result, dict):
+        raise ValueError(f"Invalid Grim Fandango metadata on '{owner.name}'")
+    return result
 
 
 def bmFaceSeqGetLayerString(faces: bmesh.types.BMFaceSeq, name: str, makeLayer: bool = True) -> Optional[bmesh.types.BMLayerItem]:
@@ -83,6 +105,8 @@ def bmMeshInit3doLayers(bm: bmesh.types.BMesh):
     bmFaceSeqGetLayerString(bm.faces, k3doTextureMode,    makeLayer=True)
     bmFaceSeqGetLayerString(bm.faces, k3doFaceExtraLight, makeLayer=True)
     bm.faces.layers.int.verify()
+    from .model3doPreview import initBMeshPreview
+    initBMeshPreview(bm)
 
 def bmFaceGetType(face: bmesh.types.BMFace, bm: bmesh.types.BMesh) -> FaceType:
     """
@@ -168,6 +192,8 @@ def bmFaceSetExtraLight(face: bmesh.types.BMFace, bmesh: bmesh.types.BMesh, colo
     """
     tag = bmFaceSeqGetLayerString(bmesh.faces, k3doFaceExtraLight, makeLayer=False)
     __bmface_set_vector4_property(face, tag, color)
+    from .model3doPreview import setFacePreview
+    setFacePreview(face, bmesh, color)
 
 def makeOrderedName(name: str, order: int, maxOrder: int) -> str:
     padding = len(str(maxOrder))
@@ -541,6 +567,11 @@ def getMaterialImage(mat):
                 continue
             visited.add(node.as_pointer())
             if node.type == 'GROUP':
+                from .model3doPreview import isPreviewNode
+                if isPreviewNode(node):
+                    # Derived brightness is not a second texture/UV source.
+                    color_images(node.inputs['Base Color'])
+                    continue
                 legacy_fallback = False
                 unresolved_branch = True
                 continue

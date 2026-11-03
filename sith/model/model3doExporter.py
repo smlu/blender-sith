@@ -22,7 +22,7 @@ from ..utils import *
 from typing import Dict, List, Optional
 
 from .model3do import *
-from .model3doLoader import Model3doFileVersion
+from .model3doLoader import Model3doFileFormat, Model3doFileVersion
 from . import model3doWriter
 from .utils import *
 
@@ -42,6 +42,12 @@ def export3do(obj: bpy.types.Object, path: str, version: Model3doFileVersion, uv
         model3do = makeModel3doFromObj(model_name, obj, uvAbsolute=uvAbsolute, exportVertexColors=exportVertexColors, sync_mesh_list=sync_mesh_list)
         if not model3do.meshHierarchy:
             raise ValueError('No exportable joints were found; select a model hierarchy, not only radius helpers.')
+        if version != Model3doFileFormat.GrimFandango:
+            # The ordinary Sith export targets do not understand Grim's SHADOW
+            # keyword. Keep it in the Blender model, but not in those files.
+            for geoset in model3do.geosets:
+                for mesh in geoset.meshes:
+                    mesh.shadow = None
         header   = getExportFileHeader(f"3DO model '{os.path.basename(path)}'")
         model3doWriter.save3do(model3do, path, version, header, warnings=warnings)
 
@@ -82,12 +88,13 @@ def _uv_add_image_size(uv: mathutils.Vector, mat) -> mathutils.Vector:
     return vectorMultiply(uv, mathutils.Vector(image.size)) if image else uv
 
 
-def _find_vertex(vlist: List[Vector3f], v: Vector3f, vcolors: List[Vector4f], vcolor: Vector4f, normals: List[Vector3f], normal: Vector3f, used_in_face=()) -> int:
+def _find_vertex(vlist: List[Vector3f], v: Vector3f, vcolors: List[Vector4f], vcolor: Vector4f, normals: List[Vector3f], normal: Vector3f, used_in_face=(), extraValues=None, extraValue=None) -> int:
     def np_array(o):
         return np.array(o, dtype="f,f,f")
     for vidx in np.where(np_array(vlist) == np_array(v))[0]:
         if (vidx not in used_in_face and vidx < len(vcolors) and vidx < len(normals)
-                and vcolors[vidx] == vcolor and normals[vidx] == normal):
+                and vcolors[vidx] == vcolor and normals[vidx] == normal
+                and (extraValues is None or extraValues[vidx] == extraValue)):
             return vidx
     return -1
 
@@ -124,9 +131,39 @@ def _model3do_add_mesh(model: Model3do, obj: bpy.types.Object, scale: mathutils.
     else:
         model.geosets.append(Model3doGeoSet())
 
-    assertName(mesh.name, allowSpaces=True, maxLength=None)
+    # Name syntax is checked by the selected writer: binary strings can contain
+    # spaces, quotes and #, unlike text identifier tokens.
     mesh3do = Mesh3do(mesh_idx, mesh.name)
     mesh3do.geometryMode = geometryMode
+    binary = getModel3doBinaryData(mesh, kModel3doBinaryMesh)
+    originalVertices, originalFaces, originalNormals, loopNormals, vertexData = [], [], [], [], None
+    if binary is not None:
+        if not isinstance(binary.get('mesh'), dict) or not isinstance(binary.get('faces'), list):
+            raise ValueError('Invalid Grim Fandango mesh metadata')
+        mesh3do.binaryData = dict(binary['mesh'])
+        mesh3do.shadow = binary.get('shadow')
+        if mesh.name == binary.get('blenderName'):
+            # Blender may append .001 to shared/imported mesh datablocks. That
+            # display suffix must not overflow or rename the fixed MODL field.
+            mesh3do.name = binary.get('name', mesh.name)
+        originalVertices = mesh3do.binaryData.get('vertexData', [])
+        if not isinstance(originalVertices, list):
+            raise ValueError('Invalid Grim Fandango vertex metadata')
+        originalFaces = binary['faces']
+        if any(value is not None and not isinstance(value, dict) for value in originalFaces):
+            raise ValueError('Invalid Grim Fandango face metadata')
+        vertexData = mesh3do.binaryData['vertexData'] = []
+        originalNormals = binary.get('normals', [])
+        loopNormals = binary.get('loopNormals', [])
+        if not isinstance(originalNormals, list) or not isinstance(loopNormals, list):
+            raise ValueError('Invalid Grim Fandango normal metadata')
+        try:
+            for normals in (originalNormals, loopNormals):
+                if any(not isinstance(value, (list, tuple)) or len(value) != 3 for value in normals):
+                    raise ValueError('Expected three-component normals')
+                validateFloat32((component for normal in normals for component in normal), 'Grim normal metadata')
+        except (TypeError, ValueError) as error:
+            raise ValueError('Invalid Grim Fandango normal metadata') from error
 
     # 1. Build the model-wide material table; faces reference this table rather
     # than Blender's per-mesh material slots.
@@ -138,7 +175,6 @@ def _model3do_add_mesh(model: Model3do, obj: bpy.types.Object, scale: mathutils.
                 name = _get_mat_name(mat)
 
             if not model.materials.count(name):
-                assertName(name, maxLength=None)
                 model.materials.append(name)
 
     # 2. Read faces through BMesh so engine-specific per-face layers survive.
@@ -147,6 +183,33 @@ def _model3do_add_mesh(model: Model3do, obj: bpy.types.Object, scale: mathutils.
     bm.from_mesh(mesh)
     bm.verts.ensure_lookup_table()
     bm.faces.ensure_lookup_table()
+    binaryVertices = bm.verts.layers.int.get(k3doBinaryVertex)
+    binaryFaces = bm.faces.layers.int.get(k3doBinaryFace)
+    binaryNormals = mesh.attributes.get(k3doBinaryNormal)
+
+    def vertex_metadata(vertex):
+        source = vertex[binaryVertices] - 1 if binaryVertices is not None else -1
+        if source < -1 or source >= len(originalVertices):
+            bm.free()
+            raise ValueError('Invalid Grim Fandango source-vertex metadata')
+        return originalVertices[source] if source >= 0 else 0
+
+    def source_normal(vertex, current, loop_index=None):
+        source = vertex[binaryVertices] - 1 if binaryVertices is not None else -1
+        if not 0 <= source < len(originalNormals):
+            return current
+        if loop_index is None:
+            # A loose vertex has no editable corner normal in Blender.
+            return originalNormals[source]
+        if binaryNormals is None or binaryNormals.domain != 'CORNER':
+            return current
+        index = binaryNormals.data[loop_index].value - 1
+        if index < -1 or index >= len(loopNormals):
+            bm.free()
+            raise ValueError('Invalid Grim Fandango source-normal metadata')
+        if index >= 0 and tuple(current) == tuple(loopNormals[index]):
+            return originalNormals[source]
+        return current
     active_color  = mesh.color_attributes.active_color or next(iter(mesh.color_attributes), None)
     # Imported corner layers contain no values for loose vertices. Their POINT
     # companion retains those colors; an explicitly active POINT layer wins.
@@ -168,6 +231,12 @@ def _model3do_add_mesh(model: Model3do, obj: bpy.types.Object, scale: mathutils.
 
     for face in bm.faces:
         face3do = Mesh3doFace()
+        if binaryFaces is not None and binary is not None:
+            source = face[binaryFaces] - 1
+            if source < -1 or source >= len(originalFaces):
+                bm.free()
+                raise ValueError('Invalid Grim Fandango source-face metadata')
+            face3do.binaryData = originalFaces[source] if source >= 0 else None
         face3do.materialIdx = -1
         mat = None
         if face.material_index >= 0 and face.material_index < len(materials):
@@ -195,8 +264,8 @@ def _model3do_add_mesh(model: Model3do, obj: bpy.types.Object, scale: mathutils.
         for loop, source_loop in loops:
             used_vertices.add(loop.vert.index)
             vertx  = Vector3f(*vectorMultiply(loop.vert.co, scale))
-            normal = _scaled_normal(corner_normals[source_loop].vector if corner_normals is not None
-                                    else loop.vert.normal, scale)
+            currentNormal = corner_normals[source_loop].vector if corner_normals is not None else loop.vert.normal
+            normal = _scaled_normal(source_normal(loop.vert, currentNormal, source_loop), scale)
             color_index = loop.vert.index if active_color and active_color.domain == 'POINT' else source_loop
 
             # RNA exposes linear color for both byte and float attributes; BMesh
@@ -212,12 +281,15 @@ def _model3do_add_mesh(model: Model3do, obj: bpy.types.Object, scale: mathutils.
             # Coincident corners may still be distinct source vertices. Welding
             # them within one polygon would create repeated indices on export.
             vidx = _find_vertex(mesh3do.vertices, vertx, mesh3do.vertexColors, vcolor,
-                                mesh3do.normals, normal, face3do.vertexIdxs)
+                                mesh3do.normals, normal, face3do.vertexIdxs,
+                                vertexData, vertex_metadata(loop.vert) if vertexData is not None else None)
             if vidx < 0:
                 vidx = len(mesh3do.vertices)
                 mesh3do.vertices.append(vertx)
                 mesh3do.vertexColors.append(vcolor)
                 mesh3do.normals.append(normal)
+                if vertexData is not None:
+                    vertexData.append(vertex_metadata(loop.vert))
 
             face3do.vertexIdxs.append(vidx)
 
@@ -254,6 +326,9 @@ def _model3do_add_mesh(model: Model3do, obj: bpy.types.Object, scale: mathutils.
             uv_idx = mesh3do.uvs.index(uv)
             face3do.uvIdxs.append(uv_idx)
 
+        if (face3do.binaryData is not None and not face3do.binaryData.get('texturePointer')
+                and all(not any(loop[uv_layer].uv) for loop in face.loops)):
+            face3do.uvIdxs = [-1] * len(face3do.vertexIdxs)
         mesh3do.faces.append(face3do)
 
     # 4. Retain loose vertices in recovered/vertex-only models. Use the indices
@@ -271,7 +346,9 @@ def _model3do_add_mesh(model: Model3do, obj: bpy.types.Object, scale: mathutils.
 
         mesh3do.vertices.append(position)
         mesh3do.vertexColors.append(color)
-        mesh3do.normals.append(_scaled_normal(vertex.normal, scale))
+        mesh3do.normals.append(_scaled_normal(source_normal(vertex, vertex.normal), scale))
+        if vertexData is not None:
+            vertexData.append(vertex_metadata(vertex))
 
     bm.free()
 
@@ -282,6 +359,10 @@ def _model3do_add_mesh(model: Model3do, obj: bpy.types.Object, scale: mathutils.
 
 def _set_mesh_properties(mesh: Mesh3do, obj: bpy.types.Object, scale: mathutils.Vector):
     mesh.geometryMode = objGeometryMode(obj)
+    if obj.is_property_set(kModel3doShadow):
+        requested = bool(getattr(obj, kModel3doShadow))
+        if mesh.shadow is None or bool(mesh.shadow) != requested:
+            mesh.shadow = int(requested)
 
     radius_obj = getMeshRadiusObj(mesh, obj)
     if radius_obj is None:
@@ -306,7 +387,6 @@ def _get_obj_hnode_name(obj: bpy.types.Object):
     if len(obj.sith_model3do_hnode_name) > 0:
         name = obj.sith_model3do_hnode_name
 
-    assertName(name, maxLength=None)
     return name
 
 def _get_obj_hnode_idx(nodes: List[Mesh3doNode], obj: bpy.types.Object):
@@ -336,6 +416,7 @@ def _model3do_add_hnode(model: Model3do, mesh_idx: int, obj: bpy.types.Object, p
     node.siblingIdx    = -1
     node.numChildren   = 0
     node.obj           = obj
+    node.binaryData    = getModel3doBinaryData(obj, kModel3doBinaryNode)
 
     node_idx = len(model.meshHierarchy)
     if node.parentIdx > -1:
@@ -493,6 +574,7 @@ def makeModel3doFromObj(name: str, obj: bpy.types.Object, uvAbsolute: bool = Fal
     if obj.type not in ('MESH', 'EMPTY'):
         raise ValueError('3DO/KEY export requires a MESH or EMPTY root object')
     model = Model3do(name)
+    model.binaryData = getModel3doBinaryData(obj, kModel3doBinaryModel)
     model.geosets.append(Model3doGeoSet())
 
     radius_obj = getModelRadiusObj(obj)

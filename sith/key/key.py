@@ -14,10 +14,15 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from enum import IntEnum, unique
+from enum import Enum, IntEnum, unique
 from typing import List
 from ..model import Mesh3doNodeType
 from ..types import Flag, Vector3f
+
+
+class KeyFileFormat(Enum):
+    Text = 'text'
+    GrimBinary = 'FYEK'
 
 @unique
 class KeyFlag(Flag):
@@ -156,6 +161,7 @@ class Keyframe:
 
 class KeyNode:
     def __init__(self):
+        self.binaryData = None
         self._idx : int = 0
         self._meshName : str = ""
         self._kfs : List[Keyframe] = []
@@ -186,6 +192,8 @@ class KeyNode:
 
 class Key:
     def __init__(self, name: str):
+        self.fileFormat = KeyFileFormat.Text
+        self.binaryData = None
         self._name = name
         self._flags: KeyFlag = KeyFlag.Loop
         self._types: Mesh3doNodeType = Mesh3doNodeType.Nothing

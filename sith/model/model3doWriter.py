@@ -15,7 +15,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 from .model3do import *
-from .model3doLoader import Model3doFileVersion
+from .model3doLoader import Model3doFileFormat, Model3doFileVersion
 from pathlib import Path
 from ..types import Vector4f
 from ..types.vector import validateFloat32
@@ -24,8 +24,15 @@ from typing import List, TextIO, Tuple, Union
 
 _file_magic = "3DO"
 
-def save3do(model: Model3do, filePath: Union[Path, str], version: Model3doFileVersion, headerComment: str, *, warnings=None):
+def save3do(model: Model3do, filePath: Union[Path, str], version: Union[Model3doFileVersion, Model3doFileFormat], headerComment: str, *, warnings=None):
     """ Saves `model` to 3DO file """
+    if version == Model3doFileFormat.GrimFandango:
+        from .model3doBinary import encodeBinary3do
+        data = encodeBinary3do(model)
+        with open(filePath, 'wb') as stream:
+            stream.write(data)
+        return
+
     for name in [*model.materials, *(node.name for node in model.meshHierarchy)]:
         assertName(name, maxLength=None)
     for geoset in model.geosets:
@@ -204,6 +211,8 @@ def _write_mesh(file: TextIO, mesh: Mesh3do, version: Model3doFileVersion):
     writeKeyValue(file, "radius", _radius_to_str(mesh.radius))
     writeNewLine(file)
 
+    if mesh.shadow is not None and version == Model3doFileVersion.Version2_1:
+        writeKeyValue(file, "shadow", int(mesh.shadow))
     writeKeyValue(file, "geometrymode", int(mesh.geometryMode))
     writeKeyValue(file, "lightingmode", int(mesh.lightMode))
     writeKeyValue(file, "texturemode", int(mesh.textureMode))

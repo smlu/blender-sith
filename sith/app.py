@@ -41,7 +41,7 @@ from .key import (
     KeyFlag
 )
 from .key.keyValidation import kKeyTargets
-from .key.keyUtils import getSceneFrameRate, prepareSceneFrameRate, setSceneFrameRate
+from .key.keyUtils import getSceneFrameRate, prepareSceneFrameRate, setSceneFrameRate, kKeyImportReport
 
 from .material import importMat
 
@@ -54,7 +54,8 @@ from .model import (
     TextureMode
 )
 
-from .model.model3doLoader import Model3doFileVersion
+from .model.model3doLoader import Model3doFileFormat, Model3doFileVersion
+from .model import model3doPreview
 from .model.utils import (
     bmFaceGetExtraLight,
     bmFaceGetGeometryMode,
@@ -69,6 +70,7 @@ from .model.utils import (
     bmMeshInit3doLayers,
     kModel3doGeometryMode,
     kModel3doImportReport,
+    kModel3doShadow,
     kNameOrderPrefix
 )
 
@@ -93,15 +95,15 @@ def _get_key_flags_enum_list():
 
 def _get_mesh3do_face_type_list():
     return [
-        (FaceType.DoubleSided.name   , 'Double Sided'              , 'Polygon face is rendered in game on both sides'                                                                       ),
-        (FaceType.Translucent.name   , 'Translucent'               , 'Polygon is rendered in game with alpha blending enabled. This makes polygon with transparent texture translucent'     ),
-        (FaceType.TexClamp_x.name    , 'Clamp Horizontal'          , 'Polygon texture is clamped horizontally instead of repeated (Might not be used in JKDF2 & MOTS)'                      ),
-        (FaceType.TexClamp_y.name    , 'Clamp Vertical'            , 'Polygon texture is clamped vertically instead of repeated (Might not be used in JKDF2 & MOTS)'                        ),
-        (FaceType.TexFilterNone.name , 'Disable Bilinear Filtering', 'Disables texture bilinear interpolation filtering and point filtering is used instead'                                ),
-        (FaceType.ZWriteDisabled.name, 'Disable ZWrite'            , 'Disables writing polygon face to depth buffer.'                                                                       ),
-        (FaceType.IjimLedge.name     , '(IJIM) Ledge'              , '(IJIM only) Polygon face is a ledge that player can grab and hang from'                                               ),
-        (FaceType.IjimFogEnabled.name, '(IJIM) Enable Fog'         , '(IJIM only) Enables fog rendering for polygon face. Enabled by default by the engine'                                 ),
-        (FaceType.IjimWhipAim.name   , '(IJIM) Whip Aim'           , '(IJIM only) Polygon face is whip aiming spot from which player can search in the area for object(s) to mount whip on' )
+        (FaceType.DoubleSided.name   , 'Double Sided'                     , 'Polygon face is rendered in game on both sides'                                                                       ),
+        (FaceType.Translucent.name   , 'Translucent'                      , 'Polygon is rendered in game with alpha blending enabled. This makes polygon with transparent texture translucent'     ),
+        (FaceType.TexClamp_x.name    , 'Clamp Horizontal (IJIM)'          , '(IJIM only) Polygon texture is clamped horizontally instead of repeated'                                              ),
+        (FaceType.TexClamp_y.name    , 'Clamp Vertical (IJIM)'            , '(IJIM only) Polygon texture is clamped vertically instead of repeated'                                                ),
+        (FaceType.TexFilterNone.name , 'Disable Bilinear Filtering (IJIM)', '(IJIM only) Uses nearest texture filtering. In MOTS and Grim Fandango, bit 0x10 instead forces lighting mode 1 (Not Lit)' ),
+        (FaceType.ZWriteDisabled.name, 'Disable ZWrite (IJIM)'            , '(IJIM only) Disables writing the polygon face to the depth buffer'                                                     ),
+        (FaceType.IjimLedge.name     , 'Ledge (IJIM)'                     , '(IJIM only) Polygon face is a ledge that player can grab and hang from'                                                ),
+        (FaceType.IjimFogEnabled.name, 'Enable Fog (IJIM)'                , '(IJIM only) Enables fog rendering for polygon face. Enabled by default by the engine'                                  ),
+        (FaceType.IjimWhipAim.name   , 'Whip Aim (IJIM)'                  , '(IJIM only) Polygon face is whip aiming spot from which player can search in the area for object(s) to mount whip on'  )
     ]
 
 def _get_model3do_geometry_mode_list():
@@ -114,7 +116,11 @@ def _get_model3do_light_mode_list():
     l = []
     for f in LightMode:
         if f == LightMode.GfUnknown6:
-            l.append((f.name, 'GF Unknown 6', 'Unknown lighting mode used in Grim Fandango'))
+            # Keep the saved identifier; only the display name describes the recovered behavior.
+            l.append((f.name, 'Mesh Intensity (Grim Fandango)',
+                      "Use cached mesh lighting in Grim Fandango's software renderer; "
+                      "can inherit an ancestor mesh's intensity. Stored lighting mode 6, "
+                      'not a Blender lighting setting'))
         else:
             l.append((f.name, _make_readable(f.name), ''))
     return l
@@ -122,7 +128,12 @@ def _get_model3do_light_mode_list():
 def _get_model3do_texture_mode_list():
     l = []
     for f in TextureMode:
-        l.append((f.name, _make_readable(f.name), ''))
+        if f == TextureMode.PerspectiveUnknown:
+            l.append((f.name, 'Unknown (2)',
+                      'Stored texture mode 2; its exact engine behavior is not established. '
+                      'Preserved on import/export, not a Blender texture setting'))
+        else:
+            l.append((f.name, _make_readable(f.name), ''))
     return l
 
 def _get_export_obj(context, report, data_type: str):
@@ -165,13 +176,13 @@ class ImportMat(bpy.types.Operator, ImportHelper):
 
     cmp_file: bpy.props.StringProperty(
         name        = 'ColorMap File',
-        description = "Path to the ColorMap file (.cmp) used by mat textures of the imported 3DO model (JKDF2 & MOTS only).\n\nBy default file is searched in specified path, in the directory of the imported 3DO model and it's parent directory.\nIf no file is specified 'dflt.cmp' file is loaded",
+        description = "ColorMap (.cmp) for indexed MAT textures in JKDF2, MOTS, DroidWorks and Grim Fandango. Searches the file's directory and resource folders; an empty field tries dflt.cmp and dfltcmp.cmp. Grim costume-specific palettes must be selected explicitly",
     )
 
     def draw(self, context):
         layout = self.layout
         cmp_file_layout = layout.box().column()
-        cmp_file_layout.label(text='ColorMap File (JKDF2 & MOTS)')
+        cmp_file_layout.label(text='ColorMap File')
         cmp_file_layout.prop(self, 'cmp_file', text='')
 
     def execute(self, context):
@@ -216,14 +227,20 @@ class ImportModel3do(bpy.types.Operator, ImportHelper):
     )
 
     uv_absolute_3do_2_1: bpy.props.BoolProperty(
-        name        = '3DO 2.1 - Absolute UV',
-        description = 'If imported 3DO file is version 2.1 the absolute UV coordinates will be converted to relative UV coordinates (Required for JKDF2 & MOTS)',
+        name        = 'v2.1 Absolute UV',
+        description = 'Convert absolute pixel-space UVs to normalized Blender UVs for Jedi Knight: Dark Forces II, Mysteries of the Sith, Grim Fandango and DroidWorks',
         default     = True,
     )
 
     vertex_colors: bpy.props.BoolProperty(
         name        = 'Import Vertex Colors',
         description = 'Import mesh vertex colors from 3DO',
+        default     = False,
+    )
+
+    vertex_normals: bpy.props.BoolProperty(
+        name        = 'Import Vertex Normals (Text)',
+        description = 'Preserve authored normals on legacy text models too. Binary and explicitly identified Grim models always preserve their authored normals',
         default     = False,
     )
 
@@ -246,7 +263,7 @@ class ImportModel3do(bpy.types.Operator, ImportHelper):
 
     cmp_file: bpy.props.StringProperty(
         name        = 'ColorMap File',
-        description = "Path to the ColorMap file (.cmp) used by mat textures of the imported 3DO model (JKDF2 & MOTS only).\n\nBy default, file is searched in specified path, in the directory of the imported 3DO model and its parent directory.\nIf no file is specified 'dflt.cmp' file is loaded",
+        description = "ColorMap (.cmp) for indexed MAT textures in JKDF2, MOTS, DroidWorks and Grim Fandango. Searches beside the model and in resource folders; an empty field tries dflt.cmp and dfltcmp.cmp. Grim costume-specific palettes must be selected explicitly",
     )
 
     allow_errors: bpy.props.BoolProperty(
@@ -261,6 +278,7 @@ class ImportModel3do(bpy.types.Operator, ImportHelper):
         layout.prop(self, 'clear_scene')
         layout.prop(self, 'uv_absolute_3do_2_1')
         layout.prop(self, 'vertex_colors')
+        layout.prop(self, 'vertex_normals')
         layout.prop(self, 'import_radius_objects')
         layout.prop(self, 'preserve_order')
         layout.prop(self, 'allow_errors')
@@ -271,7 +289,7 @@ class ImportModel3do(bpy.types.Operator, ImportHelper):
         mat_dir_layout.label(text='MAT Directory')
         mat_dir_layout.prop(self, 'mat_dir', text='')
         cmp_file_layout = mat_layout.box().column()
-        cmp_file_layout.label(text='ColorMap File (JKDF2 & MOTS)')
+        cmp_file_layout.label(text='ColorMap File')
         cmp_file_layout.prop(self, 'cmp_file', text='')
 
     def execute(self, context):
@@ -285,7 +303,7 @@ class ImportModel3do(bpy.types.Operator, ImportHelper):
 
         warnings = []
         try:
-            obj = import3do(self.filepath, [self.mat_dir], self.cmp_file, self.uv_absolute_3do_2_1, self.vertex_colors, self.import_radius_objects, self.preserve_order, self.clear_scene, allowErrors=self.allow_errors, warnings=warnings)
+            obj = import3do(self.filepath, [self.mat_dir], self.cmp_file, self.uv_absolute_3do_2_1, self.vertex_colors, self.import_radius_objects, self.preserve_order, self.clear_scene, allowErrors=self.allow_errors, warnings=warnings, importVertexNormals=getattr(self, 'vertex_normals', False))
         except (AssertionError, TypeError, ValueError, OSError, IndexError, RuntimeError) as error:
             self.report({'ERROR'}, f'Cannot import 3DO: {error}')
             return {'CANCELLED'}
@@ -405,19 +423,20 @@ class ExportModel3do(bpy.types.Operator, ExportHelper):
     )
 
     version: bpy.props.EnumProperty(
-        name        = 'Version',
-        description = '3DO file version',
+        name        = 'Format',
+        description = '',  # Use the selected format's description without a generic preface.
         items       = [
             (Model3doFileVersion.Version2_1.name, '2.1 - JKDF2 & MOTS', 'Star Wars Jedi Knight: Dark Forces II & Star Wars Jedi Knight: Mysteries of the Sith'),
             (Model3doFileVersion.Version2_2.name, '2.2 - IJIM (RGB)'  , 'Indiana Jones and the Infernal Machine - RGB color' ),
-            (Model3doFileVersion.Version2_3.name, '2.3 - IJIM'        , 'Indiana Jones and the Infernal Machine - RGBA color')
+            (Model3doFileVersion.Version2_3.name, '2.3 - IJIM'        , 'Indiana Jones and the Infernal Machine - RGBA color'),
+            (Model3doFileFormat.GrimFandango.name, 'Grim Fandango', 'Grim Fandango binary format. For text export, select 2.1')
         ],
         default= Model3doFileVersion.Version2_3.name
     )
 
     absolute_uv: bpy.props.BoolProperty(
-        name        = 'Absolute UV',
-        description = 'Exported UV coordinates will be fixed to associated texture image size (Required for JKDF2 & MOTS)',
+        name        = 'v2.1 Absolute UV',
+        description = 'Export absolute pixel-space UVs for Jedi Knight: Dark Forces II, Mysteries of the Sith, Grim Fandango and DroidWorks',
         default     = True,
     )
 
@@ -438,7 +457,7 @@ class ExportModel3do(bpy.types.Operator, ExportHelper):
     def draw(self, context):
         layout = self.layout
         layout.prop(self, 'version')
-        if self.version == Model3doFileVersion.Version2_1.name:
+        if self.version in (Model3doFileVersion.Version2_1.name, Model3doFileFormat.GrimFandango.name):
             layout.prop(self, 'absolute_uv')
         layout.prop(self, 'export_vert_colors')
         layout.prop(self, 'sync_mesh_list')
@@ -465,8 +484,9 @@ class ExportModel3do(bpy.types.Operator, ExportHelper):
             return {'CANCELLED'}
 
         try:
-            version = Model3doFileVersion[self.version]
-            if version != Model3doFileVersion.Version2_1:
+            version = (Model3doFileFormat.GrimFandango if self.version == Model3doFileFormat.GrimFandango.name
+                       else Model3doFileVersion[self.version])
+            if version not in (Model3doFileVersion.Version2_1, Model3doFileFormat.GrimFandango):
                 self.absolute_uv = False
             warnings = []
             export3do(self.obj, self.filepath, version, self.absolute_uv, self.export_vert_colors, self.sync_mesh_list, warnings=warnings)
@@ -511,6 +531,22 @@ class ImportKey(bpy.types.Operator, ImportHelper):
         default     = False,
     )
 
+    require_frame_zero: bpy.props.BoolProperty(
+        name        = 'Require Frame Zero',
+        description = 'Require each animation track to start at frame zero. Disable to import late-start tracks, extrapolating their active deltas back to frame zero. Data-integrity checks remain enabled',
+        default     = True,
+    )
+
+    allow_errors: bpy.props.BoolProperty(
+        name        = 'Try Recover Broken File',
+        description = 'Try importing complete valid tracks from a damaged KEY, omitting corrupt tracks with a report. Does not repair unsafe headers or truncated binary records, or disable Require Frame Zero',
+        default     = False,
+    )
+
+    def draw(self, context):
+        for name in ('validate_active_object', 'clear_scene', 'named_markers', 'require_frame_zero', 'allow_errors'):
+            self.layout.prop(self, name)
+
     def execute(self, context):
         # Validate filepath
         if not self.filepath or not os.path.isfile(self.filepath):
@@ -522,11 +558,22 @@ class ImportKey(bpy.types.Operator, ImportHelper):
 
         try:
             scene = context.scene
-            importKey(self.filepath, scene, self.clear_scene, self.validate_active_object, self.named_markers)
+            warnings = []
+            obj = importKey(self.filepath, scene, self.clear_scene, self.validate_active_object, self.named_markers,
+                            allowErrors=self.allow_errors, requireFrameZero=self.require_frame_zero, warnings=warnings)
         except Exception as e:
             print(f"\nError: An exception was encountered while importing keyframe '{os.path.basename(self.filepath)}'!\nError: {e}")
             self.report({'ERROR'}, f'Error: {e}')
             return {'CANCELLED'}
+        if warnings:
+            warningCount = len(warnings)
+            self.report({'WARNING'}, f'Recovery warnings: {warningCount}. View KEY Import Report in 3DO Properties for details')
+            if not bpy.app.background and context.window is not None and kKeyImportReport in obj:
+                reportName = obj[kKeyImportReport]
+                def draw_recovery_notice(menu, context):
+                    menu.layout.label(text=f'Recovery warnings: {warningCount}')
+                    menu.layout.operator(View3doImportReport.bl_idname, icon='TEXT').report_name = reportName
+                context.window_manager.popup_menu(draw_recovery_notice, title='KEY Recovery', icon='ERROR')
         return {'FINISHED'}
 
 class ExportKey(bpy.types.Operator, ExportHelper):
@@ -702,11 +749,26 @@ class Model3doPanel(bpy.types.Panel):
             recovery.label(text='Imported with errors', icon='ERROR')
             recovery.operator(View3doImportReport.bl_idname, icon='TEXT').report_name = root[kModel3doImportReport]
 
+        root = obj
+        while root is not None and kKeyImportReport not in root:
+            root = root.parent
+        if root is not None:
+            recovery = layout.box()
+            recovery.alert = True
+            recovery.label(text='KEY imported with errors', icon='ERROR')
+            recovery.operator(View3doImportReport.bl_idname, text='View KEY Import Report', icon='TEXT').report_name = root[kKeyImportReport]
+
         mesh_properties = layout.box()
         mesh_properties.label(text='Mesh Properties')
         mesh_properties.prop(obj, kModel3doGeometryMode, text='Geometry')
         mesh_properties.prop(obj, 'sith_model3do_light_mode'  , text='Lighting')
         mesh_properties.prop(obj, 'sith_model3do_texture_mode', text='Texture')
+        if obj.type == 'MESH':
+            mesh_properties.prop(obj, kModel3doShadow, text='Shadow (Grim Fandango)')
+
+        preview = layout.box()
+        preview.label(text='Preview')
+        preview.prop(context.scene, model3doPreview.kPreviewProperty, text='Extra Light')
 
         node_properties = layout.box()
         node_properties.label(text='Hierarchy Node Properties')
@@ -780,6 +842,8 @@ def _on_face_extra_light_update(self, context):
     if _face_sync_in_progress:
         return
     _apply_to_selected_faces(context, lambda f, bm: bmFaceSetExtraLight(f, bm, Vector4f(*self.extra_light)))
+    if context.edit_object is not None:
+        model3doPreview.syncObjectPreview(context.edit_object)
 
 
 class Mesh3doFaceLayer(bpy.types.PropertyGroup):
@@ -936,6 +1000,10 @@ def register():
     bpy.types.TOPBAR_MT_file_import.append(menu_func_import)
 
     # 3DO custom properties for object
+    setattr(bpy.types.Object, kModel3doShadow, bpy.props.BoolProperty(
+        name='Shadow (Grim Fandango)', description="Include this mesh in Grim Fandango's separate projected actor-shadow pass, using a bounds-derived shadow proxy. Does not change ordinary mesh rendering or Blender shadow settings",
+        default=False, options={'HIDDEN', 'LIBRARY_EDITABLE'}
+    ))
     setattr(bpy.types.Object, kModel3doGeometryMode, bpy.props.EnumProperty(
         name        = 'Geometry Mode',
         description = 'Engine mesh geometry mode, independent of viewport display',
@@ -1009,8 +1077,10 @@ def register():
         pad         = True,
         options     = {'HIDDEN', 'LIBRARY_EDITABLE'}
     )
+    model3doPreview.register()
 
 def unregister():
+    model3doPreview.unregister()
     del bpy.types.Scene.sith_key_flags
     del bpy.types.Scene.sith_key_types
 
@@ -1022,6 +1092,7 @@ def unregister():
     del bpy.types.Object.sith_model3do_hnode_idx
     del bpy.types.Object.sith_model3do_texture_mode
     delattr(bpy.types.Object, kModel3doGeometryMode)
+    delattr(bpy.types.Object, kModel3doShadow)
     del bpy.types.Object.sith_model3do_light_mode
 
     bpy.types.TOPBAR_MT_file_export.remove(menu_func_export)

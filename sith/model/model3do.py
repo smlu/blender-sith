@@ -30,10 +30,10 @@ class FaceType(Flag):
     Normal         = 0x00
     DoubleSided    = 0x01
     Translucent    = 0x02
-    TexClamp_x     = 0x04,  # Mapped texture is clamped in x instead of being repeated (wrapped).
-    TexClamp_y     = 0x08,  # Mapped texture is clamped in y instead of being repeated.
-    TexFilterNone  = 0x10,  # Disables bilinear texture filtering for the polygon texture. (Sets to point filter aka nearest)
-    ZWriteDisabled = 0x20,  # Disables ZWrite for the polygon face.
+    TexClamp_x     = 0x04,  # (IJIM interpretation) Clamp the texture in X instead of repeating it.
+    TexClamp_y     = 0x08,  # (IJIM interpretation) Clamp the texture in Y instead of repeating it.
+    TexFilterNone  = 0x10,  # (IJIM interpretation) Use nearest filtering; MOTS/Grim instead force lighting mode 1.
+    ZWriteDisabled = 0x20,  # (IJIM interpretation) Disable ZWrite for the polygon face.
     IjimLedge      = 0x40,  # (IJIM specific) Player can hang on the ledge of this polygon face. (same as surface flag Ledge = 0x1000000 for world surface)
                             #   e.g.: bab_bull_block.3do, olv_statue_lefty.3do, tem_bridge_20mholes.3do
     IjimFogEnabled = 0x100, # (IJIM specific) Enables fog rendering for the face polygon.
@@ -125,6 +125,8 @@ class Mesh3doNodeType(Flag):
 
 class Mesh3doFace:
     def __init__(self):
+        self.binaryData = None
+
         self.material_idx: int      = -1
         self.t: FaceType            = FaceType.Normal
         self.geo_mode: GeometryMode = GeometryMode.NotDrawn
@@ -210,6 +212,9 @@ class Mesh3doFace:
 
 class Mesh3do:
     def __init__(self, idx: int = 0, name: str =""):
+        self.binaryData = None
+        self.shadow     = None
+
         self.i: int                 = idx
         self.mesh_name: str         = name
         self.mesh_radius: float     = 0.0
@@ -326,6 +331,8 @@ class Model3doGeoSet:
 
 class Mesh3doNode:
     def __init__(self, name: str = ""):
+        self.binaryData = None
+
         self._idx: int           = -1
         self.f: Mesh3doNodeFlags = Mesh3doNodeFlags.Nothing
         self.t: Mesh3doNodeType  = Mesh3doNodeType.Nothing
@@ -449,6 +456,8 @@ class Mesh3doNode:
 
 class Model3do:
     def __init__(self, name: str = ""):
+        self.binaryData = None
+
         self.model_name: str          = name
         self.material_list: List[str] = []
         self.col_radius: float        = 0.0

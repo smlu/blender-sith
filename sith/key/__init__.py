@@ -16,6 +16,7 @@
 
 from .key import (
     Key,
+    KeyFileFormat,
     KeyFlag,
     Keyframe,
     KeyframeFlag,
@@ -37,6 +38,7 @@ __all__ = [
     "exportKey",
     "importKey",
     "Key",
+    "KeyFileFormat",
     "KeyFlag",
     "Keyframe",
     "KeyframeFlag",

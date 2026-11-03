@@ -1,7 +1,7 @@
 # Sith Blender Addon
 # Copyright (C) 2026 Crt Vavros
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Shared Blender action and timing helpers for the text KEY format."""
+"""Shared Blender action and timing helpers for KEY animation formats."""
 
 import math
 import json
@@ -11,6 +11,8 @@ from .key import KeyFlag, KeyNode, Keyframe, KeyframeFlag, KeyMarkerType
 from ..types import Vector3f
 
 kKeyUnknownFlags = '_sith_key_unknown_flags'
+kKeyBinaryData = '_sith_key_binary'
+kKeyImportReport = '_sith_key_import_report'
 kKeyKnownFlagMask = sum(int(flag) for flag in KeyFlag)
 
 

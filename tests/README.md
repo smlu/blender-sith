@@ -17,6 +17,11 @@ The `sith` package loads Blender registration lazily from `sith.app`.
 - 3DO 2.1/2.2/2.3 parsing/writing: geometry, vertex/face colors, UVs, normals,
   flags, hierarchy, multiple geosets, empty models, malformed/truncated input,
   and the text Grim Fandango `SHADOW` / lighting-mode extension.
+- Grim Fandango MODL binary parsing/writing: independently constructed records,
+  exact byte round trips (including opaque fields/name padding), multiple geosets,
+  optional texture/material/hierarchy records, fixed-width names and every truncated
+  byte prefix. Invalid counts, indices, cycles, modes and represented numbers are
+  rejected; geometry-free retail infinite-radius sentinels are preserved.
 - Opt-in 3DO recovery: completed-record retention, vertices-only meshes, UV
   placeholders, omitted invalid faces, preserved duplicate surfaces, partial hierarchy, broken parent
   links and missing meshes. Strict mode still rejects malformed input; valid files
@@ -25,10 +30,22 @@ The `sith` package loads Blender registration lazily from `sith.app`.
   sparse joint indices, malformed input, deterministic serialization, stable
   chronological marker order and target-engine limits. An isolated subprocess
   checks invalid-token termination with a timeout so parser regressions cannot hang CI.
+- Grim binary KEY: 136-byte header, animated first record, opaque fields/name
+  padding, eight marker slots, duplicate null nodes, fractional FPS, signed
+  deltas, every truncated prefix and physical field limits. Blender tests exercise
+  global interpolation, binary/text output, metadata retention and safe failure.
+  Equal-frame entries use Grim's last-entry rule without changing codec bytes;
+  zero-duration poses display on one frame and export their original duration.
 - MAT decoding: indexed 8-bit, RGB565, RGB24, RGBA32, RGBA4444 and RGBA1555,
   alpha, vertical orientation, multiple cels, rectangular mipmap chains,
   palette-free metadata loading and malformed/truncated input.
+- Grim type-3 MATs: full/compact first records, every indexed color and alpha
+  state, multiple cels/mips, external-CMP priority over opaque trailer bytes,
+  palette-free loading and rejection of every truncated byte prefix.
 - CMP palettes: both supported versions, every palette index and truncation.
+- Application resource lookup: model-local and supplied relative/absolute MAT
+  roots, direct/`mat`/`3do/mat` layouts, mixed-case paths, palette subfolders and
+  Grim `dfltcmp.cmp` fallback without guessing room-specific palettes.
 - Tokenizer, vector data and flags: comments, whitespace, escaped strings,
   numeric formats, EOF, token positions and rejection paths.
 
@@ -128,7 +145,9 @@ constraint-only actions. Escaped RNA names, fixed disabled gates, muted channels
 and unrelated properties verify that supported static poses remain exportable.
 Face-flag tests use real Edit Mode callbacks to add/remove each known flag while
 retaining unknown high/gap bits, per-face differences and unselected faces; an
-export/reparse check verifies the resulting resource flags too.
+export/reparse check verifies the resulting resource flags too. UI-label checks
+scope IJIM-specific meanings while keeping saved flag identifiers, values and
+checkbox order stable, including the different MOTS/Grim meaning of bit `0x10`.
 Face-lighting tests run the actual panel synchronization and RNA callbacks with
 only the layout replaced. Signed/HDR values and float32 endpoints survive
 component edits; unselected faces and unrelated flags remain unchanged. Serialized
@@ -429,7 +448,32 @@ Windows/macOS/Linux with Python 3.11 and 3.13, and application tests using the
 official, checksum-verified portable Blender 5.2.3 LTS on Linux. No game executable,
 GPU rendering, desktop session or add-on installation is required.
 
+## Binary Model Fidelity
+
+Binary model application tests exercise real `LDOM` imports and the registered
+export operator, pixel/normalized UV controls, hierarchy-prefix/mesh-sync/recovery
+combinations, source-index metadata, shadow edits, optional material bindings,
+authored and edited custom normals, full-width names with Blender display suffixes,
+empty skeletons and rejection before scene/output changes. Synthetic records come
+from `grim_fixtures.py`, not the production binary writer or proprietary assets.
+UI checks cover the palette label/tooltips, the unversioned Grim export choice,
+Shadow placement after Texture (and no Shadow control on meshless joints), and
+descriptive mode labels without changing saved enum identifiers or exported values.
+
+## Extra Light Preview
+
+Application tests cover the default-on scene toggle, import/Clear Scene state,
+saved .blend state, FACE floats versus vertex colors, live selected-face edits,
+signed/HDR preservation, shared materials, material reloads and shader cleanup.
+Every 3DO output format is byte-compared before/after preview changes with vertex
+colors enabled and disabled. Existing texture alpha links, image resolution,
+authored normals and active color attributes remain checked independently.
+Small CPU-only Cycles renders verify distinct per-face RGB contributions, live
+updates, disabling the effect and transparent texture pixels. They require no
+desktop or graphics device. Linked and animated materials remain unmodified.
+
 ## Animation Fidelity
+
 
 For optional read-only verification against extracted game assets, see
 [batch/README.md](batch/README.md). These scripts produce per-resource JSON reports
@@ -439,7 +483,8 @@ The synthetic fixtures in `tv/key/` exercise the shared text KEY contract used b
 the supported Sith titles, not title-specific joint names or animation constants.
 They cover Euler winding, quaternion wraps, sparse and zero channels, hold keys,
 Bezier baking, fractional frame times, effective FPS, hierarchy indices and codec
-round trips. Grim Fandango's future binary KEY codec is not covered by text tests.
+round trips. Grim FYEK is covered separately by independent binary fixtures and
+binary/application tests; text fixtures alone do not validate its layout.
 
 Export samples mesh-object transform F-curves. Constraints, NLA composition and
 overlapping action layers must first be baked to those channels. Live F-curve
@@ -484,9 +529,16 @@ mode tests cover early merge rejection without orphan actions, later-joint
 failure before action isolation, replacement imports and untouched empty tracks.
 3DO precision tests cover every output version, small geometry/UVs/lighting and
 radii, float32 extremes, signed zero and rejection before overwriting files.
-Nonempty tracks must start at stored float32 frame zero. A synthetic nonzero-first
+By default nonempty tracks must start at stored float32 frame zero. A synthetic nonzero-first
 vector remains codec-readable but must fail both merge/replacement imports before
 any scene mutation. Signed zero, underflow-to-zero and empty tracks remain valid.
+Relaxed-import tests check held and moving late-start tracks before/at/after the
+first entry, including position/rotation flags, backward extrapolation overflow,
+Generic source-timestamp reuse, cache invalidation and nonzero scene-start export.
+Named game targets still produce frame-zero tracks. Recovery tests cover binary
+NaN/infinite transforms, invalid markers, complete text prefixes, unsafe headers
+and truncation, duplicate Grim frame semantics, no usable survivors, unchanged
+source files, visible reports and independent strict frame-zero defaults.
 Pivot merge regressions cover keyed offsets, animated mute/influence (including
 initially disabled constraints), setting drivers and constraint-only NLA clips.
 They check later joints, escaped constraint names, shared actions and unchanged

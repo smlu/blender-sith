@@ -55,16 +55,26 @@ def _get_addon_version_info():
     _addon_version_cache = ("1.x.x", "Crt Vavros")
     return _addon_version_cache
 
-def findCmpFileInPath(cmpFile: Union[Path, str], path: Union[Path, str]) -> Optional[Path]:
+def findCmpFileInPath(cmpFile: Union[Path, str], path: Union[Path, str], *, searchPaths=()) -> Optional[Path]:
     cmpFile = Path(cmpFile)
     if not cmpFile.name:
         return None
-    modelDir = Path(path).parent
+    modelDir = Path(os.path.abspath(path)).parent
     # Preserve the existing search order, resolving both folder and filename
     # spelling on the resource volume rather than guessing from the home volume.
-    folders = (modelDir, modelDir / 'misc/cmp', modelDir.parent,
-               modelDir.parent / 'misc/cmp', modelDir.parent.parent / 'misc/cmp')
-    for folder in folders:
+    folders = [modelDir, modelDir / 'misc/cmp', modelDir.parent,
+               modelDir.parent / 'misc/cmp', modelDir.parent.parent / 'misc/cmp',
+               modelDir / 'misc/cmap', modelDir / 'cmp', modelDir / 'cmap',
+               modelDir.parent / 'misc/cmap', modelDir.parent.parent / 'misc/cmap']
+    for root in searchPaths:
+        if not os.fspath(root):
+            continue
+        base = Path(root)
+        if not base.is_absolute():
+            base = modelDir / base
+        folders.extend((base, base / 'misc/cmp', base / 'misc/cmap', base / 'cmp', base / 'cmap',
+                        base.parent, base.parent / 'misc/cmp', base.parent / 'misc/cmap'))
+    for folder in dict.fromkeys(folders):
         candidate = folder / cmpFile
         if candidate.is_file():
             return candidate
@@ -73,20 +83,31 @@ def findCmpFileInPath(cmpFile: Union[Path, str], path: Union[Path, str]) -> Opti
             return Path(found)
     return None
 
-def getCmpFileOrDefault(filepath: Union[Path, str], searchPath: Union[Path, str]) -> Optional[ColorMap]:
-    requested = Path(os.fspath(filepath) or kDefaultCmp)
-    # Explicit/current-directory paths retain priority over model-relative paths.
-    found = requested if requested.is_file() else getFilePathInDir(requested.name, requested.parent)
-    if found is None:
-        found = findCmpFileInPath(requested, searchPath)
-    return ColorMap.load(found) if found is not None else None
+def getCmpFileOrDefault(filepath: Union[Path, str], searchPath: Union[Path, str], *, searchPaths=()) -> Optional[ColorMap]:
+    # Do not guess among room/costume palettes. Grim's named default is a last
+    # fallback only when the user has not selected a particular CMP file.
+    names = (os.fspath(filepath),) if os.fspath(filepath) else (kDefaultCmp, 'dfltcmp.cmp')
+    for name in names:
+        requested = Path(name)
+        # Explicit/current-directory paths retain priority over model-relative paths.
+        found = requested if requested.is_file() else getFilePathInDir(requested.name, requested.parent)
+        if found is None:
+            found = findCmpFileInPath(requested, searchPath, searchPaths=searchPaths)
+        if found is not None:
+            return ColorMap.load(found)
+    return None
 
-def getDefaultMatFolders(model3doPath: Union[Path, str]):
-    path1 = os.path.dirname(model3doPath)
-    path2 = os.path.join(path1, 'mat')
-    path3 = os.path.abspath(os.path.join(path1, os.pardir))
-    path3 = os.path.join(path3, 'mat')
-    return [path1, path2, path3]
+def getDefaultMatFolders(model3doPath: Union[Path, str], matDirs=()):
+    modelDir = Path(os.path.abspath(model3doPath)).parent
+    folders = [modelDir, modelDir / 'mat', modelDir.parent / 'mat', modelDir / '3do/mat']
+    for root in matDirs:
+        if not os.fspath(root):
+            continue
+        base = Path(root)
+        if not base.is_absolute():
+            base = modelDir / base
+        folders.extend((base, base / 'mat', base / '3do/mat'))
+    return [str(folder) for folder in dict.fromkeys(folders)]
 
 def getFilePathInDir(filename: str, dirPath: Union[Path, str], insensitive: bool = True):
     """Find a readable file, preferring exact spelling over a unique case match."""

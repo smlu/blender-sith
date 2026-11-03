@@ -1,7 +1,7 @@
 # Sith Blender Addon
 # Copyright (C) 2026 Crt Vavros
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Export limits for the supported, verified text KEY engine contracts."""
+"""Export limits for the supported, verified KEY engine contracts."""
 
 from ..text.serutils import assertName
 from ..types.vector import validateFloat32
@@ -10,7 +10,8 @@ kKeyTargets = (
     ('IJIM', 'Infernal Machine', '64 joints, 16 markers, 63-character names'),
     ('JKDF2', 'Jedi Knight: Dark Forces II', '64 joints, 8 markers, 31-character names'),
     ('MOTS', 'Mysteries of the Sith', '64 joints, 8 markers, 31-character names'),
-    ('CUSTOM', 'Generic', 'No engine-specific limits; shared format and safety checks remain'),
+    ('GRIM', 'Grim Fandango', 'Binary format; 8 markers, 36-character resource names and 32-character joint names'),
+    ('CUSTOM', 'Generic', 'Text format without engine-specific limits; allows nonzero first frames and uses the scene start frame. Shared format and safety checks remain'),
 )
 # Each tuple is (joint count, marker count, name length); None removes that
 # engine-specific limit but does not bypass the text format's name validation.
@@ -18,6 +19,7 @@ kKeyTargetLimits = {
     'IJIM': (64, 16, 63),
     'JKDF2': (64, 8, 31),
     'MOTS': (64, 8, 31),
+    'GRIM': (None, 8, None),
     'CUSTOM': (None, None, None)
 }
 
@@ -41,6 +43,11 @@ def validateKeyForTarget(key, target):
     """Check engine limits before sampling and again after tracks are populated."""
     if target not in kKeyTargetLimits:
         raise ValueError(f"Unknown KEY export target '{target}'")
+
+    if target == 'GRIM':
+        from .keyBinary import validateBinaryKey
+        validateBinaryKey(key)
+        return
 
     joints, markers, nameLength = kKeyTargetLimits[target]
     if joints is not None and key.numJoints > joints:

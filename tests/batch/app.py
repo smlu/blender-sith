@@ -16,6 +16,8 @@ from batch.core import check as core_check, read_material
 import sith
 from sith.key.keyLoader import loadKey
 from sith.key.keyWriter import saveKey
+from sith.key.key import KeyFileFormat
+from sith.key.keyBinary import keyForPlayback
 from sith.key.keyImporter import importKey
 from sith.key.keyExporter import _make_key_from_obj
 from sith.material.cmp import ColorMap
@@ -114,6 +116,7 @@ def key_pose(node, frame):
 
 
 def compare_keys(source, target):
+    source, target = keyForPlayback(source), keyForPlayback(target)
     errors = differences(fields(source, 'flags nodeTypes numFrames numJoints fps'),
                          fields(target, 'flags nodeTypes numFrames numJoints fps'), 'header', atol=1e-5)
     expected_markers = [(m.frame, int(m.type)) for m in sorted(source.markers, key=lambda marker: marker.frame)]
@@ -188,8 +191,9 @@ def check(path, target, options):
                 raise UnsupportedResource('3DO has no geosets to import into Blender')
             root = import3do(path, mat_dirs=options.mat_dirs,
                              cmp_file=str(options.palette_path) if options.palette_path else '',
-                             clearScene=False, importVertexColors=True, importRadiusObj=True)
-            target_model = makeModel3doFromObj(path.name, root, uvAbsolute=version.value == 2.1,
+                             clearScene=False, importVertexColors=True, importRadiusObj=True,
+                             importVertexNormals=getattr(options, 'import_vertex_normals', False))
+            target_model = makeModel3doFromObj(path.name, root, uvAbsolute=version.value in (2.1, 'LDOM'),
                                               exportVertexColors=True, sync_mesh_list=False)
             save3do(target_model, target, version, 'Local Blender corpus verification')
             restored, _ = load3do(target)
@@ -210,8 +214,11 @@ def check(path, target, options):
             obj.sith_model3do_hnode_name = name
         bpy.context.view_layer.objects.active = root
         importKey(path, scene, True, True, False)
-        exported = _make_key_from_obj(path.name, root, scene, target=getattr(options, 'key_target', 'CUSTOM'))
-        saveKey(exported, target, 'Local Blender corpus verification')
+        selected = getattr(options, 'key_target', 'CUSTOM')
+        if source.fileFormat == KeyFileFormat.GrimBinary and selected == 'CUSTOM':
+            selected = 'GRIM'
+        exported = _make_key_from_obj(path.name, root, scene, target=selected)
+        saveKey(exported, target, 'Local Blender corpus verification', fileFormat=exported.fileFormat)
         result = compare_keys(source, loadKey(target))
         result['operation'] = 'import-export-pose-comparison'
         result['note'] = 'Uses an indexed synthetic skeleton, not a title-specific model or in-game animation blending'

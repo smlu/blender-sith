@@ -13,6 +13,8 @@ from batch.common import (UnsupportedResource, arguments, differences, key_snaps
                           model_snapshot, run)
 from sith.key.keyLoader import loadKey
 from sith.key.keyWriter import saveKey
+from sith.key.key import KeyFileFormat
+from sith.key.keyBinary import validateBinaryKey
 from sith.key.keyValidation import validateKeyForTarget
 from sith.material import mat
 from sith.material.cmp import ColorMap
@@ -86,20 +88,35 @@ def check(path, target, options):
         source, version = load3do(path)
         save3do(source, target, version, 'Local corpus verification')
         restored, restored_version = load3do(target)
-        return {'operation': 'parse-write-parse', 'differences':
+        result = {'operation': 'parse-write-parse', 'differences':
                 differences(model_snapshot(source), model_snapshot(restored), 'model') +
                 differences(version.value, restored_version.value, 'version')}
+        if version.value == 'LDOM':
+            result['byte_identical'] = path.read_bytes() == target.read_bytes()
+            if not result['byte_identical']:
+                result['differences'].append('Binary MODL serialization changed original bytes')
+        return result
     if extension == '.key':
         source = loadKey(path)
-        validateKeyForTarget(source, getattr(options, 'key_target', 'CUSTOM'))
-        saveKey(source, target, 'Local corpus verification')
+        requested = getattr(options, 'key_target', 'CUSTOM')
+        if source.fileFormat == KeyFileFormat.GrimBinary and requested == 'CUSTOM':
+            validateBinaryKey(source)
+        else:
+            validateKeyForTarget(source, requested)
+        saveKey(source, target, 'Local corpus verification', fileFormat=source.fileFormat)
         expected = key_snapshot(source)
-        expected_markers = sorted(expected['markers'], key=lambda marker: marker[0])
+        expected_markers = (sorted(expected['markers'], key=lambda marker: marker[0])
+                            if source.fileFormat == KeyFileFormat.Text else expected['markers'])
         marker_order_changed = expected['markers'] != expected_markers
         expected['markers'] = expected_markers
-        return {'operation': 'parse-write-parse', 'differences':
+        result = {'operation': 'parse-write-parse', 'differences':
                 differences(expected, key_snapshot(loadKey(target)), 'key', atol=1e-7),
                 'source_marker_order_corrected': marker_order_changed}
+        if source.fileFormat == KeyFileFormat.GrimBinary:
+            result['byte_identical'] = path.read_bytes() == target.read_bytes()
+            if not result['byte_identical']:
+                result['differences'].append('Binary FYEK serialization changed original bytes')
+        return result
     if extension == '.cmp':
         palette = ColorMap.load(path)
         raw = path.read_bytes()[64:64 + 768]

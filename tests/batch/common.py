@@ -32,7 +32,9 @@ def arguments(description):
     parser.add_argument('--limit', type=int, default=0, help='Per-format limit; 0 checks every file')
     parser.add_argument('--match', default='*', help='Case-insensitive relative-path glob')
     parser.add_argument('--keep-exports', action='store_true')
-    parser.add_argument('--key-target', choices=('IJIM', 'JKDF2', 'MOTS', 'CUSTOM'), default='CUSTOM',
+    parser.add_argument('--import-vertex-normals', action='store_true',
+                        help='Blender only: preserve authored normals on ambiguous legacy text models')
+    parser.add_argument('--key-target', choices=('IJIM', 'JKDF2', 'MOTS', 'GRIM', 'CUSTOM'), default='CUSTOM',
                         help='Validate KEY exports against a target engine (default: CUSTOM codec-only limits)')
     argv = sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else sys.argv[1:]
     options = parser.parse_args(argv)
@@ -147,15 +149,15 @@ def fields(value, names):
 
 
 def model_snapshot(model):
-    result = fields(model, 'radius insertOffset materials')
-    result['nodes'] = [fields(node, 'idx name flags type meshIdx parentIdx firstChildIdx siblingIdx numChildren position rotation pivot')
+    result = fields(model, 'radius insertOffset materials binaryData')
+    result['nodes'] = [fields(node, 'idx name flags type meshIdx parentIdx firstChildIdx siblingIdx numChildren position rotation pivot binaryData')
                        for node in model.meshHierarchy]
     result['geosets'] = []
     for geoset in model.geosets:
         meshes = []
         for mesh in geoset.meshes:
-            data = fields(mesh, 'idx name radius geometryMode lightMode textureMode vertices vertexColors uvs normals')
-            data['faces'] = [fields(face, 'materialIdx type geometryMode lightMode textureMode color vertexIdxs uvIdxs normal')
+            data = fields(mesh, 'idx name radius geometryMode lightMode textureMode vertices vertexColors uvs normals shadow binaryData')
+            data['faces'] = [fields(face, 'materialIdx type geometryMode lightMode textureMode color vertexIdxs uvIdxs normal binaryData')
                              for face in mesh.faces]
             meshes.append(data)
         result['geosets'].append(meshes)

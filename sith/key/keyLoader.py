@@ -21,8 +21,13 @@ from ..text.tokenizer import TokenType, Tokenizer
 from ..model import Mesh3doNodeType
 from typing import Union
 
-def loadKey(filePath: Union[Path, str]) -> Key:
-    """ Loads Key from .key file """
+def loadKey(filePath: Union[Path, str], *, allowErrors=False, warnings=None) -> Key:
+    """Load text KEY or Grim FYEK by its contents, not its filename."""
+    from .keyBinary import kBinaryKeyMagic, readBinaryKey
+    with open(filePath, 'rb') as stream:
+        if stream.read(len(kBinaryKeyMagic)) == kBinaryKeyMagic:
+            stream.seek(0)
+            return readBinaryKey(stream.read(), allowErrors=allowErrors, warnings=warnings)
     with open(filePath, 'r', encoding='utf-8') as f:
         tok = Tokenizer(f)
         key = Key(os.path.basename(filePath))
@@ -50,15 +55,28 @@ def loadKey(filePath: Union[Path, str]) -> Key:
             if section == "HEADER":
                 _parse_key_section_header(tok, key)
             elif section == "MARKERS":
-                _parse_key_section_markers(tok, key)
+                _parse_key_section_markers(tok, key, warnings=warnings if allowErrors else None)
             else:
-                _parse_key_section_keyframe_nodes(tok, key)
+                try:
+                    _parse_key_section_keyframe_nodes(tok, key)
+                except (AssertionError, TypeError, ValueError, OSError, EOFError) as error:
+                    # The parser appends only complete tracks. Never guess where
+                    # a damaged record ends or fabricate the unread tail.
+                    if not allowErrors or not any(node.keyframes for node in key.nodes):
+                        raise
+                    from .keyRecovery import recoveryWarning
+                    recoveryWarning(warnings, f'Discarded unread KEY node data: {error}')
+                    sections.add(section)
+                    break
             sections.add(section)
 
     missing = {'HEADER', 'KEYFRAME NODES'} - sections
     if missing:
         raise ValueError('Missing required KEY section(s): ' + ', '.join(sorted(missing)))
 
+    if allowErrors:
+        from .keyRecovery import recoverKey
+        recoverKey(key, warnings)
     return key
 
 def _skip_to_next_key_section(tok: Tokenizer):
@@ -89,7 +107,7 @@ def _parse_key_section_header(tok: Tokenizer, key: Key):
     if key.numFrames < 0 or key.numJoints < 0:
         raise ValueError('KEY frame and joint counts must be nonnegative')
 
-def _parse_key_section_markers(tok: Tokenizer, key: Key):
+def _parse_key_section_markers(tok: Tokenizer, key: Key, *, warnings=None):
     tok.assertIdentifier("MARKERS")
 
     numMarkers = tok.getIntNumber()
@@ -101,8 +119,9 @@ def _parse_key_section_markers(tok: Tokenizer, key: Key):
         mt      = tok.getIntNumber()
         try:
             m.type  = KeyMarkerType(mt)
-        except:
-            print(f"\nWarning: Unknown marker type '{mt}' at frame {m.frame}, skipping!")
+        except ValueError:
+            from .keyRecovery import recoveryWarning
+            recoveryWarning(warnings, f"Unknown marker type '{mt}' at frame {m.frame}, skipping!")
             continue
         key.markers.append(m)
 

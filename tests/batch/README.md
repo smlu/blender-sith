@@ -40,6 +40,15 @@ Packed components are normalized by their own full range, `value / (2^bits - 1)`
 not expanded with zero-filled low bits. Maximum colors/alpha therefore reach one.
 There is no MAT/CMP exporter in the add-on; these checks are not called round trips.
 
+Grim Fandango binary 3DOs are auto-detected and also require byte-identical codec
+output, including opaque fields and fixed-name padding. Their `byte_identical`
+result is recorded explicitly. Text Grim models retain parsed mesh shadow fields.
+For Blender checks, both legacy text and binary Grim use pixel UVs; the binary
+writer preserves opaque metadata but still has the documented LOD/pivot limitations.
+Use `--import-vertex-normals` for Grim text models without an identifying `SHADOW`
+field or lighting mode. This opts into authored-normal preservation instead of the
+legacy geometric-normal fallback, without guessing the game from resource names.
+
 ## Blender
 
 ```sh
@@ -94,6 +103,13 @@ name-buffer checks in both runners. The default `CUSTOM` checks codec/token rule
 without imposing a specific engine's limits; the report title alone does not
 select a target. `CUSTOM` is the interactive **Generic** option.
 Blender's interactive KEY export defaults to IJIM independently.
+
+FYEK binary KEY input is auto-detected. Core checks retain binary output and
+require byte-identical serialization, including null records and unused markers.
+With the default generic corpus target, binary application checks select Grim
+output automatically and compare playback using Grim's global interpolation rule.
+The GRIM key target explicitly selects binary validation/output. A synthetic
+skeleton verifies the clip, not in-game blending with a particular costume.
 Markers are written chronologically, with stable ordering at equal times.
 Comparisons require that chronological output, preserve every marker's time/type
 and tie order, and record `source_marker_order_corrected` when a source file was

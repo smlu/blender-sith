@@ -25,18 +25,22 @@ from typing import Optional
 
 from .key import *
 from . import keyLoader
-from .keyUtils import getActionFCurves, getActionSlotFCurves, prepareSceneFrameRate, setSceneFrameRate, setSceneKeyFlags, markerName, rememberImportedJump, validateConstraintAnimation, validateKeyActionState
+from .keyUtils import getActionFCurves, getActionSlotFCurves, prepareSceneFrameRate, setSceneFrameRate, setSceneKeyFlags, markerName, rememberImportedJump, validateConstraintAnimation, validateKeyActionState, kKeyBinaryData, kKeyImportReport
+from .keyBinary import keyForPlayback
+import json
 from ..model.model3do import Model3do, Mesh3doNode
 
 kKeyFrameSnapTolerance = 0.0001  # Blender's F-curve exact-key matching tolerance, in frames.
 
 
-def importKey(keyPath: str, scene: bpy.types.Scene, clearScene: bool, validateActiveObject: bool, namedMarkers: bool):
+def importKey(keyPath: str, scene: bpy.types.Scene, clearScene: bool, validateActiveObject: bool, namedMarkers: bool, *, allowErrors=False, requireFrameZero=True, warnings=None):
     """Apply KEY tracks to a model in the supplied, currently active context scene."""
     with BenchmarkMeter(' done in {:.4f} sec.'):
         print("importing KEY: %r..." % (keyPath), end="")
 
-        key = keyLoader.loadKey(keyPath)
+        recoveryWarnings = []
+        sourceKey = keyLoader.loadKey(keyPath, allowErrors=allowErrors, warnings=recoveryWarnings)
+        key = keyForPlayback(sourceKey)
         if scene != bpy.context.scene:
             raise ValueError(f"Destination scene '{scene.name}' must match the active context before KEY import")
         # Even empty tracks update timing and markers. Reject linked scenes
@@ -44,7 +48,7 @@ def importKey(keyPath: str, scene: bpy.types.Scene, clearScene: bool, validateAc
         if not scene.is_editable:
             raise ValueError(f"Make scene '{scene.name}' local or editable before KEY import")
         prepareSceneFrameRate(scene, key.fps)
-        samplesByJoint = _prepare_import_samples(key)
+        samplesByJoint = _prepare_import_samples(key, requireFrameZero=requireFrameZero)
 
         # 1. Resolve the model root and its joint mapping before clearing any
         # animation, so an incompatible or ambiguous skeleton leaves it intact.
@@ -151,6 +155,18 @@ def importKey(keyPath: str, scene: bpy.types.Scene, clearScene: bool, validateAc
             setSceneKeyFlags(scene, key.flags)
             scene.sith_key_types = format(int(key.nodeTypes), 'x')
 
+        # Opaque fields belong to one replacement clip and model. A merged
+        # animation cannot safely reuse either source's binary record layout.
+        if obj.is_editable:
+            if clearScene and sourceKey.fileFormat == KeyFileFormat.GrimBinary:
+                obj[kKeyBinaryData] = json.dumps({
+                    'header': sourceKey.binaryData,
+                    'nodes': {str(node.idx): {'name': node.meshName, 'metadata': node.binaryData}
+                              for node in sourceKey.nodes}
+                })
+            elif kKeyBinaryData in obj:
+                del obj[kKeyBinaryData]
+
         for m in key.markers:
             scene.timeline_markers.new(markerName(m, namedMarkers), frame=math.floor(m.frame))
 
@@ -172,13 +188,29 @@ def importKey(keyPath: str, scene: bpy.types.Scene, clearScene: bool, validateAc
             # A change flag means linear motion; an unset flag holds that channel.
             _fix_obj_anim_interpolation(aobj, samples)
 
-            # Retain exact discontinuity data only for a clean replacement import;
+            # Retain exact discontinuity/late-start data for a replacement import;
             # later export can reuse it while the generated curves stay unedited.
             rememberImportedJump(aobj, node, key.numFrames,
-                                 clearScene and any(getattr(entry, '_left_limit', False) for entry in samples))
+                                 clearScene and (node.keyframes[0].frame > 0.0
+                                                 or any(getattr(entry, '_left_limit', False) for entry in samples)))
 
         # Set current frame to 0
         scene.frame_set(0)
+
+        # Publish diagnostics only after a successful import. Keep the 3DO
+        # recovery report separate so importing animation cannot overwrite it.
+        if obj.is_editable:
+            if recoveryWarnings:
+                report = bpy.data.texts.new(f'{sourceKey.name} - KEY Import Report')
+                report.write(f'Incomplete KEY import: {keyPath}\n\n' + '\n'.join(recoveryWarnings)
+                             + '\n\nOmitted tracks were not imported. Existing animation is retained only when Clear scene is disabled; inspect before export.\n')
+                report.use_fake_user = True
+                obj[kKeyImportReport] = report.name
+            elif clearScene and kKeyImportReport in obj:
+                del obj[kKeyImportReport]
+        if warnings is not None:
+            warnings.extend(recoveryWarnings)
+        return obj
 
 
 def _nla_uses_action_slot(animation, action, slot):
@@ -213,7 +245,7 @@ def _has_nla_rotation(animation, rotation_paths):
     return False
 
 
-def _prepare_import_samples(key):
+def _prepare_import_samples(key, *, requireFrameZero=True):
     """Reject invalid metadata/tracks before clearing any existing animation."""
     if key.numFrames < 1 or key.numJoints < 0:
         raise ValueError('KEY requires a positive frame count and nonnegative joint count')
@@ -224,6 +256,8 @@ def _prepare_import_samples(key):
         raise ValueError(f'KEY duration exceeds Blender timeline limits ({frame_range.hard_max + 1} frames)')
     if any(not math.isfinite(marker.frame) for marker in key.markers):
         raise ValueError('KEY marker frames must be finite')
+    if any(marker.type not in KeyMarkerType._value2member_map_ for marker in key.markers):
+        raise ValueError('KEY contains a marker type unsupported by Blender animation import')
     marker_range = bpy.types.TimelineMarker.bl_rna.properties['frame']
     if any(not marker_range.hard_min <= math.floor(marker.frame) <= marker_range.hard_max
            for marker in key.markers):
@@ -237,7 +271,7 @@ def _prepare_import_samples(key):
             raise ValueError(f'KEY joint index {node.idx} is outside its joint count')
         if node.idx in samples:
             raise ValueError(f'Duplicate KEY joint index {node.idx}')
-        samples[node.idx] = _make_import_samples(node, key.numFrames)
+        samples[node.idx] = _make_import_samples(node, key.numFrames, requireFrameZero=requireFrameZero)
     return samples
 
 
@@ -410,7 +444,7 @@ def _align_orientation(orientation, reference):
                       for i, value in enumerate(orientation)))
 
 
-def _make_import_samples(node, end_frame):
+def _make_import_samples(node, end_frame, *, requireFrameZero=True):
     """Expand KEY deltas to curve endpoints, preserving holds and pose jumps."""
     samples = []
     previous = None
@@ -424,9 +458,9 @@ def _make_import_samples(node, end_frame):
         if not math.isfinite(source.frame) or source.frame < 0.0 or (previous and source.frame <= previous.frame):
             raise ValueError('KEY entries must have finite, strictly increasing, nonnegative frames')
         validateFloat32((source.frame,), 'KEY entry frame')
-        # Sith starts playback at entry zero and requires a nonnegative delta
-        # from its stored frame. Blender would instead hold a late first pose.
-        if index == 0 and mathutils.Vector((source.frame, 0.0))[0] != 0.0:
+        # Keep the frame-zero compatibility policy separate from integrity
+        # checks. Relaxed import below explicitly evaluates late-start motion.
+        if requireFrameZero and index == 0 and mathutils.Vector((source.frame, 0.0))[0] != 0.0:
             raise ValueError('KEY tracks must start at stored frame zero')
 
         entry = Keyframe()
@@ -445,6 +479,23 @@ def _make_import_samples(node, end_frame):
                 reference = [value + previous.deltaRotation[i] * (entry.frame - previous.frame)
                              for i, value in enumerate(reference)]
             entry.orientation = _align_orientation(entry.orientation, reference)
+
+        if index == 0 and not requireFrameZero and mathutils.Vector((entry.frame, 0.0))[0] != 0.0:
+            # Before the first stored entry, base-plus-delta evaluation uses a
+            # negative elapsed time. Add that pose explicitly; Blender's default
+            # extrapolation would instead hold the late first pose unchanged.
+            first = Keyframe()
+            first.frame = 0.0
+            first.flags = entry.flags
+            first.position = Vector3f(*(
+                value - (entry.deltaPosition[i] * entry.frame if entry.flags & KeyframeFlag.PositionChange else 0.0)
+                for i, value in enumerate(entry.position)
+            ))
+            first.orientation = Vector3f(*(
+                value - (entry.deltaRotation[i] * entry.frame if entry.flags & KeyframeFlag.OrientationChange else 0.0)
+                for i, value in enumerate(entry.orientation)
+            ))
+            samples.append(first)
 
         samples.append(entry)
 

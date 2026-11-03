@@ -18,7 +18,9 @@ import bpy, mathutils, math, os.path
 from numpy.polynomial import Polynomial
 from . import keyWriter
 from bisect import bisect_left
-from .keyUtils import getActionFCurves, getSceneFrameRate, getSceneKeyFlags, hasActiveNlaStrips, markerTimeAndType, unchangedImportedJump, validateConstraintAnimation, validateKeyActionState
+from .keyUtils import getActionFCurves, getSceneFrameRate, getSceneKeyFlags, hasActiveNlaStrips, markerTimeAndType, unchangedImportedJump, validateConstraintAnimation, validateKeyActionState, kKeyBinaryData
+from .keyBinary import prepareGrimExport
+import json
 from .keyValidation import validateKeyForTarget
 
 from .key import *
@@ -44,7 +46,7 @@ def exportKey(obj: bpy.types.Object, scene: bpy.types.Scene, path: str, target='
             print("\nWarning: The object doesn't have any animation data to export!")
 
         header  = getExportFileHeader(f"Keyframe '{os.path.basename(path)}'")
-        keyWriter.saveKey(key, path, header)
+        keyWriter.saveKey(key, path, header, fileFormat=key.fileFormat)
 
 
 def _set_keyframe_delta(kf1: Keyframe, kf2: Keyframe, dtype: KeyframeFlag):
@@ -173,7 +175,7 @@ def _rotation_curve_times(curve, end_time, rotation_kind='quaternion'):
     return times
 
 
-def _sample_key_node(hnode, root, end_frame):
+def _sample_key_node(hnode, root, end_frame, *, start_frame=0, allowLateStart=False):
     """Bake one joint's local action curves to KEY position/Euler-delta segments.
 
     This reads F-curves directly, not evaluated dependency-graph transforms.
@@ -246,7 +248,7 @@ def _sample_key_node(hnode, root, end_frame):
 
     # The final fractional playback interval extends to FRAMES, not FRAMES - 1.
     end_time = float(end_frame) + 1.0
-    times = {0.0, float(end_frame), end_time}
+    times = {float(start_frame), float(end_frame), end_time}
     for curve in getActionFCurves(obj):
         if not curve.is_valid or curve.mute or curve.data_path not in ('location', rotation_path):
             continue
@@ -262,7 +264,7 @@ def _sample_key_node(hnode, root, end_frame):
             frame = float(point.co[0])
             if not math.isfinite(frame):
                 raise ValueError('Animation frame must be finite')
-            if 0.0 <= frame <= end_time:
+            if start_frame <= frame <= end_time:
                 times.add(frame)
 
     if not curves:
@@ -272,7 +274,8 @@ def _sample_key_node(hnode, root, end_frame):
         rotation_kind = 'quaternion' if rotation_path == 'rotation_quaternion' else 'axis-angle'
         for (path, axis), curve in curves.items():
             if path == rotation_path:
-                times.update(_rotation_curve_times(curve, end_time, rotation_kind))
+                times.update(frame for frame in _rotation_curve_times(curve, end_time, rotation_kind)
+                             if frame >= start_frame)
 
     # Cache authored values/interpolation for exact linear and held evaluation.
     curve_keys = {}
@@ -296,11 +299,13 @@ def _sample_key_node(hnode, root, end_frame):
 
     pivot = objPivot(obj, forAnimation=True)
 
-    # Blender approximates a moving segment followed by an instantaneous jump.
+    # Blender approximates a moving segment followed by an instantaneous jump,
+    # and represents late starts with an explicit backward-extrapolated prefix.
     # Reuse its exact imported KEY entries only while the imported curves and
     # relevant transform metadata remain unchanged.
     imported = unchangedImportedJump(obj, end_time)
-    if imported is not None:
+    if (imported is not None and imported.keyframes and start_frame == 0
+            and (allowLateStart or imported.keyframes[0].frame == 0)):
         imported.idx, imported.meshName = hnode.idx, hnode.name
         for entry in imported.keyframes:
             entry.position = Vector3f(*vectorMultiply(mathutils.Vector(entry.position), scale))
@@ -472,6 +477,9 @@ def _make_key_from_obj(key_name: str, obj: bpy.types.Object, scene: bpy.types.Sc
         raise ValueError('Animation FPS must be finite and positive')
     if scene.frame_end < 0:
         raise ValueError('KEY animations must end at frame zero or later')
+    start_frame = scene.frame_start if target == 'CUSTOM' else 0
+    if not 0 <= start_frame <= scene.frame_end:
+        raise ValueError('Generic KEY start frame must be nonnegative and not exceed the end frame')
 
     # 2. Decode event markers, including fractional times stored in their names.
     for marker in scene.timeline_markers:
@@ -509,9 +517,31 @@ def _make_key_from_obj(key_name: str, obj: bpy.types.Object, scene: bpy.types.Sc
 
     # 4. Bake animated tracks, then validate the populated resource for the game.
     for hnode in model3do.meshHierarchy:
-        node = _sample_key_node(hnode, obj, scene.frame_end)
+        node = _sample_key_node(hnode, obj, scene.frame_end,
+                                start_frame=start_frame, allowLateStart=target == 'CUSTOM')
         if node is not None:
             key.nodes.append(node)
+
+    if target == 'GRIM':
+        # Retain opaque records only while animated joint identities match.
+        # Reordering/renaming joints falls back to new binary record defaults.
+        if kKeyBinaryData in obj:
+            try:
+                payload = json.loads(obj[kKeyBinaryData])
+                header, nodes = payload['header'], payload['nodes']
+                if not isinstance(header, dict) or not isinstance(nodes, dict):
+                    raise ValueError('Expected binary KEY metadata dictionaries')
+                if (header.get('originalJoints') == key.numJoints
+                        and all(str(node.idx) in nodes and nodes[str(node.idx)]['name'] == node.meshName
+                                for node in key.nodes)):
+                    key.binaryData = header
+                    if header.get('originalFrames') == 0 and scene.frame_end == 0:
+                        key.numFrames = 0
+                    for node in key.nodes:
+                        node.binaryData = nodes[str(node.idx)]['metadata']
+            except (KeyError, TypeError, ValueError) as error:
+                raise ValueError('Invalid imported binary KEY metadata') from error
+        key = prepareGrimExport(key)
 
     validateKeyForTarget(key, target)
     return key

@@ -48,6 +48,34 @@ class FaceFlagUpdateTests(SceneTestCase):
     def flags(self):
         return [int(bmFaceGetType(face, self.bm)) for face in self.bm.faces]
 
+    def test_engine_labels_preserve_flag_identifiers_values_and_order(self):
+        # Labels describe engine-specific meanings; existing .blend identifiers
+        # and the checkbox order must not change with this UI clarification.
+        expected = (
+            ('DoubleSided', 0x01), ('Translucent', 0x02),
+            ('TexClamp_x', 0x04), ('TexClamp_y', 0x08),
+            ('TexFilterNone', 0x10), ('ZWriteDisabled', 0x20),
+            ('IjimLedge', 0x40), ('IjimFogEnabled', 0x100), ('IjimWhipAim', 0x200),
+        )
+        items = app._get_mesh3do_face_type_list()
+        self.assertEqual([(identifier, int(FaceType[identifier]))
+                          for identifier, _, _ in items], list(expected))
+        registered = bpy.context.window_manager.sith_mesh3do_face_layer.bl_rna.properties['type'].enum_items
+        for identifier, label, description in items:
+            with self.subTest(flag=identifier):
+                self.assertEqual(registered[identifier].name, label)
+                self.assertEqual(registered[identifier].description, description)
+                if int(FaceType[identifier]) >= 0x04:
+                    self.assertTrue(label.endswith(' (IJIM)'))
+                    self.assertFalse(label.startswith('(IJIM)'))
+                    self.assertTrue(description.startswith('(IJIM only) '))
+                else:
+                    self.assertNotIn('(IJIM)', label)
+
+        description = registered['TexFilterNone'].description
+        for wording in ('MOTS', 'Grim Fandango', '0x10', 'lighting mode 1'):
+            self.assertIn(wording, description)
+
     def test_disabling_known_flag_preserves_unknown_bits(self):
         layer = self.set_flags((0x10001, 0x20001, 0x40001))
         layer.type = set()

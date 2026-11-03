@@ -32,12 +32,23 @@ class Model3doFileVersion(float, Enum):
     def contains(cls, value):
         return value in cls._value2member_map_
 
-def load3do(filePath: Union[str, Path], *, allowErrors: bool = False, warnings: Optional[List[str]] = None) -> Tuple[Model3do, Model3doFileVersion]:
-    """Load a model, optionally retaining completed records after a parse error.
+class Model3doFileFormat(Enum):
+    GrimFandango = 'LDOM'
 
-    Recovery stops at the first syntax error; it does not guess missing records
-    or resume at an arbitrary token. Invalid headers/versions remain fatal.
+
+def load3do(filePath: Union[str, Path], *, allowErrors: bool = False, warnings: Optional[List[str]] = None) -> Tuple[Model3do, Union[Model3doFileVersion, Model3doFileFormat]]:
+    """Load a text or Grim binary model, detecting the format from its contents.
+
+    Text recovery stops at the first syntax error; it does not guess missing
+    records or resume at an arbitrary token. Binary records are always checked
+    strictly, including when text recovery was requested.
     """
+    from .model3doBinary import kBinary3doMagic, readBinary3do
+    with open(filePath, 'rb') as stream:
+        if stream.read(len(kBinary3doMagic)) == kBinary3doMagic:
+            stream.seek(0)
+            return readBinary3do(stream.read()), Model3doFileFormat.GrimFandango
+
     diagnostics = warnings if warnings is not None else []
     with open(filePath, 'r', encoding='utf-8') as f:
         tok = Tokenizer(f)
@@ -169,7 +180,7 @@ def _parse_model_geometry_section(tok: Tokenizer, model: Model3do, fileVersion: 
 
             identifier = tok.getIdentifier()
             if identifier.upper() == 'SHADOW': # Grim Fandango
-                tok.getToken() # Skip SHADOW
+                mesh.shadow = tok.getIntNumber()
                 tok.assertIdentifier("GEOMETRYMODE")
             elif identifier.upper() != 'GEOMETRYMODE':
                 raise AssertionError(f"Expected identifier 'GEOMETRYMODE', found '{identifier}'! line: {tok.line} column: {tok.column}")
