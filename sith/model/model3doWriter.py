@@ -106,7 +106,7 @@ def _write_section_resources(file: TextIO, model: Model3do):
 
     if num_mats == 0: return
     for idx, mat in enumerate(model.materials):
-        row = '{:>10}:{:>15}'.format(idx, mat)
+        row = '{:>10}: {:>15}'.format(idx, mat)
         writeLine(file, row)
     writeNewLine(file)
     writeNewLine(file)
