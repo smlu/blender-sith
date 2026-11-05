@@ -3,14 +3,17 @@ import contextlib
 import io
 import json
 from pathlib import Path
+import struct
 import tempfile
 from types import SimpleNamespace
 import unittest
+from unittest import mock
 
 from app.support import SceneTestCase
 from batch.app import compare_keys, compare_models, check
 from batch.common import run
-from fixtures import TV, mat_bytes, packed_mat_cels, RGB565, RGBA4444, RGBA1555
+from fixtures import TV, cmp_bytes, mat_bytes, packed_mat_cels, INDEX8, RGB24, RGBA32, RGB565, RGBA4444, RGBA1555
+from grim_fixtures import grim_mat_bytes
 from sith.key import Key, KeyNode, Keyframe
 from sith.key.keyLoader import loadKey
 from sith.model.model3doLoader import load3do
@@ -29,7 +32,59 @@ class PackedMaterialBatchTests(SceneTestCase):
             with contextlib.redirect_stdout(io.StringIO()):
                 self.assertEqual(run(options, check), 0)
             self.assertEqual(json.loads((output / 'summary.json').read_text())['counts'], {'pass': 3})
+            records = [json.loads(line) for line in (output / 'results.jsonl').read_text().splitlines()]
+            self.assertEqual({record['encoding'] for record in records}, {'RGB565', 'RGBA4444', 'RGBA1555'})
+            self.assertTrue(all(record['operation'] == 'import-export-import-image-reference' for record in records))
+            self.assertTrue(all(record['exported_mipmap_levels'] == 5 for record in records))
             self.assertEqual({path.name: path.read_bytes() for path in root.iterdir()}, before)
+
+    def test_batch_round_trips_all_encodings_color_records_and_grim_cels(self):
+        inputs = [('rgb24', mat_bytes(RGB24, [(2, 1, [b'\x12\x34\x56\x78\x9a\xbc'], False, 0)]), 'RGB24'),
+                  ('rgba32', mat_bytes(RGBA32), 'RGBA32'),
+                  ('indexed', mat_bytes(INDEX8, [(2, 2, [bytes((0, 17, 70, 255))], True, 0),
+                                                (1, 1, [b'\x11'], False, 0)]), 'INDEXED'),
+                  ('color', mat_bytes(INDEX8, color_indices=[17, 70, 255]), 'INDEXED'),
+                  ('grim-type2', mat_bytes(INDEX8, [(2, 2, [bytes((0, 17, 70, 255))], True, 0),
+                                                   (1, 1, [b'\x11'], False, 0)]), 'INDEXED'),
+                  ('grim', grim_mat_bytes(tag=0, cels=[(2, 2, [bytes((0, 17, 70, 255))], True),
+                                                     (1, 1, [b'\x11'], False)]), 'INDEXED')]
+        with tempfile.TemporaryDirectory() as directory:
+            folder = Path(directory)
+            palette = folder / 'test.cmp'
+            palette.write_bytes(cmp_bytes())
+            for name, data, encoding in inputs:
+                with self.subTest(name=name):
+                    source, target = folder / (name + '.mat'), folder / 'export.mat'
+                    source.write_bytes(data)
+                    result = check(source, target, SimpleNamespace(palette_path=palette,
+                                   mat_target='GRIM' if name == 'grim-type2' else 'SOURCE'))
+                    self.assertEqual(result['encoding'], encoding)
+                    self.assertGreater(result['checked_pixels'], 0)
+                    self.assertEqual(result['color_records_expanded'], name == 'color')
+                    if name.startswith('grim'):
+                        self.assertEqual(result['exported_mipmap_levels'], result['cels'])
+                    self.assertEqual(source.read_bytes(), data)
+
+    def test_batch_detects_wrong_export_pixels_and_rejects_truncated_source(self):
+        from batch.material import prepareMatExports
+        from sith.material.matWriter import encodeMat, MatCel
+        with tempfile.TemporaryDirectory() as directory:
+            folder = Path(directory)
+            source, target = folder / 'source.mat', folder / 'export.mat'
+            source.write_bytes(mat_bytes(RGBA32))
+            def wrong_pixels(*args, **kwargs):
+                prepared = prepareMatExports(*args, **kwargs)
+                return [(prepared[0][0], encodeMat([MatCel(2, 2, [0, 0, 0, 1] * 4)]))]
+            with mock.patch('batch.material.prepareMatExports', side_effect=wrong_pixels), self.assertRaises(AssertionError):
+                check(source, target, SimpleNamespace(palette_path=None))
+            original = mat_bytes(RGBA32)
+            for data in (b'', original[:-1], original[:4] + struct.pack('<i', 10) + original[8:]):
+                with self.subTest(size=len(data)):
+                    source.write_bytes(data)
+                    target.write_bytes(b'previous export')
+                    with self.assertRaises((ImportError, ValueError)):
+                        check(source, target, SimpleNamespace(palette_path=None))
+                    self.assertEqual(target.read_bytes(), b'previous export')
 
 
 class BatchComparisonTests(unittest.TestCase):

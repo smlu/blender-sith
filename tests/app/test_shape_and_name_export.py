@@ -98,6 +98,9 @@ class ShapeAndNameExportTests(SceneTestCase):
         operation = SimpleNamespace(filepath=str(self.path), obj=self.obj,
                                     version=Model3doFileVersion.Version2_3.name,
                                     absolute_uv=False, export_vert_colors=False, sync_mesh_list=True,
+                                    export_textures=False, texture_encoding='RGBA32', texture_cmp_file='',
+                                    overwrite_textures=False, texture_mipmaps=True,
+                                    texture_directory='mat',
                                     report=lambda kinds, message: reports.append((kinds, message)))
         self.assertEqual(app.ExportModel3do.execute(operation, bpy.context), {'FINISHED'})
         self.assertTrue(self.path.is_file())

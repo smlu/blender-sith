@@ -6,6 +6,7 @@ from unittest import mock
 
 import bpy
 import bmesh
+from _bpy_restrict_state import RestrictBlend
 
 from app.support import SceneTestCase
 from fixtures import TV, RGB24, mat_bytes
@@ -60,6 +61,59 @@ class ExtraLightTestCase(SceneTestCase):
 
 
 class ExtraLightPreviewTests(ExtraLightTestCase):
+    def test_registration_defers_refresh_until_scene_data_is_available(self):
+        material, _ = self.material()
+        obj = self.model(material)
+        other = bpy.data.scenes.new('deferred preview')
+        other.collection.objects.link(obj)
+        preview.setPreviewEnabled(other, False)
+        # Model construction initializes these too; emulate an older .blend
+        # whose original lighting exists without the derived preview cache.
+        for name in preview.kPreviewChannels:
+            obj.data.attributes.remove(obj.data.attributes[name])
+        preview.unregister()
+        try:
+            # Blender replaces bpy.data/context while enabling an add-on.
+            # Register RNA and callbacks here, but do not inspect any scenes.
+            with mock.patch.object(preview, 'syncScenePreview') as sync:
+                with RestrictBlend():
+                    preview.register()
+                sync.assert_not_called()
+            self.assertTrue(bpy.app.timers.is_registered(preview._initPreview))
+            self.assertEqual(bpy.app.handlers.load_post.count(preview._loadPreview), 1)
+            self.assertNotIn(preview.kPreviewChannels[0], obj.data.attributes)
+
+            # Invoke the pending callback after registration, when data is safe.
+            bpy.app.timers.unregister(preview._initPreview)
+            with mock.patch.object(preview, 'syncScenePreview',
+                                   wraps=preview.syncScenePreview) as sync:
+                self.assertIsNone(preview._initPreview())
+                self.assertEqual(sync.call_args_list,
+                                 [mock.call(scene) for scene in bpy.data.scenes])
+            self.assertIn(preview.kPreviewChannels[0], obj.data.attributes)
+            self.assertIsNotNone(self.group(material))
+            self.assertFalse(preview.getPreviewEnabled(other))
+        finally:
+            bpy.data.scenes.remove(other)
+            if not hasattr(bpy.types.Scene, preview.kPreviewProperty):
+                preview.register()
+
+    def test_unregister_cancels_pending_preview_refresh(self):
+        preview.unregister()
+        try:
+            for _ in range(2):
+                with RestrictBlend():
+                    preview.register()
+                self.assertTrue(bpy.app.timers.is_registered(preview._initPreview))
+                self.assertEqual(bpy.app.handlers.load_post.count(preview._loadPreview), 1)
+                preview.unregister()
+                self.assertFalse(bpy.app.timers.is_registered(preview._initPreview))
+                self.assertNotIn(preview._loadPreview, bpy.app.handlers.load_post)
+                self.assertFalse(hasattr(bpy.types.Scene, preview.kPreviewProperty))
+        finally:
+            if not hasattr(bpy.types.Scene, preview.kPreviewProperty):
+                preview.register()
+
     def test_default_and_panel_location(self):
         scene = bpy.data.scenes.new('preview default')
         try:

@@ -2,6 +2,7 @@
 import importlib.util
 import os
 from pathlib import Path, PureWindowsPath
+import re
 import shutil
 import subprocess
 import sys
@@ -132,8 +133,16 @@ class PackagingTests(unittest.TestCase):
             self.assertIn('blender_manifest.toml', archive.namelist())
             self.assertIn('app.py', archive.namelist())
             self.assertIn('key/keyUtils.py', archive.namelist())
+            with (ROOT / 'sith/blender_manifest.toml').open('rb') as stream:
+                manifest = tomllib.load(stream)
+            self.assertEqual(tomllib.loads(archive.read('blender_manifest.toml').decode('utf-8')), manifest)
             self.assertNotIn('sith/blender_manifest.toml', archive.namelist())
             self.assertFalse(any('.pytest_cache' in Path(name).parts for name in archive.namelist()))
+            # Installed modules must never depend on a developer's home tree.
+            host_path = re.compile(r'(?i)(?<![a-z0-9])(?:[a-z]:[\\/]+|/(?:home|users|media|mnt/[a-z])/)[^\s\"\']+')
+            for name in archive.namelist():
+                if Path(name).suffix in ('.py', '.toml', '.json'):
+                    self.assertNotRegex(archive.read(name).decode('utf-8'), host_path, name)
 
     @unittest.skipUnless(os.name == 'posix' and shutil.which('bash'), 'Bash wrapper requires a POSIX shell')
     def test_shell_wrapper_handles_paths_with_spaces(self):

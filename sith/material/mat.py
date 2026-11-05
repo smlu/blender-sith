@@ -32,6 +32,7 @@ color_tex_width   = 32
 color_tex_height  = 32
 
 kMatCelImagePrefix = '_sith_mat_cel_'
+kMatMissingPixels = '_sith_mat_missing_pixels'
 
 class MatType(IntEnum):
     Color       = 0
@@ -318,11 +319,14 @@ def _mat_add_new_texture(mat: bpy.types.Material, width: int, height: int, texId
     mat[binding] = img
 
     if pixdata is not None:
+        if kMatMissingPixels in img:
+            del img[kMatMissingPixels]
         img.pixels[:] = pixdata
         img.file_format = 'PNG'
         img.pack()
         img.update()
     else:
+        img[kMatMissingPixels] = True
         # A packed image stays FILE-backed when only generated_type changes.
         # Discard the packed payload without writing it out, then regenerate the
         # placeholder in place so every shared material keeps the same image ID.

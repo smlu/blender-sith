@@ -23,8 +23,10 @@ from sith.key.keyValidation import validateKeyForTarget
 from sith.model.model3doLoader import load3do
 from sith.model.model3doWriter import save3do
 from sith.model.model3doBinary import readBinary3do, encodeBinary3do
-from sith.material import ColorMap
+from sith.material import ColorMap, exportMat
 from sith.material.mat import _read_header, _read_mipmap
+from sith.material.matWriter import MatCel, encodeMat
+from sith.material.matExporter import prepareMatExports, publishExportFiles
 from sith.types import Flag, Vector3f
 '''
         # Blender's embedded Python executable is blender.exe, not a Python CLI.

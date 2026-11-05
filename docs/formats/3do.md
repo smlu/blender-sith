@@ -38,6 +38,13 @@ Geosets provide alternative geometry, commonly LODs. The resource model can hold
 them all; Blender imports/exports **geoset 0 only**. A valid hierarchy can refer
 to a parent appearing later in the node array; stream order alone is not ancestry.
 
+### Hierarchy Node Types
+
+Each joint's `TYPE` is a bitmask, independent of its node index and mesh index.
+KEY's priority mask tests these bits to choose the track's low or high blending
+priority for that joint. A type can contain several bits; any shared bit matches.
+See [KEY flags and priority selection](key.md#header-flags-and-type-mask).
+
 ## Text Layout
 
 Sections appear in the order below. Keywords are case-insensitive; `#` introduces
@@ -153,9 +160,10 @@ clamping, filtering and depth writes. A shared 3DO version does not imply shared
 semantics. These labels must not be applied to JKDF2, MOTS, DroidWorks or Grim
 Fandango without engine-specific evidence, nor do they mean those engines ignore
 the corresponding bits. For example, bit `0x10` instead forces lighting mode 1
-in [OpenJKDF2's MOTS draw path](https://github.com/shinyquagsire23/OpenJKDF2/blob/master/src/Primitives/rdModel3.c)
-and in the supplied Grim executable's `rdModel3_DrawFace`; the latter was checked
-against machine code. It is not a nearest-filter flag in those paths.
+in [OpenJKDF2's MOTS draw path](https://github.com/shinyquagsire23/OpenJKDF2/blob/master/src/Primitives/rdModel3.c).
+Earlier Grim executable-analysis notes report the same override in
+`rdModel3_DrawFace`, but that binary evidence is not included in this checkout.
+The IJIM nearest-filter label must not be generalized to those engines.
 
 The toolkit retains the raw mask, including unknown `0x80` and higher bits, in
 all supported formats. Changing a known checkbox edits only its bit. Display
@@ -173,16 +181,20 @@ for every game. Other named unknown bits must not be assigned guessed meanings.
 
 ## Grim Rendering Controls
 
-These observations come from the supplied symbol-bearing Linux executable and
-the corresponding decompilation, checked against its machine code where noted.
-They describe inspected paths, not native-runtime tests of every renderer or a
-claim that recovered descriptive names are original enum spellings.
+The engine-side descriptions below record earlier analysis of a symbol-bearing
+Linux Grim executable and its decompilation. Neither executable evidence nor a
+reproducible disassembly reference is included in this checkout; these native
+paths were not revalidated for this documentation audit. Current source/tests
+establish field retention and UI exposure, not execution of the reported shadow
+and lighting paths. Recovered descriptive names are not known original enum
+spellings, and these notes are not native-runtime certification.
 
 ### Text Version Versus Binary Format
 
-Grim's `rdModel3_WriteText` emits `3DO 2.1`. The binary writer instead emits the
-MODL stream below, without a text-version field. The export choice **Grim
-Fandango** writes binary MODL. Its scalar lighting and pixel-space UVs resemble
+Earlier engine analysis reports that Grim's `rdModel3_WriteText` emits `3DO 2.1`.
+The add-on's binary writer emits the MODL stream below, without a text-version
+field. The export choice **Grim Fandango** writes binary MODL. Its scalar lighting
+and pixel-space UVs resemble
 the text 2.1 representation, but that does not make a binary file a text file
 with a different header. Its fixed name fields also have their own sizes.
 
@@ -214,12 +226,12 @@ mesh silhouette. A nonzero flag alone does not configure the actor's shadow
 source, receiver planes or scene state. Clearing it removes that mesh from this
 path; it does not hide the ordinary mesh, change its material alpha, or toggle
 Blender ray-traced/viewport shadows. The inspected ordinary mesh draw path is
-separate. These branches are confirmed in the Linux machine code, not inferred
-solely from the word `SHADOW` in the file.
+separate in that reported analysis. The add-on retains the flag but does not
+reproduce or test this native shadow pass.
 
 ### Lighting Mode 6
 
-In Grim's inspected software path, `rdModel3_DrawMeshImpl` handles lighting mode
+In the reported Grim software path, `rdModel3_DrawMeshImpl` handles lighting mode
 6 specially: it skips the ordinary mesh-lighting calculation and copies the
 cached `meshIntensity` into each face's `extraLight` field. This is distinct from
 recalculating vertex intensities for Gouraud mode 3.
@@ -240,14 +252,14 @@ descendant mesh: reuse intensity as per-face extra light
 This can keep attached parts using a common lighting value. The UI calls it
 **Mesh Intensity (Grim Fandango)**; it is not an independent Blender shading mode,
 nor a promise that every face becomes unlit or every renderer handles it alike.
-The flag test, ancestor traversal, mode assignment and intensity copy are also
-confirmed in the Linux machine code. The original enum spelling is not known.
+The ancestor traversal is reported engine behavior, not implemented Blender
+lighting. The original enum spelling is not known.
 
 ### Texture Mode 2
 
-The exact meaning remains unresolved. The inspected code reads/writes the integer
-and combines global, thing, mesh and face modes, but that does not establish a
-particular projection equation for value 2. The available software draw paths
+The exact meaning remains unresolved. Earlier analysis reports code that
+reads/writes the integer and combines global, thing, mesh and face modes, but
+that does not establish a particular projection equation for value 2. The available software draw paths
 clearly distinguish affine mode 0 and perspective mode 1; they do not justify
 renaming mode 2 to a supposedly verified interpolation variant.
 The related [OpenJKDF2 enum](https://github.com/shinyquagsire23/OpenJKDF2/blob/master/src/types_enums.h)
@@ -329,14 +341,14 @@ is 36 bytes, so total mesh size is:
 96 + 32*V + 8*T + sum(size of each face)
 ```
 
-The inspected engine's binary reader/writer and shadow builder identify the
-footer cache as `meshIntensity` and the 24 bounds bytes as mesh-local axis-aligned
+The earlier engine analysis identifies the footer cache as `meshIntensity` and
+the 24 bounds bytes as mesh-local axis-aligned
 `minXYZ`, then `maxXYZ`. The codec still retains both in raw metadata (`unknown3`
 for the intensity's bits, `bounds` for the six floats), rather than rewriting
 cache values during a byte-preserving round trip. Per-vertex metadata words
-remain uninterpreted. Native `rdModel3_LoadPostProcess` recalculates bounding boxes
-before building shadow proxies; retaining cache bytes is not a promise that
-they describe arbitrary subsequent Blender geometry edits.
+remain uninterpreted. That analysis reports `rdModel3_LoadPostProcess`
+recalculating bounds before building shadow proxies; retaining cache bytes does
+not promise that they describe subsequent Blender geometry edits.
 
 ### Face Record
 
@@ -422,6 +434,30 @@ polygons. Repeated corners and zero-area faces in original text resources are
 not automatically treated as syntax corruption; adapter/topology checks are
 separate from parsing.
 
+### Opt-In Text Recovery
+
+`load3do(..., allowErrors=True, warnings=messages)` retains completed data up to
+the first text syntax error; it does not scan past damage to find later records.
+A valid supported HEADER is still required. Depending on the damage, recovery
+can omit nonfinite vertices and affected faces, remove invalid material bindings,
+substitute `(0,0)` UVs, replace invalid lighting/transforms with defaults and
+detach invalid or cyclic parents. Missing normals are not recovered artist data.
+
+Without a usable hierarchy, a synthetic root groups recovered meshes at the
+origin. Missing mesh references become empty joints; otherwise unbound meshes
+are exposed only when hierarchy recovery requires it. A complete hierarchy's
+intentionally unused mesh records do not gain invented joints merely because
+geometry needed repair. Child/sibling links are rebuilt from repaired parents.
+Missing transforms/pivots and unread geometry cannot be inferred. Diagnostics
+describe the lossy substitutions; a successful import is not source validation.
+
+The Blender operator defaults to strict import, saves warnings in an import
+report and still runs adapter preflight before clearing the scene. Recovery does
+not bypass float32/topology limits or the ordinary LOD-0 editing boundary.
+MODL always uses strict binary parsing, even if this option is requested.
+
+### Bounds And Conversion
+
 Some geometry-free retail skeletons store positive infinity as an unused model
 radius. The codec retains this sentinel only without vertices. Blender uses
 finite zero bounds and restores the sentinel on binary export only while the
@@ -435,7 +471,7 @@ before interpreting byte differences as geometry errors.
 ## Materials And Implementation
 
 3DO references MAT names, not a CMP palette. Grim scene/costume context assigns
-the palette; for example `action_manny.3do` uses `action.cmp` through `ma.cos`.
+the palette; the model filename alone does not establish which CMP to use.
 Many CMPs in one directory do not establish a universal default. See
 [materials](materials.md) and the [lookup flow](../blender-pipeline.md#resource-lookup).
 
@@ -447,3 +483,8 @@ The binary reconstruction uses [3doobj's declarations](https://github.com/cplhen
 and is cross-checked against [ScummVM's Grim model reader](https://github.com/scummvm/scummvm/blob/master/engines/grim/model.cpp)
 and original resource layouts. Unknown bytes are deliberately not promoted to
 documented semantics based only on their resemblance to a C structure.
+
+Layout/rejection coverage: [binary model tests](../../tests/core/test_model_binary.py).
+Lossy fallback coverage: [core recovery tests](../../tests/core/test_model_recovery.py)
+and [Blender recovery tests](../../tests/app/test_model_recovery.py). These test
+serialization and adapters, not the native Grim rendering paths reported above.

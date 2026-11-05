@@ -30,13 +30,37 @@ field, when conversions happen, and which indices are allowed to change.
                                   markers[]                    timeline markers
 
   MAT + external CMP       -->  headers / cels / pixels    -->  materials + images
-                                                              (no MAT export)
+  MAT (CMP input if indexed) <-- optional image encoding  <--  editable image cels
 ```
 
 Core parsing does not require a Blender scene. Import adapters create Blender
 data from decoded resources. Export adapters create a **new temporary resource**
 from the scene, then serialize it. They do not write Blender's object list directly
 into a file or reorder the original scene objects to make an export work.
+
+Optional 3DO texture export defaults to a `mat` subfolder next to the model;
+**MAT Directory** accepts other absolute/model-relative/`//` folders. It uses
+bound image cels (or a uniquely resolved color texture), not evaluated shaders or
+extra-light preview nodes. RGB/RGBA fields quantize to the selected width; indexed
+output uses the selected CMP. Mipmaps regenerate from base images. Existing MATs
+are kept unless overwrite is enabled. Every pending image and the complete 3DO
+are prepared before final publication; later write failures attempt to roll back
+earlier replacements. A failed restore retains recovery files and reports their
+locations. Publication is not a crash-atomic multi-file transaction. See
+[MAT encoding](formats/materials.md#mat-encoding).
+
+Standalone MAT export bypasses model/hierarchy conversion. The Outliner context
+menu supplies its active Image/Material ID; the Image Editor and material-slot
+menu supply their own image/material. The operator captures that reference before
+opening the file browser, then exports one image or all material cels through the
+same pixel encoder and rollback-aware publisher. A later selection change does
+not retarget export, and a deleted source cancels safely. Linked input stays linked.
+Material-slot RMB uses Blender's row-specific ID/slot context rather than the
+active material. Its hook is limited to the material-slot UI list. Outliner
+export is not tied to a display-mode name; valid active Image/Material IDs work
+in any view exposing them. Without an active ID, only a sole selected compatible
+datablock is accepted. An explicit non-material ID or ambiguous selection never
+falls back to another object's material.
 
 ## Model Import
 
@@ -47,10 +71,13 @@ read magic / parse text
 validate topology, references and composed transforms
           |
           v
-resolve MAT paths and CMP -----> absent optional resources: warnings/placeholders
+resolve optional CMP ----------> missing/invalid palette: warning, no colors
           |
           v
 Clear Scene, if requested
+          |
+          v
+resolve/import MATs -----------> optional-resource errors: warnings/fallbacks
           |
           v
 build every LOD-0 joint -------- mesh-owning node: Mesh object + mesh data
@@ -64,7 +91,9 @@ add model wrapper, metadata and optional radius helpers
 
 Strict parsing and adapter preflight occur before clearing the scene. Text
 recovery is opt-in and emits warnings; it is not used for truncated binary
-records. After construction begins, failure cleanup removes newly created
+records. MAT decoding and image/node updates occur after the optional clear;
+they are not part of the geometry preflight. After construction begins, failure
+cleanup removes newly created
 objects/datablocks where tracked. **Clear Scene remains an intentional discard**:
 cleanup is not a general transaction that restores a previously cleared scene or
 all pre-existing material edits. For 3DO import, Clear Scene affects scenes and
@@ -133,8 +162,11 @@ original split between vertex coordinates and pivot is then lost.
 
 An explicitly authored, supported Blender Pivot constraint is a separate case:
 export can encode its pivot and adjust node position. It must satisfy the
-adapter's static/local constraints; arbitrary animated/world-space constraints
-must be baked. A source pivot baked on import is not such a live constraint.
+adapter's restrictions. Static 3DO export supports some evaluated world-space
+pivots; KEY requires relative, target-free pivots. See
+[Pivot compatibility](blender-compatibility.md#pivot-compatibility) for parent,
+space and animation restrictions. A source pivot baked on import is not such a
+live constraint.
 
 ### Geometry, Colors And Normals
 
@@ -192,8 +224,17 @@ With no requested CMP name, the complete search is tried for `dflt.cmp`, then
 `dfltcmp.cmp`. A specifically requested but missing palette is not silently
 replaced with an unrelated default. Exact spelling wins; otherwise a unique
 case-insensitive match is accepted for path components and filenames. Ambiguous
-case variants are an error, not an arbitrary choice. Searches are not recursive
-scans through all game archives or LAB directories.
+case variants raise a lookup error, not an arbitrary choice. Model import treats
+optional MAT lookup/load errors as warnings and tries the next root; optional CMP
+errors are warned and leave no palette. A direct MAT/CMP operator can instead
+cancel on that error. Searches are not recursive scans through game archives or
+LAB directories.
+
+Default CMP lookup runs automatically for text 2.1 and binary MODL. For text
+2.2/2.3 it runs only when a CMP is explicitly supplied, even if a referenced MAT
+uses indexed pixels. Existing named materials containing an image texture may
+be reused without reloading their files; importing another model is not an
+unconditional MAT refresh. Use direct MAT import to request a reload.
 
 Missing/unreadable optional MAT resources produce warnings and allow another
 candidate root to be tried. Missing MATs retain material-name placeholders.
@@ -259,6 +300,10 @@ mesh and material setup; load/toggle refreshes can reconstruct caches for older
 .blend files. Refreshing Object Mode attributes does not round-trip geometry
 through BMesh, which could disturb authored normal/color state.
 
+Initial refresh runs on a one-shot timer after add-on registration, when Blender
+has restored access to scene data. Loading another file uses the persistent
+load handler instead. Disabling the add-on cancels any pending initial refresh.
+
 For each preview RGB channel `d`, the shader uses a display-limited value:
 
 ```text
@@ -322,7 +367,10 @@ engine custom layers, not an arbitrary evaluated modifier result. Effective
 object material slots honor object-level overrides even for shared mesh data.
 The exported model-wide material table uses normalized lowercase `.mat` names;
 Blender's numeric suffix after an existing `.mat` extension is removed. Image
-pixels are not embedded in the 3DO or exported as new MAT files.
+pixels are never embedded in the 3DO. With **Export Textures to MAT** disabled
+(the default), only material references are written. Enabling it writes separate
+MAT files from resolved images/cels, subject to the encoding and overwrite policy
+described above.
 
 Static local/inherited scale is baked into geometry. A joint's own scale does
 not multiply its own local translation; inherited scale does. Reflected scale
@@ -445,7 +493,7 @@ on KEY import clears animation data/markers, not the model geometry.
 ```text
 KEY base + delta segments
           |
-Grim playback normalization, when needed
+FYEK-only Grim playback normalization
           |
 expand segment boundaries, holds and jumps into samples
           |
@@ -505,6 +553,9 @@ Moving the marker preserves its subframe suffix. Export decodes supported names
 or numeric event IDs and sorts by time; malformed names are warned and skipped.
 
 ### Sample And Export Actions
+
+See [compatibility notes](blender-compatibility.md#animation-compatibility) for
+the detailed merge, action-slot, constraint and precision restrictions.
 
 KEY export reads each object's **assigned action slot**, not every curve in a
 shared action, and not arbitrary evaluated dependency-graph motion. It combines

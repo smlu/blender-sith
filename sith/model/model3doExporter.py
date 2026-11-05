@@ -16,6 +16,9 @@
 
 import bpy, bmesh, mathutils, os
 import numpy as np
+from pathlib import Path
+import shutil
+import tempfile
 
 from ..types import BenchmarkMeter
 from ..utils import *
@@ -32,7 +35,7 @@ kDefaultVertexColor = Vector4f(0.0, 0.0, 0.0, 1.0)
 kHNDefaultFlags     = 0
 kHNDefaultType      = 0
 
-def export3do(obj: bpy.types.Object, path: str, version: Model3doFileVersion, uvAbsolute: bool, exportVertexColors: bool, sync_mesh_list: bool, *, warnings=None):
+def export3do(obj: bpy.types.Object, path: str, version: Model3doFileVersion, uvAbsolute: bool, exportVertexColors: bool, sync_mesh_list: bool, *, warnings=None, exportTextures=False, textureEncoding='RGBA32', texturePalette='', overwriteTextures=False, generateMipmaps=True, textureDirectory='mat'):
     """Build the resource from a Blender model, then write the requested version."""
     with BenchmarkMeter(' done in {:.4f} sec.'):
         print("exporting 3DO: %r..." % (path), end="")
@@ -49,7 +52,51 @@ def export3do(obj: bpy.types.Object, path: str, version: Model3doFileVersion, uv
                 for mesh in geoset.meshes:
                     mesh.shadow = None
         header   = getExportFileHeader(f"3DO model '{os.path.basename(path)}'")
-        model3doWriter.save3do(model3do, path, version, header, warnings=warnings)
+        if not exportTextures:
+            model3doWriter.save3do(model3do, path, version, header, warnings=warnings)
+            return
+
+        from ..material.matExporter import prepareMatExports, publishExportFiles, ExportRollbackError
+
+        # Prepare geometry and every image before changing final files. A bad
+        # later cel or missing palette must not replace an existing model.
+        destination = Path(path).absolute()
+        textureFolder = Path(bpy.path.abspath(os.fspath(textureDirectory) or 'mat'))
+        if not textureFolder.is_absolute():
+            textureFolder = destination.parent / textureFolder
+        palette = os.fspath(texturePalette)
+        if palette:
+            palette = bpy.path.abspath(palette)
+            if not Path(palette).is_absolute():
+                palette = str(destination.parent / palette)
+        materials = [(_get_mat_name(slot.material), slot.material)
+                     for node in model3do.meshHierarchy if node.meshIdx >= 0
+                     for slot in node.obj.material_slots if slot.material is not None]
+        textures = prepareMatExports(materials, textureFolder, textureEncoding, palette,
+                                     overwrite=overwriteTextures, generateMipmaps=generateMipmaps,
+                                     grim=version == Model3doFileFormat.GrimFandango, warnings=warnings)
+        staging = Path(tempfile.mkdtemp(prefix='.sith-export-', dir=destination.parent))
+        keepRecovery = False
+        try:
+            modelPath = staging / destination.name
+            model3doWriter.save3do(model3do, modelPath, version, header, warnings=warnings)
+            files = []
+            for index, (target, data) in enumerate(textures):
+                prepared = staging / f'texture-{index}'
+                prepared.write_bytes(data)
+                files.append((target, prepared, overwriteTextures))
+            files.append((destination, modelPath, True))
+            publishExportFiles(files, staging, warnings=warnings)
+        except ExportRollbackError:
+            keepRecovery = True
+            raise
+        finally:
+            if not keepRecovery:
+                try:
+                    shutil.rmtree(staging)
+                except OSError as error:
+                    if warnings is not None:
+                        warnings.append(f'Could not remove export temporary directory {staging}: {error}')
 
 
 def _set_hnode_pose(node: Mesh3doNode, scale: mathutils.Vector):

@@ -238,6 +238,10 @@ def _loadPreview(_):
         syncScenePreview(scene)
 
 
+def _initPreview():
+    _loadPreview(None)
+
+
 def register():
     setattr(bpy.types.Scene, kPreviewProperty, bpy.props.BoolProperty(
         name='Extra Light', default=True, get=getPreviewEnabled, set=setPreviewEnabled,
@@ -246,11 +250,14 @@ def register():
     ))
     if _loadPreview not in bpy.app.handlers.load_post:
         bpy.app.handlers.load_post.append(_loadPreview)
-    for scene in bpy.data.scenes:
-        syncScenePreview(scene)
+    # Add-on registration restricts bpy.data; refresh once Blender can expose it.
+    if not bpy.app.timers.is_registered(_initPreview):
+        bpy.app.timers.register(_initPreview, first_interval=0.0)
 
 
 def unregister():
+    if bpy.app.timers.is_registered(_initPreview):
+        bpy.app.timers.unregister(_initPreview)
     if _loadPreview in bpy.app.handlers.load_post:
         bpy.app.handlers.load_post.remove(_loadPreview)
     # Restore sockets still owned by our group. User-rewired inputs are left alone.

@@ -26,8 +26,10 @@ def main():
             raise RuntimeError('Application tests require Blender 5.0 or newer')
         if not bpy.app.background:
             raise RuntimeError('Application tests require a separate background Blender process')
-        import sith
-        sith.register()
+        import addon_utils
+        # Use Blender's restricted registration path, not a direct register call.
+        if addon_utils.enable('sith', default_set=False) is None:
+            raise RuntimeError('Could not enable the add-on for application tests')
     try:
         suite = unittest.TestSuite()
         groups = ('core', 'app') if options.suite == 'all' else (options.suite,)
@@ -38,7 +40,7 @@ def main():
         result = unittest.TextTestRunner(verbosity=2).run(suite)
     finally:
         if needs_blender:
-            sith.unregister()
+            addon_utils.disable('sith', default_set=False)
     if not result.wasSuccessful():
         raise RuntimeError('Regression tests failed')
 

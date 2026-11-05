@@ -11,6 +11,7 @@ smaller version **within** that cel. The two counts are not interchangeable.
 - [Pixel decoding](#pixel-decoding)
 - [CMP layout and palette selection](#cmp-layout-and-palette-selection)
 - [Blender material binding](#blender-material-binding)
+- [MAT encoding](#mat-encoding)
 
 ```text
 3DO face --material index--> MAT name
@@ -29,8 +30,9 @@ smaller version **within** that cel. The two counts are not interchangeable.
                          Blender RGBA
 ```
 
-The add-on imports MAT/CMP; it does not export edited Blender materials back to
-MAT. 3DO export writes material references, not embedded image bytes. Grim
+The add-on imports MAT/CMP and can optionally encode Blender image textures to
+MAT during 3DO export or through standalone Image/Material export. CMP palettes
+remain import-only. 3DO writes material references, not embedded image bytes. Grim
 BM/ZBM scene bitmap/depth resources are separate formats, not MAT substitutes.
 
 ## MAT Header
@@ -69,6 +71,11 @@ followed by fourteen 32-bit color-format words.
 Textured files require record count to equal texture count. Type 3 requires
 indexed 8-bit color. Unused packed-channel words in indexed headers can contain
 arbitrary values; they are not evidence of an RGB/alpha layout for those pixels.
+At least one record is required. Version `0x32` is decimal 50, not the add-on
+version; version-10, empty and truncated MATs are rejected, not reconstructed.
+Acceptance of an encoding by this reader is not proof that every supported game
+can load it. Indexed legacy resources and Infernal Machine's packed-color
+resources share a container, not a universal renderer capability set.
 
 ## Records And Texture Payload
 
@@ -139,6 +146,10 @@ type 3, full first record, two cels:
 Do not shorten every record or skip an extra block before the pixels. Some
 resources have additional trailer bytes; the importer does not use that trailer
 as a substitute embedded palette. Indexed colors still use the selected CMP.
+The MAT reader does not enforce end-of-file after the decoded cels, and does not
+retain records, trailers or lower mip levels as export metadata. MAT export is
+new image encoding, not a byte-preserving MAT codec round trip. Texture records'
+stored cel indices are not used to reorder the payload: cels bind in stream order.
 
 ### Cel Mip Header
 
@@ -276,8 +287,104 @@ Reloads reuse the bound images where editable, copy linked images before editing
 and remove stale numbered bindings when the new file has fewer cels. Missing
 pixels do not erase material names or texture dimensions needed for UV conversion.
 A valid textured MAT without a CMP can therefore still supply UV dimensions.
+The basename resolves the material to reload; cel 0 rebuilds its shader graph.
+This is not a merge with arbitrary shader edits or a rollback transaction for
+later Blender API failures. See [material reloading](../blender-compatibility.md#material-reloading).
 
-Implementation: [MAT reader and Blender adapter](../../sith/material/mat.py),
+## MAT Encoding
+
+The 3DO exporter's **Export Textures to MAT** option is off by default. When
+enabled, all bound cels are encoded into `<MAT Directory>/<referenced-name>.mat`.
+The directory defaults to `mat` beside the model and accepts absolute,
+model-relative or Blender `//` paths. Existing MATs are skipped unless
+**Overwrite Existing MAT Files** is on.
+Skipping an existing file does not require source pixels or a palette for that file.
+The initial 3DO format is 2.3, with RGBA32 texture encoding and mip generation
+enabled. Changing the format to 2.1 or Grim selects Indexed in the UI; only Grim
+enforces indexed encoding in the encoder. Other combinations are not thereby
+certified for JKDF2, MOTS or DroidWorks. Standalone defaults are the Sith target,
+RGBA32, mipmaps on and overwrite off.
+
+Standalone **Export to MAT...** uses the same encoder and publication safeguards.
+An Image provides one cel; a Material supplies its consecutive cel bindings or
+resolved color image. Its target filename is chosen directly in the file browser.
+The UI captures the selected ID before opening that browser, so it is independent
+of later editor/selection changes. `exportMat` returns whether it actually wrote a
+file; a protected existing destination or exclusive-creation race is not reported
+as a successful export. Linked data can be read without making it local.
+Relative CMP paths resolve beside the destination MAT (beside the 3DO for model
+export); `//` paths use Blender's blend-relative resolution. This explicit export
+palette is not selected through the model importer's default-CMP search.
+
+The encoder writes the common 76-byte header, 40-byte texture records (type 8,
+unit scalar in word 5, sequential cel IDs), followed by each cel's header and
+pixels. Standard output uses material type 2; Grim output uses type 3 with its
+full first record. Grim output requires indexed pixels and writes one base level
+per cel: readers that advance directly to the next cel cannot consume mip chains.
+
+| Encoding | Red shift/bits | Green shift/bits | Blue shift/bits | Alpha shift/bits |
+| --- | --- | --- | --- | --- |
+| RGBA32 | 16/8 | 8/8 | 0/8 | 24/8 |
+| RGB 24 | 16/8 | 8/8 | 0/8 | absent |
+| RGB 565 | 11/5 | 5/6 | 0/5 | absent |
+| RGBA 4444 | 8/4 | 4/4 | 0/4 | 12/4 |
+| RGBA 1555 | 10/5 | 5/5 | 0/5 | 15/1 |
+| Indexed | CMP RGB byte triples | | | cel transparency/index |
+
+Input is normalized numeric RGBA in the same domain as the decoder, with the
+bottom row first. Channels clamp to [0,1], round to nearest representable values,
+and are written little-endian with the row order reversed. RGB24 contains three
+BGR bytes per pixel, with shifts declared by its color-format header.
+
+Indexed encoding requires a supplied CMP. RGB first rounds to bytes; squared RGB
+distance selects the nearest palette entry. Equal distances choose the lowest
+index. If a cel has alpha below 0.5, index zero is reserved for transparent pixels
+and excluded from every opaque-pixel search. Fractional alpha is not representable.
+There is no palette generation, color-profile transform or dithering.
+
+Standard Sith mipmaps use area averages with premultiplied alpha for alpha-bearing
+formats, then unpremultiply before encoding. Odd-sized edges are included; each
+axis halves independently down to one. This regenerates lower levels from the
+edited base image; it does not reproduce an original artist-authored mip chain.
+
+The Blender adapter follows explicit cel bindings, or the existing unambiguous
+color-image resolver for ordinary materials. It does not bake procedural shaders,
+lighting or preview nodes. Only still images with source `FILE` or `GENERATED`
+are read; sequences, movies, tiled images and missing-palette placeholders must
+be converted or reloaded first. Nonconsecutive cels, missing pixels and distinct
+materials collapsing to the same normalized output name fail before publication.
+
+MAT reference filenames must be flat: separators, traversal names, drive syntax,
+Windows-reserved names and other explicitly forbidden filename characters are
+rejected. The chosen MAT directory may intentionally be outside the model folder.
+The adapter rejects a symlink at that directory, checks junctions when the host
+provides `Path.is_junction`, and rejects symlink/directory destinations. It does
+not sandbox every ancestor component or provide protection against hostile
+concurrent path changes. Existing files skipped without overwrite
+are not decoded or checked for compatible dimensions, cels, encoding or palette.
+Keeping a file therefore does not establish that it matches the exported model.
+
+Replacement and backup renames stay on the destination volume, even when a custom
+MAT folder is on another drive. Prepared model/texture files are published
+sequentially with rollback backups, not as one atomic bundle. Ordinary caught
+failures attempt to restore earlier replacements; a failed restore preserves the
+staging directory and any destination-local recovery files and reports their
+locations. Crash/power-loss durability and concurrent writers are not guaranteed.
+This publisher is used for standalone MAT and opt-in model/texture exports;
+plain 3DO/KEY writers still write directly after their own validation and do not
+promise rollback for a subsequent OS write failure.
+
+Implementation: [MAT encoder](../../sith/material/matWriter.py),
+[Blender export adapter](../../sith/material/matExporter.py),
+[MAT reader and Blender adapter](../../sith/material/mat.py),
 [CMP reader](../../sith/material/cmp.py). Grim's record variants are also checked
 against [ScummVM's material reader](https://github.com/scummvm/scummvm/blob/master/engines/grim/material.cpp)
 and original compact/full resources.
+
+Regression evidence: [MAT/CMP decoding](../../tests/core/test_material.py),
+[Grim record variants](../../tests/core/test_grim_material.py),
+[encoding and mipmaps](../../tests/core/test_mat_writer.py),
+[publication failure injection](../../tests/core/test_mat_export_files.py),
+[Blender reloads](../../tests/app/test_material.py) and
+[standalone export](../../tests/app/test_mat_standalone.py). Simulated cross-volume
+and write-failure tests do not establish crash durability or native-game loading.

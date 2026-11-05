@@ -54,6 +54,13 @@ and deltas use XYZ. Angles and angular deltas use pitch/yaw/roll in degrees.
 **Entry and marker frames are floats**, including fractional values. Frame and
 joint counts are integers. Deltas are **per frame**, not per second.
 
+There is no game tag or text format-version field. The text reader accepts the
+shared Sith/Grim grammar, but the Blender adapter applies Sith's channel-gated
+interpolation to text input. Grim's global interpolation rule below is selected
+only by binary FYEK detection; a text file with `FLAGS 0x100` does not select it.
+Parsing Grim text therefore does not establish equivalent Grim playback. Use
+FYEK for the add-on's Grim-specific import/export path.
+
 ### Sith Entry Interpolation
 
 Choose the last entry at or before the requested frame. If it begins at `f0`,
@@ -86,6 +93,13 @@ deltas, not quaternion shortest-path interpolation.
 These are the toolkit's Sith flag labels. They are not a promise of identical
 runtime behavior across engines:
 
+In the inspected Infernal Machine Sith playback path, the KEY header's `FLAGS`
+field is retained but is not used to configure playback. PUP submodes or
+script/playback calls supply a separate flag value. The add-on exposes the stored
+header bits for format completeness, not as game or Blender playback controls. This observation
+must not be generalized to every engine. Grim's distinct flag semantics include
+interpolation bit `0x100` in FYEK playback.
+
 | Flag | Label |
 | ---: | --- |
 | `0` | Loop default |
@@ -97,10 +111,27 @@ runtime behavior across engines:
 | `0x20` | Fade out and no loop |
 | `0x40` | Set position to last frame, Infernal Machine |
 
-`TYPE` uses the [3DO node-type mask](3do.md#render-modes-and-face-flags) for
+`TYPE` uses the [3DO node-type mask](3do.md#hierarchy-node-types) for
 priority selection. It is not a joint index or a mask where bit `i` means joint
 `i`. Unknown animation bits are retained separately from the UI's known flags.
 Grim's interpolation bit is described below.
+
+The UI calls this **High Priority Node(s)**. `rdPuppet_BuildJointMatrices` chooses
+one of the track's two priorities for each model joint:
+
+```c
+priority = (joint.type & key.type) != 0 ? track.highPriority : track.lowPriority;
+```
+
+The puppet/playback call supplies those numeric priorities. `TYPE` selects which
+one applies; it does not assign the priority itself. For example, a joint at
+index 17 with type `0x0004` matches a KEY mask `0x0006`, while a joint at index 2
+with type `0x0001` does not. The Blender scene/dialog default `FFFF` selects all
+low 16 type bits (a newly constructed core `Key` instead starts with type zero);
+zero selects none. A joint with type zero never matches a mask.
+
+See the engine's [joint blending](https://github.com/smlu/OpenJones3D/blob/develop/Libs/rdroid/Engine/rdPuppet.c)
+and [puppet playback](https://github.com/smlu/OpenJones3D/blob/develop/Libs/sith/Engine/sithPuppet.c).
 
 ### Marker Types
 
@@ -221,13 +252,16 @@ backwards timing; equal adjacent frames use the last-entry rule matching Grim's
 upper-bound search. **Require Frame Zero** is enabled by default for Blender
 import. Disable it for late-start tracks: the importer evaluates their first
 entry's active deltas backward to frame zero, without retiming stored entries.
-Unset change flags hold their channel. This is not a claim that every target
-engine supports late-start tracks.
+The gates here are the playback-normalized ones: raw FYEK entry flags do not
+hold individual channels. With `0x100` set, both channels hold. This is not a
+claim that every target engine supports late-start tracks.
 Zero-duration pose clips use one display frame and retain their original zero
 count on binary re-export while the timeline remains on that single frame.
 
 Stored FPS is retained. Engine-specific timing overrides are outside the codec;
 frame-domain pose equivalence alone does not verify in-game timing or blending.
+For example, ScummVM's FYEK loader uses 15 FPS rather than its stored FPS; this
+is evidence about ScummVM, not proof of every original executable's timing.
 Binary export with `0x100` rejects moving linear segments instead of silently
 turning them into holds. Use stepped motion or clear the retained flag.
 
@@ -249,6 +283,12 @@ physical integers must fit their 32-bit fields, and represented numeric values
 must be finite. The binary codec additionally rejects truncation, trailing data,
 unsafe counts/indices and invalid duplicate records.
 
+These are enforced export policies, not a native-game certification matrix.
+Infernal Machine is the Blender target default. DroidWorks has no dedicated KEY
+target: Generic requires independent checking of that engine's limits. The Grim
+joint-cap entry means only that no extra cap is imposed beyond physical fields
+and Blender limits, not that arbitrarily large skeletons were tested in-game.
+
 Generic permits nonzero first frames. It samples from the scene's nonnegative
 start frame without rebasing timestamps; `FRAMES` remains `scene.frame_end + 1`.
 At scene start zero, an unedited replacement import can reuse its original
@@ -259,6 +299,10 @@ source-entry reuse and exports the current Blender motion instead.
 Core `saveKey` defaults to text unless binary format is explicitly selected.
 The Blender UI selects binary for Grim Fandango; the other targets remain text.
 Binary bytes are constructed and validated before opening the export destination.
+Text `loadKey` primarily checks grammar, counts and joint references; it is not
+the Blender playback preflight. Positive FPS/duration, representable samples and
+strictly increasing stored frame times are checked by the relevant adapter or
+recovery path. A successful text parse alone is not an animation-validity test.
 
 Codec round trips preserve opaque words, raw name padding, unused marker slots
 and null-slot layout where compatible. Blender rebuilds tracks and reuses binary
@@ -275,11 +319,16 @@ It does not bridge a missing entry by inventing motion. Invalid/unsupported
 markers are omitted. Grim's adjacent equal-frame entries remain valid.
 
 For text files, a broken node tail can be discarded after at least one complete
-animated track has been read. An invalid header, unsafe binary count/index,
-truncated binary record or trailing binary data still fails. If all damaged
-animation tracks would be omitted, import fails without clearing the scene.
+animated track has been read. A duplicate/out-of-range text node or invalid entry
+flag encountered in that tail can also stop parsing; the unread remainder is
+discarded, not searched for later good tracks. An invalid header, unsafe binary
+count/index, truncated binary record or trailing binary data still fails. If all
+damaged animation tracks would be omitted, import fails without clearing the scene.
 Blender preflight checks (including float32 precision and destination safety)
 remain enabled; recovery is not a promise that every malformed file can import.
+Marker recovery removes nonfinite or unknown event values, not finite timestamps
+outside Blender's marker range. Likewise it does not clip duration, clamp FPS or
+repair float32 sample collisions; those can still fail adapter preflight.
 
 Warnings are printed and saved as a Blender Text datablock. **View KEY Import
 Report** in **3DO Properties** opens it; the original file is never modified.
@@ -299,3 +348,9 @@ The binary layout and interpolation interpretation are cross-checked against
 [ScummVM's Grim keyframe reader](https://github.com/scummvm/scummvm/blob/master/engines/grim/keyframe.cpp)
 and original resource layouts. See the [animation pipeline](../blender-pipeline.md#animation-import-and-export)
 for action slots, rotation branches, pivots and fractional Blender markers.
+
+Regression evidence: [FYEK layouts and playback normalization](../../tests/core/test_key_binary.py),
+[target boundaries](../../tests/core/test_key_validation.py),
+[track recovery](../../tests/core/test_key_recovery.py) and
+[Blender mask preservation](../../tests/app/test_metadata_masks.py). Preservation
+tests do not execute a game's priority blending or script playback calls.

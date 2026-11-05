@@ -5,11 +5,11 @@
 [![Blender](https://img.shields.io/badge/Blender-5.0+-orange.svg?style=flat&logo=blender)](https://www.blender.org/)
 [![Tests](https://github.com/smlu/blender-sith/actions/workflows/tests.yml/badge.svg)](https://github.com/smlu/blender-sith/actions/workflows/tests.yml)
 [![License](https://img.shields.io/badge/License-GPL--3.0--or--later-blue.svg?style=flat)](LICENSE)
-[![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-purple.svg?style=flat)]()
+![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-purple.svg?style=flat)
 
 **Import/Export assets for classic LucasArts games**
 
-[<img src="demo/blsthbn_sm.png"/>](demo/blsthbn.png)
+[<img src="demo/social-preview-painted-scaled.jpg"/>](demo/blsthbn.png)
 
 [🚀 Installation](#-installation) • [📖 Usage Guide](USAGE.md) • [🔧 Troubleshooting](USAGE.md#-troubleshooting)
 
@@ -27,6 +27,8 @@
 - [Usage](USAGE.md)
 - [Technical Documentation](docs/README.md)
 - [Contributing](#-contributing)
+- [Tests](#tests)
+- [Links](#links)
 
 ---
 
@@ -54,26 +56,27 @@
 <td width="50%">
 
 ### 📦  3DO Models
-- ✅ Import/Export all versions (2.1, 2.2, 2.3)
+- ✅ Import/Export 3DO 2.1, 2.2 and 2.3
 - ✅ Grim Fandango MODL binary import/export
-- 🎨 Full mesh hierarchy support
+- 🎨 Mesh hierarchy editing
 - 🔧 Edit properties in Blender UI
 - 🎯 Vertex colors & UV mapping
 
 ### 🎬 KEY Animations
 - ✅ Import/Export mesh animations
 - ✅ Grim Fandango FYEK binary import/export
-- Opt-in KEY recovery with reports, optional frame-zero import checks and late-start Generic export
+- 🛟 KEY recovery & flexible frame starts
 - 🎞️  Keyframe markers support
-- ⚙️ High-priority node configuration
-- 📊 Numeric and fractional playback rates within Blender's supported limits
+- ⚙️ Node-type priority masks
+- 📊 Fractional playback rates
 
 </td>
 <td width="50%">
 
 ### 🖼️ MAT Textures
 - ✅ Import as Blender materials
-- 🎞️ Import all texture cells
+- 📤 Export materials/textures to MAT
+- 🎞️ Animated texture cels
 - 🎨 8-bit, 16-bit, 24-bit & 32-bit formats
 - 🔧 ColorMap (.cmp) support
 - ✅ Grim Fandango indexed MAT variants
@@ -82,7 +85,7 @@
 - 🎛️ Per-face properties & flags
 - 🔦 Lighting & texture modes
 - 🎨 Extra light color support
-- Live Extra Light preview without baking vertex colors
+- 💡 Live Extra Light preview
 - ⚡ Multi-face batch editing
 
 </td>
@@ -128,6 +131,7 @@
 ```bash
 # Clone or download the repository
 git clone https://github.com/smlu/blender-sith.git
+cd blender-sith
 
 # Build the installable extension archive (Python 3.11+, standard library only)
 python scripts/make_addon.py
@@ -165,6 +169,7 @@ conversion, baked pivots, UV units, hierarchy ordering and mesh-list sync.
 - **Import KEY**: `File > Import > Sith Game Engine Animation (.key)`
 - **Export KEY**: `File > Export > Sith Game Engine Animation (.key)`
 - **Import MAT**: `File > Import > Sith Game Engine Texture (.mat)`
+- **Export MAT**: `Image Editor > Image > Export to MAT...`, or right-click an image/material in the Outliner or a material row in Material Properties
 - **Edit Properties**: `Properties Panel > Object Properties > 3DO Properties`
 - **Edit Faces**: `Properties Panel > Data Properties > 3DO Mesh Face Properties` (Edit Mode)
 
@@ -183,7 +188,7 @@ Contributions are welcome! Feel free to:
 
 ## Tests
 
-Resource codecs run in ordinary Python without Blender:
+Resource codecs run in ordinary Python 3.11+ without Blender:
 
 ```sh
 python -m pip install -r tests/requirements.txt

@@ -43,7 +43,8 @@ from .key import (
 from .key.keyValidation import kKeyTargets
 from .key.keyUtils import getSceneFrameRate, prepareSceneFrameRate, setSceneFrameRate, kKeyImportReport
 
-from .material import importMat
+from .material import importMat, exportMat
+from .material.matWriter import kMatEncodings
 
 from .model import (
     export3do,
@@ -201,6 +202,157 @@ class ImportMat(bpy.types.Operator, ImportHelper):
             self.report({'ERROR'}, f'Cannot import MAT: {error}')
             return {'CANCELLED'}
         return {'FINISHED'}
+
+
+def _get_outliner_mat_source(context):
+    source = getattr(context, 'id', None)
+    if source is None:
+        selected = getattr(context, 'selected_ids', ()) or ()
+        if len(selected) == 1:
+            source = selected[0]
+    return source if isinstance(source, (bpy.types.Material, bpy.types.Image)) else None
+
+
+def _get_mat_export_source(context):
+    """Use the menu's explicit ID, never an unrelated active object's material."""
+    source = getattr(context, 'sith_mat_export_source', None)
+    if source is None:
+        area = getattr(context, 'area', None)
+        if area is not None and area.type == 'OUTLINER':
+            source = _get_outliner_mat_source(context)
+        elif area is not None and area.type == 'IMAGE_EDITOR':
+            source = getattr(context.space_data, 'image', None)
+        else:
+            source = getattr(context, 'material', None)
+    return source if isinstance(source, (bpy.types.Material, bpy.types.Image)) else None
+
+
+def _on_mat_target_update(self, context):
+    if self.target == 'GRIM':
+        self.encoding = 'INDEXED'
+
+
+def _on_mat_overwrite_update(self, context):
+    self.check_existing = self.overwrite_existing
+
+
+class ExportMat(bpy.types.Operator, ExportHelper):
+    """Export an image or a material's texture cels to a Sith MAT file"""
+    bl_idname = 'export_material.sith_mat'
+    bl_label = 'Export MAT'
+    filename_ext = '.mat'
+
+    filter_glob: bpy.props.StringProperty(default='*.mat', options={'HIDDEN'})
+    check_existing: bpy.props.BoolProperty(default=False, options={'HIDDEN'})
+    target: bpy.props.EnumProperty(
+        name='Target', default='SITH', update=_on_mat_target_update,
+        items=[('SITH', 'Standard', 'Standard Sith MAT for compatible IJIM, JKDF2, MOTS and DroidWorks engines'),
+               ('GRIM', 'Grim Fandango', 'Indexed Grim Fandango MAT with one base image per cel')],
+    )
+    encoding: bpy.props.EnumProperty(name='Encoding', items=kMatEncodings, default='RGBA32')
+    cmp_file: bpy.props.StringProperty(
+        name='ColorMap File',
+        description='CMP palette for indexed encoding. Relative paths resolve beside the exported MAT; // paths are relative to the blend file',
+    )
+    generate_mipmaps: bpy.props.BoolProperty(
+        name='Generate Mipmaps', default=True,
+        description='Generate a complete alpha-aware mip chain down to 1x1 for standard MAT output',
+    )
+    overwrite_existing: bpy.props.BoolProperty(
+        name='Overwrite Existing MAT', default=False, update=_on_mat_overwrite_update,
+        description='Allow replacement of an existing MAT, with file-browser confirmation. Disabled by default',
+    )
+
+    _source = None
+
+    def draw(self, context):
+        layout = self.layout
+        layout.prop(self, 'target')
+        row = layout.row()
+        row.enabled = self.target != 'GRIM'
+        row.prop(self, 'encoding')
+        if self.encoding == 'INDEXED':
+            layout.prop(self, 'cmp_file')
+        if self.target != 'GRIM':
+            layout.prop(self, 'generate_mipmaps')
+        layout.prop(self, 'overwrite_existing')
+
+    def invoke(self, context, event):
+        self._source = _get_mat_export_source(context)
+        if self._source is None:
+            self.report({'ERROR'}, 'Select an image or material to export to MAT')
+            return {'CANCELLED'}
+        # Preserve identity across the file browser, including linked or renamed IDs.
+        if not self.filepath:
+            name = self._source.name
+            if name.lower().endswith('.mat') or (isinstance(self._source, bpy.types.Image)
+                    and Path(name).suffix.lower() in bpy.path.extensions_image):
+                name = os.path.splitext(name)[0]
+            self.filepath = bpy.path.clean_name(name) + self.filename_ext
+        self.check_existing = self.overwrite_existing
+        return ExportHelper.invoke(self, context, event)
+
+    def execute(self, context):
+        if self._source is None:
+            self._source = _get_mat_export_source(context)
+        if self._source is None:
+            self.report({'ERROR'}, 'Select an image or material to export to MAT')
+            return {'CANCELLED'}
+        if not self.filepath:
+            self.report({'ERROR'}, 'No MAT output file selected')
+            return {'CANCELLED'}
+        self.filepath = bpy.path.ensure_ext(self.filepath, self.filename_ext)
+        warnings = []
+        try:
+            written = exportMat(self._source, self.filepath, self.encoding, self.cmp_file,
+                                overwrite=self.overwrite_existing, generateMipmaps=self.generate_mipmaps,
+                                grim=self.target == 'GRIM', warnings=warnings)
+        except (ImportError, OSError, ReferenceError, RuntimeError, ValueError) as error:
+            self.report({'ERROR'}, f'Cannot export MAT: {error}')
+            return {'CANCELLED'}
+        for warning in warnings:
+            self.report({'WARNING'}, warning)
+        if not written:
+            return {'CANCELLED'}
+        self.report({'INFO'}, f"MAT '{os.path.basename(self.filepath)}' was successfully exported")
+        return {'FINISHED'}
+
+
+def _draw_mat_export(layout, source):
+    if not isinstance(source, (bpy.types.Material, bpy.types.Image)):
+        return
+    layout.separator()
+    row = layout.row()
+    row.operator_context = 'INVOKE_DEFAULT'
+    row.context_pointer_set('sith_mat_export_source', source)
+    row.operator(ExportMat.bl_idname, text='Export to MAT...', icon='EXPORT')
+
+
+def menu_export_mat_outliner(self, context):
+    space = context.space_data
+    if space.type == 'OUTLINER':
+        _draw_mat_export(self.layout, _get_outliner_mat_source(context))
+
+
+def menu_export_mat_image(self, context):
+    _draw_mat_export(self.layout, context.space_data.image)
+
+
+def menu_export_mat_material(self, context):
+    _draw_mat_export(self.layout, context.material)
+
+
+def menu_export_mat_material_slot(self, context):
+    ui_list = getattr(context, 'ui_list', None)
+    if getattr(ui_list, 'bl_idname', None) != 'MATERIAL_UL_matslots':
+        return
+    # Row context can differ from the active slot. Never export context.material
+    # here: right-clicking another row must export that row's material instead.
+    source = getattr(context, 'id', None)
+    if source is None:
+        source = getattr(getattr(context, 'material_slot', None), 'material', None)
+    if isinstance(source, bpy.types.Material):
+        _draw_mat_export(self.layout, source)
 
 
 class ImportModel3do(bpy.types.Operator, ImportHelper):
@@ -411,6 +563,11 @@ def _frame_imported_model(context, obj):
             space.region_3d.view_perspective = perspective
 
 
+def _on_export_format_update(self, context):
+    if self.version in (Model3doFileVersion.Version2_1.name, Model3doFileFormat.GrimFandango.name):
+        self.texture_encoding = 'INDEXED'
+
+
 class ExportModel3do(bpy.types.Operator, ExportHelper):
     """Export object(s) to Sith game engine 3DO file format (.3do)"""
     bl_idname    = 'export_scene.sith_3do'
@@ -431,7 +588,8 @@ class ExportModel3do(bpy.types.Operator, ExportHelper):
             (Model3doFileVersion.Version2_3.name, '2.3 - IJIM'        , 'Indiana Jones and the Infernal Machine - RGBA color'),
             (Model3doFileFormat.GrimFandango.name, 'Grim Fandango', 'Grim Fandango binary format. For text export, select 2.1')
         ],
-        default= Model3doFileVersion.Version2_3.name
+        default= Model3doFileVersion.Version2_3.name,
+        update = _on_export_format_update,
     )
 
     absolute_uv: bpy.props.BoolProperty(
@@ -452,6 +610,28 @@ class ExportModel3do(bpy.types.Operator, ExportHelper):
         default     = True,
     )
 
+    export_textures: bpy.props.BoolProperty(
+        name='Export Textures to MAT', default=False,
+        description='Write the model\'s image textures and all bound cels to the MAT directory. Exports image pixels, not procedural shaders or preview lighting',
+    )
+    texture_directory: bpy.props.StringProperty(
+        name='MAT Directory', default='mat',
+        description='Folder for exported MATs. Default mat is beside the exported 3DO; other relative paths resolve there too. Absolute paths and blend-relative // paths are accepted',
+    )
+    texture_encoding: bpy.props.EnumProperty(name='Encoding', items=kMatEncodings, default='RGBA32')
+    texture_cmp_file: bpy.props.StringProperty(
+        name='ColorMap File', default='',
+        description='CMP palette used to encode indexed textures. Relative paths are resolved beside the exported 3DO; // paths are relative to the blend file',
+    )
+    texture_mipmaps: bpy.props.BoolProperty(
+        name='Generate Mipmaps', default=True,
+        description='Generate a complete smaller-image chain down to 1x1, with alpha-aware area filtering',
+    )
+    overwrite_textures: bpy.props.BoolProperty(
+        name='Overwrite Existing MAT Files', default=False,
+        description='Replace existing MAT files in the export folder. Disabled by default: existing MATs are kept and reported',
+    )
+
     obj = None
 
     def draw(self, context):
@@ -461,6 +641,16 @@ class ExportModel3do(bpy.types.Operator, ExportHelper):
             layout.prop(self, 'absolute_uv')
         layout.prop(self, 'export_vert_colors')
         layout.prop(self, 'sync_mesh_list')
+        layout.prop(self, 'export_textures')
+        if self.export_textures:
+            textures = layout.column()
+            textures.prop(self, 'texture_directory')
+            textures.prop(self, 'texture_encoding')
+            if self.texture_encoding == 'INDEXED':
+                textures.prop(self, 'texture_cmp_file')
+            if self.version != Model3doFileFormat.GrimFandango.name:
+                textures.prop(self, 'texture_mipmaps')
+            textures.prop(self, 'overwrite_textures')
 
     def invoke(self, context, event):
         self.obj = _get_export_obj(context, self.report, 'mesh')
@@ -489,8 +679,11 @@ class ExportModel3do(bpy.types.Operator, ExportHelper):
             if version not in (Model3doFileVersion.Version2_1, Model3doFileFormat.GrimFandango):
                 self.absolute_uv = False
             warnings = []
-            export3do(self.obj, self.filepath, version, self.absolute_uv, self.export_vert_colors, self.sync_mesh_list, warnings=warnings)
-        except (AssertionError, ValueError, OSError, RuntimeError) as e:
+            export3do(self.obj, self.filepath, version, self.absolute_uv, self.export_vert_colors, self.sync_mesh_list,
+                      warnings=warnings, exportTextures=self.export_textures, textureEncoding=self.texture_encoding,
+                      texturePalette=self.texture_cmp_file, overwriteTextures=self.overwrite_textures,
+                      generateMipmaps=self.texture_mipmaps, textureDirectory=self.texture_directory)
+        except (AssertionError, ImportError, ValueError, OSError, RuntimeError) as e:
             print(f"\nAn exception was encountered while exporting object '{self.obj.name}' to 3DO format!\nError: {e}")
             self.report({'ERROR'}, f'Error: {e}')
             return {'CANCELLED'}
@@ -591,7 +784,7 @@ class ExportKey(bpy.types.Operator, ExportHelper):
 
     flags: bpy.props.EnumProperty(
         name        = 'Flags',
-        description = 'Animation flags. Probably not used in the game and overridden by puppet sub-mode flags',
+        description = 'Stored KEY header flags, exposed for format completeness. Original Sith playback uses PUP/script flags instead; Grim has different flag meanings',
         items       = _get_key_flags_enum_list(),
         options     = {'ENUM_FLAG'}
     )
@@ -599,7 +792,7 @@ class ExportKey(bpy.types.Operator, ExportHelper):
     node_types: HexProperty(
         'node_types',
         name        = 'High Priority Node(s)',
-        description = '3DO hierarchy node types which have higher animation priority set by the associated puppet file.\n\nBy default all 3DO joint nodes have low animation priority assigned in the associated puppet file (.pup). When the node type is defined here then this node will have high priority value assigned. Set this field to `FFFF` in order to assign all node types to high priority',
+        description = 'Hexadecimal node-type mask, not joint numbers. A joint whose 3DO Type shares any bit with this mask uses the track high priority; other joints use its low priority. PUP/playback settings supply those priorities. FFFF selects all standard type bits; 0 selects none',
         default     = '0xFFFF',
         pad         = True
     )
@@ -974,6 +1167,7 @@ classes = (
     View3doImportReport,
     Model3doPanel,
     ImportMat,
+    ExportMat,
     ImportModel3do,
     ExportModel3do,
     ImportKey,
@@ -998,6 +1192,10 @@ def register():
     # Register menu functions
     bpy.types.TOPBAR_MT_file_export.append(menu_func_export)
     bpy.types.TOPBAR_MT_file_import.append(menu_func_import)
+    bpy.types.OUTLINER_MT_context_menu.append(menu_export_mat_outliner)
+    bpy.types.IMAGE_MT_image.append(menu_export_mat_image)
+    bpy.types.MATERIAL_MT_context_menu.append(menu_export_mat_material)
+    bpy.types.UI_MT_list_item_context_menu.append(menu_export_mat_material_slot)
 
     # 3DO custom properties for object
     setattr(bpy.types.Object, kModel3doShadow, bpy.props.BoolProperty(
@@ -1065,14 +1263,14 @@ def register():
     bpy.types.Scene.sith_key_flags = bpy.props.EnumProperty(
         items       = _get_key_flags_enum_list(),
         name        = 'KEY Flags',
-        description = 'Sith KEY animation flags. This are puppet animation flags which are probably not used by the game.',
+        description = 'Stored KEY header flags, exposed for format completeness. Original Sith playback uses PUP/script flags instead; Grim has different flag meanings',
         options     = {'ENUM_FLAG', 'HIDDEN', 'LIBRARY_EDITABLE'},
     )
 
     bpy.types.Scene.sith_key_types = HexProperty(
         'sith_key_types',
         name        = 'High Priority Node(s)',
-        description = '3DO hierarchy node types which have higher animation priority set by the associated puppet file.\n\nBy default all 3DO joint nodes have low animation priority assigned in the associated puppet file (.pup). When the node type is defined here then this node will have high priority value assigned. Set this field to `FFFF` in order to assign all node types to high priority',
+        description = 'Hexadecimal node-type mask, not joint numbers. A joint whose 3DO Type shares any bit with this mask uses the track high priority; other joints use its low priority. PUP/playback settings supply those priorities. FFFF selects all standard type bits; 0 selects none',
         default     = '0xFFFF',
         pad         = True,
         options     = {'HIDDEN', 'LIBRARY_EDITABLE'}
@@ -1080,6 +1278,10 @@ def register():
     model3doPreview.register()
 
 def unregister():
+    bpy.types.OUTLINER_MT_context_menu.remove(menu_export_mat_outliner)
+    bpy.types.IMAGE_MT_image.remove(menu_export_mat_image)
+    bpy.types.MATERIAL_MT_context_menu.remove(menu_export_mat_material)
+    bpy.types.UI_MT_list_item_context_menu.remove(menu_export_mat_material_slot)
     model3doPreview.unregister()
     del bpy.types.Scene.sith_key_flags
     del bpy.types.Scene.sith_key_types

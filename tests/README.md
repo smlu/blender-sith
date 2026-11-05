@@ -1,5 +1,49 @@
 # Regression Tests
 
+Commands below run from the repository root. Use the current checkout's
+[runner](run.py), [core tests](core/), [Blender tests](app/) and
+[CI workflow](../.github/workflows/tests.yml), not reports from older builds.
+Synthetic regression coverage is not a certification of an extracted game corpus
+or the original engines' runtime behavior.
+
+## Runner And Requirements
+
+Ordinary Python needs 3.11+ (the packaging tests use standard-library `tomllib`)
+and the NumPy range in [requirements.txt](requirements.txt), currently
+`numpy>=1.26,<3`. Blender needs 5.0+ and already supplies NumPy. The manifest and
+application runner declare that minimum; they do not establish testing on every
+later Python or Blender release.
+
+| Runner Argument | Choices And Default |
+| --- | --- |
+| `-h`, `--help` | Show help and exit. In Blender, put script arguments after `--`. |
+| `--suite` | One of `core`, `app`, `all`; defaults to `core` in ordinary Python and `all` when `bpy` is already loaded. `all` runs core followed by app. |
+
+There are no test-name filters, negative suite switches or separate combinable
+suite flags. `app` and `all` require a separate background Blender 5.0+ process;
+ordinary Python does not skip the application tests. `core` can run inside Blender,
+but only the standalone-Python job exercises the fresh no-Blender import guard.
+Without a `--` separator Blender's own arguments are ignored by the runner.
+Use `--python-exit-code 1` as shown below so a script failure makes Blender fail.
+
+## Game Coverage
+
+All five supported games share some resource contracts. Synthetic fixtures are
+not extracted title-specific assets; a report label does not select a codec or
+engine target. The [optional batch tools](batch/README.md) operate on separately
+supplied, legally obtained files.
+
+| Game | Synthetic Coverage And Boundary |
+| --- | --- |
+| Indiana Jones and the Infernal Machine (IJIM) | 3DO 2.2 RGB / 2.3 RGBA, text KEY and explicit `IJIM` export limits, packed MAT layouts. |
+| Jedi Knight: Dark Forces II (JKDF2) | Shared 3DO 2.1/pixel-UV, indexed MAT/CMP and text KEY cases; explicit `JKDF2` export limits. |
+| Mysteries of the Sith (MOTS) | Shared 2.1/indexed resource cases and explicit `MOTS` KEY limits; no separate retail corpus is bundled. |
+| Grim Fandango (Grim) | Text extensions, independently packed MODL/FYEK binaries, type-3 indexed MATs and CMP version `0x14`; explicit `GRIM` KEY target. |
+| Star Wars: DroidWorks | Shared legacy text/pixel-UV and indexed MAT/CMP contracts and UI descriptions. There is no dedicated DroidWorks KEY target, title-specific fixture corpus or engine-limit validation; `CUSTOM`/Generic is not such a validation. |
+
+CMP version `0x1e` is shared by JKDF2, MOTS and DroidWorks. Neither suite runs a
+game executable, title-specific animation blending, collision or native rendering.
+
 ## Core: No Blender Required
 
 Run from the repository root with Python 3.11 or newer:
@@ -13,6 +57,20 @@ python tests/run.py --suite core
 interpreter test explicitly rejects imports of `bpy`, `bmesh`, `mathutils` and
 `bpy_extras`. NumPy is the only test dependency and is already used by MAT/CMP.
 The `sith` package loads Blender registration lazily from `sith.app`.
+
+This boundary covers importing the resource codecs, `matWriter.encodeMat` and
+filesystem publication helpers, not executing Blender adapters. Calling MAT
+`importMat`/`exportMat` or `prepareMatExports`, scene/model/animation adapters,
+`sith.utils` (including header/resource-lookup helpers), or the batch
+`check_material` still needs real Blender. "Standalone MAT export"
+in the application tests means exporting an Image or Material without a 3DO,
+not exporting without `bpy`.
+
+Dialog-documentation tests inspect the UI source with `ast`, without importing
+Blender. Every visible import/export property must have a description in its
+quick-guide section; format, target, encoding and flag-menu choices are checked too.
+They also compare documented checkbox defaults to the AST definitions and the
+parent README's minimum Blender version/install label to the manifest.
 
 - 3DO 2.1/2.2/2.3 parsing/writing: geometry, vertex/face colors, UVs, normals,
   flags, hierarchy, multiple geosets, empty models, malformed/truncated input,
@@ -43,11 +101,14 @@ The `sith` package loads Blender registration lazily from `sith.app`.
   state, multiple cels/mips, external-CMP priority over opaque trailer bytes,
   palette-free loading and rejection of every truncated byte prefix.
 - CMP palettes: both supported versions, every palette index and truncation.
-- Application resource lookup: model-local and supplied relative/absolute MAT
-  roots, direct/`mat`/`3do/mat` layouts, mixed-case paths, palette subfolders and
-  Grim `dfltcmp.cmp` fallback without guessing room-specific palettes.
 - Tokenizer, vector data and flags: comments, whitespace, escaped strings,
   numeric formats, EOF, token positions and rejection paths.
+
+## Cross-Suite Regressions
+
+The following inventory combines core codec/filesystem checks and Blender
+application regressions. Scene, material, animation, UI and rendering checks
+belong to `app/`, not the standalone-Python suite.
 
 3DO structure regressions require unique, ordered body sections and nonnegative
 counts, while retaining complete empty models, unknown extension sections and
@@ -191,8 +252,45 @@ must fail before overwriting an existing file rather than silently lose motion.
 - File ownership: readers/writers close on failure, mid-write I/O errors propagate,
   and opening a directory for output fails without hiding the OS error.
 
-There is no MAT writer/exporter in the current add-on. Tests do not invent one:
-`fixtures.py` packs independent synthetic binary inputs, not production output.
+MAT writer tests inspect independent byte layouts, channel quantization, row
+orientation, all 256 palette entries, reserved transparency, deterministic ties,
+multiple cels, odd/rectangular mipmaps, alpha-aware filtering and malformed input.
+Every possible 16-bit pixel word is checked in RGB565, RGBA4444 and RGBA1555;
+asymmetric 24/32-bit images exercise all 256 values of each channel and inspect
+their exact stored byte order. The model and standalone all-encoding operator
+tests check decoded pixel values as well as headers. A multi-cel Blender reimport
+test also checks RGB and alpha in every encoding, including the explicit 8-bit
+quantization of byte-backed Blender images.
+Publication tests inject write/rename failures and verify rollback and exclusive
+creation, including simulated cross-volume destinations. Blender tests cover
+custom absolute/relative folders, the conditional UI, every encoding, image/cel
+bindings, source-image preservation, PNG image loading, existing-file protection,
+missing CMP/placeholder rejection and actual model/MAT reimport.
+Standalone MAT tests exercise all six encodings for images and multi-cel materials,
+the Outliner/Image/material dropdown and material-row RMB callbacks, actual Image Editor/material contexts and registered
+operators, captured-ID identity through rename/context changes, independent
+operator instances, removed-source cancellation, linked read-only inputs,
+overwrite confirmation state, preservation on errors and recovery-file handling.
+File-browser capture is checked with its invoke helper isolated; interactive
+window/browser dispatch requires a separate foreground smoke test, not headless CI.
+RMB regressions cover clicked versus active material slots, empty rows, unrelated
+UI lists, absent active Outliner IDs, safe sole-selection fallback and rejection
+of ambiguous selections without exporting another active object's material.
+The opt-in asset batch runner now checks complete MAT import/export/reimport
+round trips, retaining source encodings and checking regenerated mip pixels with
+independent area/nearest-palette oracles. Synthetic tests cover every encoding,
+multi-cel indexed/Grim files, palette-color expansion, corrupt export detection
+and rejection before replacing an old export.
+MAT export reads image pixels/cel bindings, not a baked shader, procedural graph,
+lighting result or native-engine rendering. The writer clamps finite HDR channels
+to `[0,1]`; indexed output chooses nearest CMP colors without dithering, reserves
+index zero for alpha below `0.5`, and may lose source palette-index identity.
+Standard output can generate a full area-filtered mip chain; Grim requires indexed
+output with one base image per cel. Authored lower mips are not retained. Model
+texture export and replacement of existing MATs are opt-in; standalone MAT export
+defaults to RGBA32 and no overwrite. The batch adapter checks each source's encoding,
+not every possible encoding/target combination for every corpus file.
+`fixtures.py` still packs independent synthetic binary inputs, not production output.
 The hand-authored fixture in `tv/model/` and KEY files in `tv/key/` have explicit
 expected values, so round trips are not the only oracle. All fixtures are original
 test data; no proprietary game assets are required or downloaded.
@@ -205,14 +303,19 @@ Run in a separate Blender 5.0+ background process:
 blender --background --factory-startup --python-exit-code 1 --python tests/run.py -- --suite app
 ```
 
-`app/` registers the current add-on and exercises actual Blender data and
-operators, not API mocks: 3DO scene import/export, hierarchy, pivot baking,
+`app/` enables the current add-on through Blender's restricted registration path
+and exercises actual Blender data and
+operators: 3DO scene import/export, hierarchy, pivot baking,
 face properties, colors, pixel-sized legacy UVs, radius helpers, MAT images,
 shader links, transparency, cels, placeholders and reload, as well as KEY actions,
-slots, F-curves and animation import/export. The runner unregisters in `finally`.
+slots, F-curves and animation import/export. The runner disables it in `finally`.
+Extra Light tests cover restricted registration, deferred scene refresh and
+cancellation of pending callbacks on disable/re-enable.
 Tests replace only the isolated process's objects/datablocks. Nothing is saved to
 startup files or preferences. No pytest, mocking framework or installed add-on is
-needed. Blender already provides NumPy.
+needed. Blender already provides NumPy. Standard-library `unittest.mock` is used
+for targeted fault injection, layouts and selected UI/file-browser boundaries;
+the suite does not replace Blender wholesale with fake modules.
 
 Recovery tests also check the real import operator's opt-in default and warning/error
 paths, persisted Text Editor reports, vertices-only Blender meshes, preserved valid
@@ -263,14 +366,20 @@ Application tests combine the following settings, with explicit expected results
 
 | Vector Cases | Configurations |
 | --- | ---: |
-| Order, sync, import/export colors, all output versions | 48 |
+| Order, sync, import/export colors, all three text output versions | 48 |
 | Loose vertices and color seams with the same options | 96 |
 | Shared mesh references and pivots | 24 |
 | Legacy pixel UVs, texture present/missing, order/sync/colors | 16 |
 | Actual paired 3DO/KEY hierarchy with preserve/sync/colors | 8 |
-| Broken-file recovery, preserve/sync/colors, all output versions | 384 |
+| Broken-file recovery, preserve/sync/colors, all three text output versions | 384 |
 | 2.2 RGB input with preserve/sync/colors, all output versions | 48 |
 | Degenerate faces with preserve/sync/colors, all output versions | 48 |
+
+These are configuration/subtest counts, not discovered test-method totals or
+five-game/platform matrices. "All versions" in this table means text 2.1/2.2/2.3;
+Grim binary tests are separate. The recovery row uses eight recoverable vectors,
+including expected export rejection for multi-root results, not 384 successful
+recovered exports.
 
 Additional cases cover saved/edited POINT color attributes, CORNER color edits,
 mirrored UV/color winding, unsupported recovery headers, empty resources, invalid
@@ -370,6 +479,10 @@ excluded IDs remain invalid. Scene/view-layer membership is checked by identity.
 Export-header metadata tests cover valid TOML whitespace, comments, literal and
 escaped strings, top-level fields, missing/invalid/unreadable manifests, invalid
 UTF-8, wrong field types and cached success/fallback values.
+[Real export-header tests](app/test_export_headers.py) compare the first comment
+against the current manifest for 3DO 2.1/2.2/2.3, a 2.3 model/MAT bundle, and text
+KEY targets IJIM, JKDF2, MOTS and CUSTOM. These are Blender application checks,
+not standalone core tests; binary formats do not have these text comments.
 
 Export-preservation regressions cover coincident vertices with different normals,
 matching-normal welding and independent color seams. Normal checks use geometric
@@ -422,7 +535,10 @@ rejected before the codec runs; failed summary encoding/replacement preserves th
 previous report and removes temporary files. Filesystem-link integration tests
 skip explicitly where the OS/filesystem does not permit creating those links.
 
-Packaging tests exercise the standard-library builder, archive-root manifest,
+## Packaging
+
+Core packaging tests exercise the standard-library builder, archive-root manifest,
+equality of the packaged and repository manifests,
 exclusion of nested pytest caches alongside bytecode/IDE files,
 resource inclusion/development-file filtering, working-directory independence,
 paths with spaces, and preservation of an existing ZIP on validation, directory
@@ -430,6 +546,32 @@ enumeration or write failure.
 Physical source aliases cannot bypass the package output boundary; case-distinct
 trees remain distinct where the underlying filesystem supports them.
 The Bash-wrapper smoke test is POSIX-only; Windows uses the same Python builder.
+The built archive is also checked for developer-machine home/resource paths.
+
+### Build An Extension
+
+```sh
+python scripts/make_addon.py --output /path/to/output/sith.zip
+```
+
+[make_addon.py](../scripts/make_addon.py) uses Python 3.11+ standard libraries
+only; it does not require NumPy or Blender. Its complete CLI is `-h`/`--help` and
+`--output PATH` (default: the checkout's `build/sith.zip`, regardless of working
+directory). The [Bash wrapper](../scripts/make_addon.sh) forwards those arguments
+and uses `${PYTHON:-python3}`; it has no separate positional-output interface.
+Keep output outside `sith/`, including physical aliases. The builder packages
+only that tree, with the manifest at ZIP root, filters caches/IDE/bytecode/Blender
+work files and the development `__test.py`, and atomically replaces the ZIP only
+after success. It does not enable/install the add-on, run Blender's extension
+validator or prove runtime compatibility. Do not treat it as an asset-corpus tool.
+
+For the final 1.0 release, check package metadata and exported 3DO/KEY text-header
+comments together. Header and packaged-manifest expectations derive from the
+current manifest rather than hardcoding a release, so they remain valid for later
+versions. These tests check consistency, not that an arbitrary manifest contains
+the intended release value; packaging copies it rather than assigning a version.
+
+## Suite And CI Commands
 
 Use `--suite all` to run both suites in Blender. With no suite option, ordinary
 Python defaults to `core`; Blender defaults to `all` for the original command's
@@ -437,16 +579,22 @@ backward compatibility. Application suites deliberately fail without background
 Blender rather than silently skipping tests.
 
 For Microsoft Store Blender on Windows, invoke its registered alias from
-PowerShell, replacing the script path with this checkout's absolute path:
+PowerShell in the repository root:
 
 ```powershell
-& "$env:LOCALAPPDATA\Microsoft\WindowsApps\blender-launcher.exe" --background --factory-startup --python-exit-code 1 --python "C:\path\to\blender-sith\tests\run.py" -- --suite app
+$testRunner = (Resolve-Path ./tests/run.py).Path
+& "$env:LOCALAPPDATA\Microsoft\WindowsApps\blender-launcher.exe" --background --factory-startup --python-exit-code 1 --python $testRunner -- --suite app
 ```
 
-The GitHub Actions workflow `tests.yml` has independent jobs: core tests on
+The [GitHub Actions workflow](../.github/workflows/tests.yml) has independent jobs: core tests on
 Windows/macOS/Linux with Python 3.11 and 3.13, and application tests using the
 official, checksum-verified portable Blender 5.2.3 LTS on Linux. No game executable,
 GPU rendering, desktop session or add-on installation is required.
+Application CI covers Linux only, not native Windows/macOS Blender or every
+supported Blender version. Link-dependent tests can explicitly skip when the
+host cannot create the required links; the Bash-wrapper smoke test is POSIX-only.
+CPU Cycles rendering is exercised by Extra Light tests, not GPU rendering.
+No opt-in game-asset batch is run by this workflow.
 
 ## Binary Model Fidelity
 

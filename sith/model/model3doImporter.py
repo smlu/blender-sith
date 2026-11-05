@@ -63,7 +63,7 @@ def import3do(file_path: Union[Path, str], mat_dirs: List[Union[Path, str]] = []
         # external resources separately from the already-validated model data.
         mat_dirs = _convert_to_absolute_paths(mat_dirs, os.path.dirname(file_path))
         cmp = None
-        if usesIndexedMaterials:
+        if usesIndexedMaterials or cmp_file:
             try:
                 cmp = getCmpFileOrDefault(cmp_file, file_path, searchPaths=mat_dirs)
             except Exception as e:

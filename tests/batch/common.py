@@ -34,6 +34,8 @@ def arguments(description):
     parser.add_argument('--keep-exports', action='store_true')
     parser.add_argument('--import-vertex-normals', action='store_true',
                         help='Blender only: preserve authored normals on ambiguous legacy text models')
+    parser.add_argument('--mat-target', choices=('SOURCE', 'GRIM'), default='SOURCE',
+                        help='Blender MAT checks: source format, or Grim base-only indexed output including type-2 sources')
     parser.add_argument('--key-target', choices=('IJIM', 'JKDF2', 'MOTS', 'GRIM', 'CUSTOM'), default='CUSTOM',
                         help='Validate KEY exports against a target engine (default: CUSTOM codec-only limits)')
     argv = sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else sys.argv[1:]
