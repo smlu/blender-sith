@@ -21,33 +21,69 @@ from ..text.tokenizer import TokenType, Tokenizer
 from ..model import Mesh3doNodeType
 from typing import Union
 
-def loadKey(filePath: Union[Path, str]) -> Key:
-    """ Loads Key from .key file """
-    f = open(filePath, 'r', encoding='utf-8')
-    tok = Tokenizer(f)
-    key = Key(os.path.basename(filePath))
+def loadKey(filePath: Union[Path, str], *, allowErrors=False, warnings=None) -> Key:
+    """Load text KEY or Grim FYEK by its contents, not its filename."""
+    from .keyBinary import kBinaryKeyMagic, readBinaryKey
+    with open(filePath, 'rb') as stream:
+        if stream.read(len(kBinaryKeyMagic)) == kBinaryKeyMagic:
+            stream.seek(0)
+            return readBinaryKey(stream.read(), allowErrors=allowErrors, warnings=warnings)
+    with open(filePath, 'r', encoding='utf-8') as f:
+        tok = Tokenizer(f)
+        key = Key(os.path.basename(filePath))
+        sections = set()
 
-    while True:
-        _skip_to_next_key_section(tok)
-        t = tok.getToken()
-        if t.type == TokenType.EOF:
-            break
+        while True:
+            _skip_to_next_key_section(tok)
+            t = tok.getToken()
+            if t.type == TokenType.EOF:
+                break
 
-        if t.value.upper() == "HEADER":
-            _parse_key_section_header(tok, key)
+            section = t.value.upper()
+            if section == 'KEYFRAME':
+                tok.assertIdentifier('NODES')
+                section = 'KEYFRAME NODES'
+            if section not in ('HEADER', 'MARKERS', 'KEYFRAME NODES'):
+                continue
+            if section in sections:
+                raise ValueError(f'Duplicate KEY section: {section}')
+            if section != 'HEADER' and 'HEADER' not in sections:
+                raise ValueError('Missing KEY HEADER before animation data')
+            if section == 'MARKERS' and 'KEYFRAME NODES' in sections:
+                raise ValueError('KEY MARKERS must precede KEYFRAME NODES')
 
-        elif t.value.upper() == "MARKERS":
-            _parse_key_section_markers(tok, key)
+            if section == "HEADER":
+                _parse_key_section_header(tok, key)
+            elif section == "MARKERS":
+                _parse_key_section_markers(tok, key, warnings=warnings if allowErrors else None)
+            else:
+                try:
+                    _parse_key_section_keyframe_nodes(tok, key)
+                except (AssertionError, TypeError, ValueError, OSError, EOFError) as error:
+                    # The parser appends only complete tracks. Never guess where
+                    # a damaged record ends or fabricate the unread tail.
+                    if not allowErrors or not any(node.keyframes for node in key.nodes):
+                        raise
+                    from .keyRecovery import recoveryWarning
+                    recoveryWarning(warnings, f'Discarded unread KEY node data: {error}')
+                    sections.add(section)
+                    break
+            sections.add(section)
 
-        elif t.value.upper() == "KEYFRAME":
-            tok.assertIdentifier("NODES")
-            _parse_key_section_keyframe_nodes(tok, key)
+    missing = {'HEADER', 'KEYFRAME NODES'} - sections
+    if missing:
+        raise ValueError('Missing required KEY section(s): ' + ', '.join(sorted(missing)))
 
+    if allowErrors:
+        from .keyRecovery import recoverKey
+        recoverKey(key, warnings)
     return key
 
 def _skip_to_next_key_section(tok: Tokenizer):
     t = tok.getToken()
     while t.type != TokenType.EOF and (t.type != TokenType.Identifier or t.value.upper() != "SECTION"):
+        if t.type == TokenType.Invalid:
+            raise ValueError(f'Invalid KEY token at line {t.beginLine}, column {t.beginColumn}')
         t = tok.getToken()
 
     if t.type != TokenType.EOF:
@@ -68,30 +104,43 @@ def _parse_key_section_header(tok: Tokenizer, key: Key):
 
     tok.assertIdentifier("JOINTS")
     key.numJoints = tok.getIntNumber()
+    if key.numFrames < 0 or key.numJoints < 0:
+        raise ValueError('KEY frame and joint counts must be nonnegative')
 
-def _parse_key_section_markers(tok: Tokenizer, key: Key):
+def _parse_key_section_markers(tok: Tokenizer, key: Key, *, warnings=None):
     tok.assertIdentifier("MARKERS")
 
     numMarkers = tok.getIntNumber()
+    if numMarkers < 0:
+        raise ValueError('KEY marker count must be nonnegative')
     for _ in range(0, numMarkers):
         m       = KeyMarker()
         m.frame = tok.getFloatNumber()
         mt      = tok.getIntNumber()
         try:
             m.type  = KeyMarkerType(mt)
-        except:
-            print(f"\nWarning: Unknown marker type '{mt}' at frame {m.frame}, skipping!")
+        except ValueError:
+            from .keyRecovery import recoveryWarning
+            recoveryWarning(warnings, f"Unknown marker type '{mt}' at frame {m.frame}, skipping!")
             continue
         key.markers.append(m)
 
 def _parse_key_section_keyframe_nodes(tok: Tokenizer, key: Key):
     tok.assertIdentifier("NODES")
     numNodes = tok.getIntNumber()
+    if not 0 <= numNodes <= key.numJoints:
+        raise ValueError('KEY node count is outside its joint count')
+    indices = set()
     for _ in range(0, numNodes):
         node = KeyNode()
 
         tok.assertIdentifier("NODE")
         node.idx = tok.getIntNumber()
+        if not 0 <= node.idx < key.numJoints:
+            raise ValueError(f'KEY joint index {node.idx} is outside its joint count')
+        if node.idx in indices:
+            raise ValueError(f'Duplicate KEY joint index {node.idx}')
+        indices.add(node.idx)
 
         tok.assertIdentifier("MESH")
         tok.assertIdentifier("NAME")
@@ -99,12 +148,14 @@ def _parse_key_section_keyframe_nodes(tok: Tokenizer, key: Key):
 
         tok.assertIdentifier("ENTRIES")
         numEntries = tok.getIntNumber()
+        if numEntries < 0:
+            raise ValueError('KEY entry count must be nonnegative')
         for j in range(0, numEntries):
             tok.assertInteger(j)
             tok.assertPunctuator(':')
 
             keyframe = Keyframe()
-            keyframe.frame = tok.getIntNumber()
+            keyframe.frame = tok.getFloatNumber()
             keyframe.flags = KeyframeFlag(tok.getIntNumber())
 
             keyframe.position      = tok.getVector3f()

@@ -17,43 +17,36 @@
 from typing import Optional
 import bpy
 
-def HexProperty(varName: str, name: Optional[str] = '', description: Optional[str] = '', default : Optional[str] = '', maxlen: Optional[int] = None, options: Optional[set] = set(), pad: bool = False) -> bpy.props.StringProperty:
-    """Hex digits with an optional input prefix; maxlen limits canonical digits.
-
-    Validate after removing the prefix, not with RNA's raw string limit, which
-    raises callback errors for valid inputs such as 0xFFFF in a four-digit field.
-    Invalid/negative/out-of-range input leaves the previous value unchanged.
-    """
+def HexProperty(varName: str, name: Optional[str] = '', description: Optional[str] = '', default : Optional[str] = '', maxlen: int = 0, options: Optional[set] = set(), pad: bool = False) -> bpy.props.StringProperty:
+    """Hex text property; Blender's maxlen=0 preserves all mask digits."""
     def normalize(value):
-        number = int(value or default or '0', 16)
+        number = int(value, 16)
         if number < 0:
-            raise ValueError('Hex flags cannot be negative')
+            raise ValueError('Hexadecimal masks cannot be negative')
         value = format(number, 'X')
         if pad:
             value = value.zfill(len(value) + len(value) % 2)
-        if maxlen and len(value) > maxlen:
-            raise ValueError('Hex flags exceed the digit limit')
         return value
 
-    default_value = normalize(default)
+    defaultValue = normalize(default) if default else ''
 
     def __get_hexvalue(self):
         if varName in self:
             return self[varName]
-        return default_value
+        # Reading a default must not store an explicit override on an operator.
+        return defaultValue
 
     def __set_hexvalue(self, value):
         try:
-            normalized = normalize(value)
+            self[varName] = normalize(value) if value else defaultValue
         except (ValueError, TypeError):
-            return
-        self[varName] = normalized
+            pass
 
     return bpy.props.StringProperty(
         name = name,
         description = description,
-        default = default_value,
-        maxlen = 0,
+        default = default,
+        maxlen = maxlen,
         get = __get_hexvalue,
         set = __set_hexvalue,
         options = options

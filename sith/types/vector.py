@@ -14,7 +14,17 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+import math
 from typing import NamedTuple
+
+kFloat32Max = float.fromhex('0x1.fffffep+127')  # Largest finite IEEE-754 binary32 value.
+
+
+def validateFloat32(values, label):
+    """Reject numbers that cannot be stored as finite engine/Blender float32 data."""
+    if any(not math.isfinite(value) or abs(value) > kFloat32Max for value in values):
+        raise ValueError(f'{label} must be finite and fit float32 storage')
+
 
 class Vector2f(NamedTuple):
     x: float

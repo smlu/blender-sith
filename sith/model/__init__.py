@@ -27,12 +27,14 @@ from .model3do import (
     TextureMode
 )
 
-from .model3doExporter import (
-    export3do,
-    makeModel3doFromObj
-)
-
-from .model3doImporter import import3do
+def __getattr__(name):
+    if name in ('export3do', 'makeModel3doFromObj'):
+        from . import model3doExporter
+        return getattr(model3doExporter, name)
+    if name == 'import3do':
+        from .model3doImporter import import3do
+        return import3do
+    raise AttributeError(f'module {__name__!r} has no attribute {name!r}')
 
 __all__ = [
     "export3do",

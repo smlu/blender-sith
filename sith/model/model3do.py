@@ -15,6 +15,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 from enum import IntEnum, unique
+import math
 from collections import defaultdict
 from ..types import (
     Flag,
@@ -29,10 +30,10 @@ class FaceType(Flag):
     Normal         = 0x00
     DoubleSided    = 0x01
     Translucent    = 0x02
-    TexClamp_x     = 0x04,  # Mapped texture is clamped in x instead of being repeated (wrapped).
-    TexClamp_y     = 0x08,  # Mapped texture is clamped in y instead of being repeated.
-    TexFilterNone  = 0x10,  # Disables bilinear texture filtering for the polygon texture. (Sets to point filter aka nearest)
-    ZWriteDisabled = 0x20,  # Disables ZWrite for the polygon face.
+    TexClamp_x     = 0x04,  # (IJIM interpretation) Clamp the texture in X instead of repeating it.
+    TexClamp_y     = 0x08,  # (IJIM interpretation) Clamp the texture in Y instead of repeating it.
+    TexFilterNone  = 0x10,  # (IJIM interpretation) Use nearest filtering; MOTS/Grim instead force lighting mode 1.
+    ZWriteDisabled = 0x20,  # (IJIM interpretation) Disable ZWrite for the polygon face.
     IjimLedge      = 0x40,  # (IJIM specific) Player can hang on the ledge of this polygon face. (same as surface flag Ledge = 0x1000000 for world surface)
                             #   e.g.: bab_bull_block.3do, olv_statue_lefty.3do, tem_bridge_20mholes.3do
     IjimFogEnabled = 0x100, # (IJIM specific) Enables fog rendering for the face polygon.
@@ -124,6 +125,8 @@ class Mesh3doNodeType(Flag):
 
 class Mesh3doFace:
     def __init__(self):
+        self.binaryData = None
+
         self.material_idx: int      = -1
         self.t: FaceType            = FaceType.Normal
         self.geo_mode: GeometryMode = GeometryMode.NotDrawn
@@ -209,6 +212,9 @@ class Mesh3doFace:
 
 class Mesh3do:
     def __init__(self, idx: int = 0, name: str =""):
+        self.binaryData = None
+        self.shadow     = None
+
         self.i: int                 = idx
         self.mesh_name: str         = name
         self.mesh_radius: float     = 0.0
@@ -325,6 +331,8 @@ class Model3doGeoSet:
 
 class Mesh3doNode:
     def __init__(self, name: str = ""):
+        self.binaryData = None
+
         self._idx: int           = -1
         self.f: Mesh3doNodeFlags = Mesh3doNodeFlags.Nothing
         self.t: Mesh3doNodeType  = Mesh3doNodeType.Nothing
@@ -448,6 +456,8 @@ class Mesh3doNode:
 
 class Model3do:
     def __init__(self, name: str = ""):
+        self.binaryData = None
+
         self.model_name: str          = name
         self.material_list: List[str] = []
         self.col_radius: float        = 0.0
@@ -504,50 +514,64 @@ class Model3do:
     def meshHierarchy(self, nodes: List[Mesh3doNode]):
         self.mesh_nodes = nodes
 
-    def reorderNodes(self) -> None:
+    def reorderNodes(self, requireRoot: bool = False) -> None:
         """
-        Reorders nodes by their sequence number
+        Reorders nodes by their sequence number.
+        3DO export requires one root at entry 0; KEY export can use flat joint lists.
         """
-        def get_node_seq(node: Mesh3doNode, nodes: List[Mesh3doNode]):
-            for idx,n in enumerate(nodes):
-                if n == node:
-                    return idx
-            return -1
+        # 1. Snapshot old parent indices before sorting or renumbering nodes.
+        # Parent references address the old list, not the sequence-number values.
+        original = list(self.meshHierarchy)
+        parents = [node.parentIdx for node in original]
+        if any(parent < -1 or parent >= len(original) for parent in parents):
+            raise ValueError('Model hierarchy has an invalid parent index')
 
+        visited = set()
+        for index in range(len(original)):
+            chain = set()
+            while index >= 0 and index not in visited:
+                if index in chain:
+                    raise ValueError('Model hierarchy contains a parent cycle')
+                chain.add(index)
+                index = parents[index]
+            visited.update(chain)
+
+        roots = [index for index, parent in enumerate(parents) if parent == -1]
+        if requireRoot and original and len(roots) != 1:
+            raise ValueError('Model hierarchy must have exactly one root')
+
+        # 2. Preserve stable sequence ordering whenever it starts at the root.
+        # Automatic (-1) children need special handling when the root has an
+        # explicit sequence number, but ties must still retain traversal order.
+        order = sorted(range(len(original)), key=lambda index: original[index].idx)
+        if len(roots) == 1 and order[0] != roots[0]:
+            # Automatic children must not precede an explicitly numbered root.
+            order = sorted(
+                range(len(original)),
+                key=lambda index: (original[index].idx if original[index].idx >= 0 else math.inf, index)
+            )
+        if requireRoot and order and order[0] != roots[0]:
+            raise ValueError('Model root must sort to node 0; check the hierarchy sequence numbers')
+
+        # 3. Build the complete old-to-new map before modifying any node. Mesh
+        # indices stay independent; optional mesh synchronization happens later.
+        remap = {old: new for new, old in enumerate(order)}
+        nodes = [original[index] for index in order]
         kids_map: Dict[int, List[int]] = defaultdict(list)
-        from functools import cmp_to_key
-        nodes = sorted(self.meshHierarchy, key=cmp_to_key(lambda n1, n2: n1.idx - n2.idx))
-        for idx, node in enumerate(nodes):
+        for idx, old in enumerate(order):
+            node = original[old]
             node.idx = idx
+            node.parentIdx = remap[parents[old]] if parents[old] >= 0 else -1
+            node.firstChildIdx, node.siblingIdx, node.numChildren = -1, -1, 0
+            if node.parentIdx >= 0:
+                kids_map[node.parentIdx].append(idx)
 
-            # Update parent
-            if node.parentIdx > -1:
-                # Set parent num
-                pnode = self.meshHierarchy[node.parentIdx]
-                pnum  = pnode.idx
-                if pnum < 0:
-                    pnum = get_node_seq(pnode, nodes)
-                node.parentIdx = pnum
-                kids_map[node.parentIdx].append(node.idx)
-
-        # Now update the indices of children and siblings in ascending order
+        # 4. Rebuild child/sibling traversal links from the remapped parents,
+        # using the new order for each sibling chain.
         for pidx, kids in kids_map.items():
-            if len(kids) == 0:
-                nodes[pidx].firstChildIdx = -1 # make sure parent has no children
-                continue
+            nodes[pidx].firstChildIdx = kids[0]
+            nodes[pidx].numChildren = len(kids)
+            for current, following in zip(kids, kids[1:]):
+                nodes[current].siblingIdx = following
 
-            # Sort children nodes in ascending order
-            kids = sorted(kids)
-            nodes[pidx].firstChildIdx = kids[0] # set first child to parent
-
-            # Update siblings
-            for i in range(len(kids)):
-                current_index = kids[i]
-                if i < len(kids) - 1:
-                    next_index = kids[i + 1]
-                    nodes[current_index].siblingIdx = next_index
-                else:
-                    nodes[current_index].siblingIdx = -1 # we hit the leaf node with no more siblings
-
-        # Assign the new hierarchy list
         self.meshHierarchy = nodes
