@@ -225,6 +225,36 @@ class HexMaskMetadataTests(_MaskTestCase):
                     setattr(owner, name, invalid)
                     self.assertEqual(getattr(owner, name), '80010001')
 
+
+    def test_negative_hex_edit_keeps_prior_wide_value(self):
+        fields = ((self.scene, 'sith_key_types'), (self.obj, 'sith_model3do_hnode_flags'),
+                  (self.obj, 'sith_model3do_hnode_type'))
+        for owner, name in fields:
+            for value in ('-1', '-0x1', '-80000000'):
+                with self.subTest(name=name, value=value):
+                    setattr(owner, name, '80010001')
+                    setattr(owner, name, value)
+                    self.assertEqual(getattr(owner, name), '80010001')
+                    self.assertEqual(owner[name], '80010001')
+
+    def test_scripted_numeric_spellings_store_canonical_masks(self):
+        fields = ((self.scene, 'sith_key_types'), (self.obj, 'sith_model3do_hnode_flags'),
+                  (self.obj, 'sith_model3do_hnode_type'))
+        cases = (('0x_1', '01'), (' +0x000a ', '0A'),
+                 ('0x8000_0001', '80000001'), ('-0x0', '00'))
+        for owner, name in fields:
+            for value, expected in cases:
+                with self.subTest(name=name, value=value):
+                    setattr(owner, name, value)
+                    self.assertEqual(getattr(owner, name), expected)
+                    self.assertEqual(owner[name], expected)
+
+    def test_scripted_prefixed_mask_round_trips_through_key_export(self):
+        # int accepts a separator immediately after the prefix; stripping only
+        # '0x' would leave '_1', which is not itself a hexadecimal number.
+        self.scene.sith_key_types = '0x_1'
+        self.assertEqual(int(self.export_key().nodeTypes), 1)
+
     def test_clearing_hex_fields_restores_their_defaults(self):
         for owner, name, expected in ((self.scene, 'sith_key_types', 'FFFF'),
                                        (self.obj, 'sith_model3do_hnode_flags', ''),
