@@ -37,9 +37,11 @@ targets the owned process group/tree and records its best-effort outcome.
 The bundled harness tests five established upstream behaviors:
 
 - Smooth-cube vertex normals and unchanged source geometry.
-- UV seams, absolute UV scaling, materials, byte colors and face properties.
+- UV seams, absolute UV scaling, materials, linear-light vertex colors (including
+  byte-color attributes) and face properties.
 - Parent/child hierarchy, local positions and model offset.
-- Animated KEY frames and canonical hexadecimal metadata.
+- Linear animated KEY frames for the JKDF2 target and canonical hexadecimal
+  metadata through the current exporter modules.
 - Indexed MAT cels and mip levels with an explicitly supplied CMP palette,
   including transparency and imported image dimensions.
 
@@ -64,6 +66,23 @@ blender --background --factory-startup --offline-mode --disable-autoexec \
 Direct execution requires the caller to arrange preference isolation and a
 process deadline. The harness rejects an interactive Blender process, optimized
 Python assertions, reused output and output inside a source/Git tree.
+
+## Full upstream suites
+
+The five-contract baseline is a quick runtime check with launcher receipts.
+Upstream also supplies broader resource and application suites; run those when
+validating changes to the formats or Blender integration:
+
+```sh
+python -B tests/run.py --suite core
+blender --background --factory-startup --offline-mode --disable-autoexec \
+  --python-exit-code 1 --python tests/run.py -- --suite app
+```
+
+Use a separate process and external temporary storage for these suites. The
+application suite enables the add-on through Blender's restricted registration
+path. The baseline calls the explicit exporter modules after registering its
+chosen add-on; it does not depend on package-level export aliases.
 
 ## Launcher tests
 

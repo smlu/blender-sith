@@ -69,8 +69,11 @@ def main():
     spec.loader.exec_module(addon)
     addon.register()
     loader = importlib.import_module(name + ".model.model3doLoader")
+    exporter = importlib.import_module(name + ".model.model3doExporter")
     utils = importlib.import_module(name + ".model.utils")
     keyloader = importlib.import_module(name + ".key.keyLoader")
+    keyexporter = importlib.import_module(name + ".key.keyExporter")
+    keyutils = importlib.import_module(name + ".key.keyUtils")
     types = importlib.import_module(name + ".model.model3do")
     report = {"schema": "blender-sith-agentic-regression-v1", "blender": bpy.app.version_string,
               "harness_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
@@ -109,7 +112,7 @@ def main():
 
     def roundtrip(obj, label, colors=False, absolute=False, version=None):
         filename = output / (label + ".3do")
-        addon.export3do(obj, str(filename), version or loader.Model3doFileVersion.Version2_1,
+        exporter.export3do(obj, str(filename), version or loader.Model3doFileVersion.Version2_1,
                         absolute, colors, True)
         model, _ = loader.load3do(str(filename))
         return model
@@ -200,15 +203,15 @@ def main():
                         u, v = coords[loop_index]
                         expected_uv = Vector((u * (128 if absolute else 1), -v * (64 if absolute else 1)))
                         assert (Vector(exported.uvs[ui]) - expected_uv).length < 2e-6
-                        # Existing exporter uses BMesh byte-color (sRGB) values.
-                        expected_color = mesh.color_attributes["Color"].data[loop_index].color_srgb
+                        # 3DO vertex light is linear, including BYTE_COLOR RNA.
+                        expected_color = mesh.color_attributes["Color"].data[loop_index].color
                         assert max(abs(a-b) for a,b in zip(exported.vertexColors[index][:3], expected_color[:3])) < 2e-6
                 checks.append(label)
         assert snapshot(mesh) == before
         # UV seams alone need separate texture indices, not duplicate geometry.
         plain = roundtrip(obj, "uv_seam", colors=False).geosets[0].meshes[0]
         assert len(plain.vertices) == 4 and len(plain.uvs) == 6
-        return {"roundtrips": checks, "uv_seam_vertices": 4, "source_unchanged": True}
+        return {"roundtrips": checks, "uv_seam_vertices": 4, "color_units": "linear", "source_unchanged": True}
 
     def hierarchy():
         root = bpy.data.objects.new("root", None)
@@ -232,24 +235,32 @@ def main():
     def key_roundtrip():
         scene = bpy.context.scene
         scene.sith_key_types = "FFFF"
+        scene.sith_key_flags = set()
         scene.frame_start = 0
         scene.frame_end = 10
         scene.render.fps = 30
+        scene.render.fps_base = 1
         obj = mesh_object("animated", [(0,0,0),(1,0,0),(0,1,0)], [(0,1,2)])
         for frame, location in [(0,(0,0,0)), (10,(1,2,3))]:
             obj.location = location
             obj.keyframe_insert(data_path="location", frame=frame)
             obj.rotation_euler = (0,0,0)
             obj.keyframe_insert(data_path="rotation_euler", frame=frame)
+        # This quick baseline intentionally authors linear motion. Upstream
+        # separately tests adaptive baking of Bezier and constrained animation.
+        for curve in keyutils.getActionFCurves(obj):
+            for point in curve.keyframe_points:
+                point.interpolation = "LINEAR"
         path = output / "animation.key"
-        addon.exportKey(obj, scene, str(path))
+        keyexporter.exportKey(obj, scene, str(path), target="JKDF2")
         key = keyloader.loadKey(str(path))
-        assert int(key.nodeTypes) == 0xFFFF
+        assert int(key.nodeTypes) == 0xFFFF and int(key.flags) == 0
         assert key.numJoints == 1 and len(key.nodes) == 1
         assert key.numFrames == 11 and key.fps == 30
         assert [k.frame for k in key.nodes[0].keyframes] == [0,10]
         assert tuple(key.nodes[0].keyframes[-1].position) == (1,2,3)
-        return {"type": "FFFF", "joints": 1, "frames": [0,10], "last_position": [1,2,3]}
+        return {"target": "JKDF2", "type": "FFFF", "flags": 0, "joints": 1,
+                "frames": [0,10], "last_position": [1,2,3]}
 
 
     def indexed_mat_cels():

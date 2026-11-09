@@ -3,12 +3,13 @@
 # 🎮 Sith Engine Toolkit for Blender
 
 [![Blender](https://img.shields.io/badge/Blender-5.0+-orange.svg?style=flat&logo=blender)](https://www.blender.org/)
+[![Tests](https://github.com/smlu/blender-sith/actions/workflows/tests.yml/badge.svg)](https://github.com/smlu/blender-sith/actions/workflows/tests.yml)
 [![License](https://img.shields.io/badge/License-GPL--3.0--or--later-blue.svg?style=flat)](LICENSE)
-[![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-purple.svg?style=flat)]()
+![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-purple.svg?style=flat)
 
 **Import/Export assets for classic LucasArts games**
 
-[<img src="demo/blsthbn_sm.png"/>](demo/blsthbn.png)
+[<img src="demo/social-preview-painted-scaled.jpg"/>](demo/blsthbn.png)
 
 [🚀 Installation](#-installation) • [📖 Usage Guide](USAGE.md) • [🔧 Troubleshooting](USAGE.md#-troubleshooting)
 
@@ -24,7 +25,10 @@
 - [Requirements](#-requirements)
 - [Installation](#-installation)
 - [Usage](USAGE.md)
+- [Technical Documentation](docs/README.md)
 - [Contributing](#-contributing)
+- [Tests](#tests)
+- [Links](#links)
 
 ---
 
@@ -34,7 +38,7 @@
 - Star Wars Jedi Knight: Mysteries of the Sith
 - Star Wars: DroidWorks
 - Indiana Jones and the Infernal Machine
-- Grim Fandango *(text format 3DO import only)*
+- Grim Fandango
 
 ---
 
@@ -52,30 +56,36 @@
 <td width="50%">
 
 ### 📦  3DO Models
-- ✅ Import/Export all versions (2.1, 2.2, 2.3)
-- 🎨 Full mesh hierarchy support
+- ✅ Import/Export 3DO 2.1, 2.2 and 2.3
+- ✅ Grim Fandango MODL binary import/export
+- 🎨 Mesh hierarchy editing
 - 🔧 Edit properties in Blender UI
 - 🎯 Vertex colors & UV mapping
 
 ### 🎬 KEY Animations
 - ✅ Import/Export mesh animations
+- ✅ Grim Fandango FYEK binary import/export
+- 🛟 KEY recovery & flexible frame starts
 - 🎞️  Keyframe markers support
-- ⚙️ High-priority node configuration
-- 📊 Frame rate control (15-60 fps)
+- ⚙️ Node-type priority masks
+- 📊 Fractional playback rates
 
 </td>
 <td width="50%">
 
 ### 🖼️ MAT Textures
 - ✅ Import as Blender materials
-- 🎞️ Import all texture cells
+- 📤 Export materials/textures to MAT
+- 🎞️ Animated texture cels
 - 🎨 8-bit, 16-bit, 24-bit & 32-bit formats
 - 🔧 ColorMap (.cmp) support
+- ✅ Grim Fandango indexed MAT variants
 
 ### 🛠️ Advanced Editing
 - 🎛️ Per-face properties & flags
 - 🔦 Lighting & texture modes
 - 🎨 Extra light color support
+- 💡 Live Extra Light preview
 - ⚡ Multi-face batch editing
 
 </td>
@@ -121,9 +131,24 @@
 ```bash
 # Clone or download the repository
 git clone https://github.com/smlu/blender-sith.git
+cd blender-sith
 
-# ZIP the `sith` folder and install via Blender Preferences
+# Build the installable extension archive (Python 3.11+, standard library only)
+python scripts/make_addon.py
 ```
+
+Install the resulting `build/sith.zip` using **Install from Disk...**. The builder
+is independent of the working directory and accepts `--output /path/to/sith.zip`.
+It packages the current `sith` extension with its manifest at the archive root,
+omits development/Blender backup files, and leaves sources untouched. An existing
+archive is replaced only after a successful build; an unreadable source directory
+aborts the build instead of silently omitting modules. The output must stay outside
+the source tree, including physical aliases through alternate namespaces or mounts.
+`scripts/make_addon.sh` is a
+compatibility wrapper for Bash users; no external `zip` command is required.
+
+Blender's 3DO workflow imports/exports **LOD 0 only**. Extra geosets in a source
+model are not retained by the Blender round trip; see the [Usage Guide](USAGE.md).
 
 > 💡 **Note**: In Blender 5.0, add-ons are managed through the Extensions system.
 
@@ -132,6 +157,10 @@ git clone https://github.com/smlu/blender-sith.git
 ## 📖 Usage
 
 For complete documentation on importing, exporting, and editing, see the **[Usage Guide](USAGE.md)**.
+For byte layouts, field tables and ASCII structure diagrams, see the
+[technical documentation](docs/README.md) and [format reference](docs/formats/README.md).
+The [Blender pipeline guide](docs/blender-pipeline.md) explains model/animation
+conversion, baked pivots, UV units, hierarchy ordering and mesh-list sync.
 
 ### Quick Reference
 
@@ -140,6 +169,7 @@ For complete documentation on importing, exporting, and editing, see the **[Usag
 - **Import KEY**: `File > Import > Sith Game Engine Animation (.key)`
 - **Export KEY**: `File > Export > Sith Game Engine Animation (.key)`
 - **Import MAT**: `File > Import > Sith Game Engine Texture (.mat)`
+- **Export MAT**: `Image Editor > Image > Export to MAT...`, or right-click an image/material in the Outliner or a material row in Material Properties
 - **Edit Properties**: `Properties Panel > Object Properties > 3DO Properties`
 - **Edit Faces**: `Properties Panel > Data Properties > 3DO Mesh Face Properties` (Edit Mode)
 
@@ -156,7 +186,27 @@ Contributions are welcome! Feel free to:
 
 ---
 
-##  Links
+## Tests
+
+Resource codecs run in ordinary Python 3.11+ without Blender:
+
+```sh
+python -m pip install -r tests/requirements.txt
+python tests/run.py --suite core
+```
+
+Blender import/export tests run in a separate Blender 5.0+ process:
+
+```sh
+blender --background --factory-startup --python-exit-code 1 --python tests/run.py -- --suite app
+```
+
+Both suites use standard-library `unittest` and synthetic fixtures. GitHub Actions
+runs the core suite on Windows, macOS and Linux, and the application suite in
+headless Blender on Linux. See [tests/README.md](tests/README.md) for coverage,
+commands and interpolation limitations.
+
+## Links
 
 - 📦 [Releases](https://github.com/smlu/blender-sith/releases) - Download the latest version
 - 🐛 [Issue Tracker](https://github.com/smlu/blender-sith/issues) - Report bugs or request features

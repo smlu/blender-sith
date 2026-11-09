@@ -1,0 +1,2 @@
+# NumPy is already bundled with Blender; ordinary Python needs it for MAT/CMP decoding.
+numpy>=1.26,<3

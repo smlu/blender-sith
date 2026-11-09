@@ -17,25 +17,28 @@
 from typing import Optional
 import bpy
 
-def HexProperty(varName: str, name: Optional[str] = '', description: Optional[str] = '', default : Optional[str] = '', maxlen: Optional[int] = None, options: Optional[set] = set(), pad: bool = False) -> bpy.props.StringProperty:
+def HexProperty(varName: str, name: Optional[str] = '', description: Optional[str] = '', default : Optional[str] = '', maxlen: int = 0, options: Optional[set] = set(), pad: bool = False) -> bpy.props.StringProperty:
+    """Hex text property; Blender's maxlen=0 preserves all mask digits."""
+    def normalize(value):
+        int(value, 16)
+        value = value.upper().lstrip('0X') or '0'
+        if pad:
+            value = value.zfill(len(value) + len(value) % 2)
+        return value
+
+    defaultValue = normalize(default) if default else ''
+
     def __get_hexvalue(self):
         if varName in self:
             return self[varName]
-        return ''
+        # Reading a default must not store an explicit override on an operator.
+        return defaultValue
 
     def __set_hexvalue(self, value):
         try:
-            if len(value) == 0:
-                value = default
-            int(value, 16)
-            self[varName] = value.upper().lstrip('0X')
-            if len(self[varName]) == 0:
-                self[varName] = '0'
-            if pad:
-                l = len(self[varName])
-                l += l % 2
-                self[varName] = self[varName].zfill(l)
-        except: pass
+            self[varName] = normalize(value) if value else defaultValue
+        except (ValueError, TypeError):
+            pass
 
     return bpy.props.StringProperty(
         name = name,

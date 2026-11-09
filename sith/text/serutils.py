@@ -16,11 +16,35 @@
 
 from typing import TextIO, Union
 
+kMaxNameLen = 64
+
+
+def isValidNameLen(name: str):
+    return len(name) <= kMaxNameLen
+
+
+def isASCII(name: str):
+    return all(ord(char) < 128 for char in name)
+
+
+def assertName(name: str, *, allowSpaces: bool = False, maxLength=kMaxNameLen):
+    if not name or any(ord(char) < 32 or ord(char) == 127 or char in '\"#' for char in name):
+        raise AssertionError('Names must be nonempty and contain no control characters, quotes or #')
+    if not allowSpaces and ' ' in name:
+        raise AssertionError('Unquoted identifier tokens cannot contain whitespace')
+    if maxLength is not None and len(name) > maxLength:
+        raise AssertionError(f"name error: len of '{name}' is greater then {maxLength} chars")
+    if not isASCII(name):
+        raise AssertionError(f"name error: '{name}' does not contain all ASCII chars")
+
+
 def makeComment(comment: str):
-    cline = ""
-    if len(comment) > 0:
-        cline = '# ' + comment
-    return cline
+    if not comment:
+        return ''
+    # Header comments may contain caller text or filenames. Every physical
+    # line must stay a comment, never an extra resource section or field.
+    lines = comment.replace('\r\n', '\n').replace('\r', '\n').split('\n')
+    return '\n'.join('# ' + line for line in lines)
 
 def writeNewLine(file: TextIO):
     file.write("\n")
