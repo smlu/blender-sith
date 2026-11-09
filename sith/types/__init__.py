@@ -16,7 +16,11 @@
 
 from .benchmark import BenchmarkMeter
 from .enum import Flag
-from .props import HexProperty
+def __getattr__(name):
+    if name == 'HexProperty':
+        from .props import HexProperty
+        return HexProperty
+    raise AttributeError(f'module {__name__!r} has no attribute {name!r}')
 
 from .vector import (
     Vector2f,

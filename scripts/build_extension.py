@@ -65,8 +65,12 @@ def _source_files(source: Path) -> list[tuple[str, Path]]:
         if (path == addon and not path.is_dir()) or (path != addon and not path.is_file()):
             raise ValueError(f"Invalid required source: {path.name}")
 
+    def on_walk_error(error):
+        # A partial inventory must never become an apparently valid package.
+        raise error
+
     files = [("LICENSE", source / "LICENSE")]
-    for directory, dirs, names in os.walk(addon, followlinks=False):
+    for directory, dirs, names in os.walk(addon, followlinks=False, onerror=on_walk_error):
         for name in dirs + names:
             path = Path(directory) / name
             if _is_link(path):

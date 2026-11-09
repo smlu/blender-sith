@@ -1,0 +1,12 @@
+{
+  "bad_uvs.3do": {"vertices": [3], "faces": [1], "parents": [-1], "warning": "invalid UV", "exportable": true},
+  "bad_faces.3do": {"vertices": [3], "export_vertices": [4], "faces": [3], "parents": [-1], "warning": "face omitted", "exportable": true},
+  "parent_cycle.3do": {"vertices": [0], "faces": [0], "parents": [-1, 0], "warning": "parent cycle", "exportable": true},
+  "missing_mesh.3do": {"vertices": [1], "faces": [0], "parents": [-1, 0, -1], "warning": "missing mesh 99", "exportable": false},
+  "truncated_vertices.3do": {"vertices": [2], "faces": [0], "parents": [-1, 0], "warning": "Stopped parsing", "exportable": true},
+  "truncated_faces.3do": {"vertices": [4], "faces": [1], "parents": [-1, 0], "warning": "Stopped parsing", "exportable": true},
+  "truncated_hierarchy.3do": {"vertices": [1], "faces": [0], "parents": [-1, -1], "warning": "Stopped parsing", "exportable": false},
+  "nonfinite.3do": {"vertices": [3], "faces": [1], "parents": [-1], "warning": "nonfinite", "exportable": true},
+  "bad_header.3do": {"unrecoverable": true},
+  "no_geometry.3do": {"unrecoverable": true}
+}

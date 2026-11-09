@@ -45,7 +45,7 @@ def main():
         importer = importlib.import_module(name + ".model.model3doImporter")
         # Binding overrides are confined to this new background process. They
         # suppress the upstream importer's automatic neighbor MAT/CMP searches.
-        importer.getCmpFileOrDefault = lambda *args: None
+        importer.getCmpFileOrDefault = lambda *args, **kwargs: None
         importer.getDefaultMatFolders = lambda *args: []
         importer.importMaterials = lambda *args: None
         obj = importer.import3do(request["input"], mat_dirs=[], cmp_file="", uvAbsolute_2_1=False,

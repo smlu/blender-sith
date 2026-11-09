@@ -52,7 +52,10 @@ class ColorMap:
             raise ImportError('Invalid cmp file path')
 
         with filePath.open('rb') as f:
-            rh = CmpHeader.format.unpack(f.read(CmpHeader.format.size))
+            data = f.read(CmpHeader.format.size)
+            if len(data) != CmpHeader.format.size:
+                raise ImportError('Truncated CMP header')
+            rh = CmpHeader.format.unpack(data)
             h = CmpHeader(*rh)
             if h.signature != file_magic:
                 raise ImportError('Invalid CMP file')
@@ -61,6 +64,8 @@ class ColorMap:
 
             # Read palette
             pal = f.read(256 * 3) # 256 * len(CmpPaletteRGB)
+            if len(pal) != 256 * 3:
+                raise ImportError('Truncated CMP palette')
             cmp = cls()
             cmp.palette = [CmpPaletteRGB(*e) for e in np.frombuffer(pal, dtype=np.uint8).reshape(-1,3)]
             return cmp

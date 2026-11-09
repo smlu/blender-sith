@@ -18,27 +18,33 @@ from ..text.serutils import *
 from pathlib import Path
 from typing import TextIO, Tuple, Union
 from .key import *
+from .keyValidation import validateKeyNumericData
 
-def saveKey(key: Key, filePath: Union[Path, str], headerComment: str):
+def saveKey(key: Key, filePath: Union[Path, str], headerComment: str, *, fileFormat=KeyFileFormat.Text):
     """ Saves `key` to .key file """
-    f = open(filePath, 'w', encoding='utf-8')
-
-    _write_section_header(f, key, headerComment)
-    _write_section_markers(f, key)
-    _write_section_keyframe_nodes(f, key)
-
-    f.flush()
-    f.close()
+    if fileFormat == KeyFileFormat.GrimBinary:
+        from .keyBinary import encodeBinaryKey
+        data = encodeBinaryKey(key)
+        with open(filePath, 'wb') as stream:
+            stream.write(data)
+        return
+    if fileFormat != KeyFileFormat.Text:
+        raise ValueError(f'Unsupported KEY file format: {fileFormat}')
+    for node in key.nodes:
+        assertName(node.meshName)
+    validateKeyNumericData(key)
+    with open(filePath, 'w', encoding='utf-8') as f:
+        _write_section_header(f, key, headerComment)
+        _write_section_markers(f, key)
+        _write_section_keyframe_nodes(f, key)
 
 def _flags2str(flags: int) -> str:
     return '0x{:04X}'.format(flags)
 
 def _vector_to_str(vector: Tuple[float, ...]) -> str:
-    out = ""
-    vert_format  = " {:>" + str(12) + ".8f}"
-    for e in vector:
-        out += vert_format.format(e)
-    return out
+    # Fixed decimals can erase small slopes or accumulate drift on long segments.
+    # Float repr round-trips stored values, including negative zero and subnormals.
+    return ''.join(f' {float(value)!r:>12}' for value in vector)
 
 def _write_section_header(file: TextIO, key: Key, headerComment: str):
     writeCommentLine(file, headerComment)
@@ -48,7 +54,7 @@ def _write_section_header(file: TextIO, key: Key, headerComment: str):
     writeKeyValue(file, "flags"  , _flags2str(key.flags)    , 6)
     writeKeyValue(file, "type"   , _flags2str(key.nodeTypes), 6)
     writeKeyValue(file, "frames" , key.numFrames            , 6)
-    writeKeyValue(file, "fps"    , "{:.3f}".format(key.fps) , 6)
+    writeKeyValue(file, "fps"    , repr(float(key.fps))      , 6)
     writeKeyValue(file, "joints" , int(key.numJoints)       , 6)
     writeNewLine(file)
     writeNewLine(file)
@@ -62,8 +68,8 @@ def _write_section_markers(file: TextIO, key: Key):
     writeKeyValue(file, "markers", num_marker)
     writeNewLine(file)
 
-    for m in key.markers:
-        writeKeyValue(file, "{:.6f}".format(m.frame), int(m.type))
+    for m in sorted(key.markers, key=lambda marker: marker.frame):
+        writeKeyValue(file, repr(float(m.frame)), int(m.type))
     writeNewLine(file)
     writeNewLine(file)
 
@@ -82,7 +88,7 @@ def _write_section_keyframe_nodes(file: TextIO, key: Key):
         writeCommentLine(file, "                                dx:          dy:          dz:          dp:          dy:          dr:")
         for idx, k in enumerate(n.keyframes):
             row1 = '{:>4}:'.format(idx)
-            row1 += '{:>9d}'.format(k.frame)
+            row1 += f'{float(k.frame)!r:>12}'
             row1 += '{:>9s}'.format(_flags2str(k.flags))
             row1 += _vector_to_str(k.position)
             row1 += _vector_to_str(k.orientation)

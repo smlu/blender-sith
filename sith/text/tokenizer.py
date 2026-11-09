@@ -130,7 +130,7 @@ class Token:
         return float(self.value)
 
 def _ctoi(c: str) -> int:
-    if type(c) == type(""):
+    if isinstance(c, str) and len(c) == 1:
         return ord(c)
     else:
         return -1
@@ -182,9 +182,7 @@ class Tokenizer:
         elif ispunct(self.current_ch):
             if self.current_ch == '.' and self.next_ch.isdigit():
                 t = self._read_numeric_literal(t)
-            elif self.current_ch == '-' and (self.next_ch == '.' or self.next_ch.isdigit()):
-                t = self._read_numeric_literal(t)
-            elif self.current_ch == '-' and self.next_ch.isdigit():
+            elif self.current_ch in ('-', '+') and (self.next_ch == '.' or self.next_ch.isdigit()):
                 t = self._read_numeric_literal(t)
             else:
                 t.type = TokenType.Punctuator
@@ -216,19 +214,19 @@ class Tokenizer:
     def getIdentifier(self) -> str:
         t = self.getToken()
         if t.type != TokenType.Identifier:
-            IOError(f'Expected identifier! line: {self.line} column: {self.column}')
+            raise IOError(f'Expected identifier! line: {self.line} column: {self.column}')
         return t.value
 
     def getString(self) -> str:
         t = self.getToken()
         if t.type != TokenType.String:
-            IOError(f'Expected string! line: {self.line} column: {self.column}')
+            raise IOError(f'Expected string! line: {self.line} column: {self.column}')
         return t.value
 
     def getSpaceDelimitedString(self) -> str:
         t = self.getDelimitedStringToken(lambda x: x.isspace())
         if not t.value or len(t.value) == 0:
-            IOError(f'Expected string got null! line: {self.line} column: {self.column}')
+            raise IOError(f'Expected string got null! line: {self.line} column: {self.column}')
         return t.value
 
     def getIntNumber(self) -> int:
@@ -259,11 +257,13 @@ class Tokenizer:
 
     def getVector4f(self) -> Vector4f:
         t = self.getToken()
-        vecSimple = t.type == TokenType.Float
+        vecSimple = t.type in (TokenType.Float, TokenType.Integer)
 
         if vecSimple:
             x = t.toFloatNumber()
         else:
+            if t.type != TokenType.Punctuator or t.value != '(':
+                raise AssertionError(f"Expected '(' or vector component, found '{t.value}'")
             x = self.getFloatNumber()
             self.assertPunctuator('/')
 
@@ -335,8 +335,8 @@ class Tokenizer:
         return False
 
     def _skip_whitespace(self):
-        if self._skip_whitespace_step():
-            self._skip_whitespace()
+        while self._skip_whitespace_step():
+            pass
 
     def _skip_to_next_line(self):
         while self.current_ch != '\n' and self.current_ch != '':
@@ -379,9 +379,13 @@ class Tokenizer:
         token.type = TokenType.Integer
         token = self._read_integral_numeric_literal(token)
 
-        if self.current_ch == '.' and (self.next_ch.isdigit() or self.next_ch == '#'): # checking for # fixes problems with '.#QNAN0'
-            if not token.value or not token.value[-1:].isdigit():
-                token.value += '0' # Prepend 0 to poorly formatted floating point number
+        # A decimal point may end a mantissa (1.) or precede its exponent (1.e2).
+        # A leading point still needs a digit, so signed bare points stay invalid.
+        if self.current_ch == '.':
+            if token.value in ('', '-', '+'):
+                if not self.next_ch.isdigit():
+                    raise ValueError('Decimal literal requires at least one digit')
+                token.value += '0' # Keep a digit before a leading decimal point.
 
             token.value += self.current_ch
             self._read_next()
