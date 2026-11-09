@@ -19,7 +19,7 @@ from enum import Enum
 from pathlib import Path
 from ..text.tokenizer import TokenType, Tokenizer
 from ..types import Vector4f
-from typing import Tuple, Union
+from typing import List, Optional, Tuple, Union
 
 from .model3do import *
 
@@ -32,36 +32,89 @@ class Model3doFileVersion(float, Enum):
     def contains(cls, value):
         return value in cls._value2member_map_
 
-def load3do(filePath: Union[str, Path] ) -> Tuple[Model3do, Model3doFileVersion]:
-    f = open(filePath, 'r', encoding='utf-8')
-    tok = Tokenizer(f)
+class Model3doFileFormat(Enum):
+    GrimFandango = 'LDOM'
 
-    file_version = Model3doFileVersion.Version2_1
-    model = Model3do(os.path.basename(filePath))
 
-    while True:
-        _skip_to_next_model_section(tok)
-        t = tok.getToken()
-        if t.type == TokenType.EOF:
-            break
+def load3do(filePath: Union[str, Path], *, allowErrors: bool = False, warnings: Optional[List[str]] = None) -> Tuple[Model3do, Union[Model3doFileVersion, Model3doFileFormat]]:
+    """Load a text or Grim binary model, detecting the format from its contents.
 
-        if t.value.upper() == "HEADER":
-            file_version = _parse_model_header_section(tok)
+    Text recovery stops at the first syntax error; it does not guess missing
+    records or resume at an arbitrary token. Binary records are always checked
+    strictly, including when text recovery was requested.
+    """
+    from .model3doBinary import kBinary3doMagic, readBinary3do
+    with open(filePath, 'rb') as stream:
+        if stream.read(len(kBinary3doMagic)) == kBinary3doMagic:
+            stream.seek(0)
+            return readBinary3do(stream.read()), Model3doFileFormat.GrimFandango
 
-        elif t.value.upper() == "MODELRESOURCE":
-            _parse_model_resource_section(tok, model)
+    diagnostics = warnings if warnings is not None else []
+    with open(filePath, 'r', encoding='utf-8') as f:
+        tok = Tokenizer(f)
+        file_version = Model3doFileVersion.Version2_1
+        headerSeen = False
+        requiredSections = ('HEADER', 'MODELRESOURCE', 'GEOMETRYDEF', 'HIERARCHYDEF')
+        sections = []
+        model = Model3do(os.path.basename(filePath))
 
-        elif t.value.upper() == "GEOMETRYDEF":
-            _parse_model_geometry_section(tok, model, file_version)
+        section = 'section header'
+        try:
+            while True:
+                section = 'section header'
+                _skip_to_next_model_section(tok)
+                t = tok.getToken()
+                if t.type == TokenType.EOF:
+                    break
 
-        elif t.value.upper() == "HIERARCHYDEF":
-            _parse_hierarchy_section(tok, model)
+                section = t.value.upper()
+                if section not in requiredSections:
+                    continue
+                if section != 'HEADER' and not headerSeen:
+                    raise IOError('Missing 3DO HEADER before model data')
+                if section in sections:
+                    raise ValueError(f'Duplicate 3DO section: {section}')
+                if section != requiredSections[len(sections)]:
+                    raise ValueError(f'3DO section {section} requires {requiredSections[len(sections)]} first')
+
+                if section == "HEADER":
+                    file_version = _parse_model_header_section(tok)
+                    headerSeen = True
+                elif section == "MODELRESOURCE":
+                    _parse_model_resource_section(tok, model)
+                elif section == "GEOMETRYDEF":
+                    _parse_model_geometry_section(tok, model, file_version, allowErrors)
+                elif section == "HIERARCHYDEF":
+                    _parse_hierarchy_section(tok, model)
+                sections.append(section)
+
+            if not headerSeen:
+                raise IOError('Missing 3DO HEADER')
+            if len(sections) != len(requiredSections):
+                raise ValueError('Missing required 3DO section(s): ' + ', '.join(requiredSections[len(sections):]))
+        except (AssertionError, TypeError, ValueError, OSError, IndexError) as error:
+            if not allowErrors or section == 'HEADER' or not headerSeen:
+                raise
+            message = (f"Stopped parsing {section} at line {tok.line}, column {tok.column}: {error}. "
+                       "Only completed records were retained; remaining file data was not recovered.")
+            diagnostics.append(message)
+            print(f"Warning: {message}")
+
+    if not headerSeen:
+        raise IOError('Missing 3DO HEADER')
+
+    if allowErrors:
+        from .model3doRecovery import recoverModel3do
+        recoverModel3do(model, diagnostics,
+                        recoverUnboundMeshes='HIERARCHYDEF' not in sections or not model.meshHierarchy)
 
     return (model, file_version)
 
 def _skip_to_next_model_section(tok: Tokenizer):
     t = tok.getToken()
     while t.type != TokenType.EOF and (t.type != TokenType.Identifier or t.value.upper() != "SECTION"):
+        if t.type == TokenType.Invalid:
+            raise ValueError(f"Invalid character at line {tok.line}, column {tok.column}")
         t = tok.getToken()
 
     if t.type != TokenType.EOF:
@@ -80,7 +133,7 @@ def _parse_model_header_section(tok: Tokenizer) -> Model3doFileVersion:
 def _parse_model_resource_section(tok: Tokenizer, model: Model3do):
     tok.assertIdentifier("MATERIALS")
 
-    listLen = tok.getIntNumber()
+    listLen = _read_count(tok, 'material')
     for i in range(0, listLen):
         idx = tok.getIntNumber()
         if idx != i:
@@ -88,7 +141,7 @@ def _parse_model_resource_section(tok: Tokenizer, model: Model3do):
         tok.assertPunctuator(':')
         model.materials.append(tok.getSpaceDelimitedString())
 
-def _parse_model_geometry_section(tok: Tokenizer, model: Model3do, fileVersion: Model3doFileVersion):
+def _parse_model_geometry_section(tok: Tokenizer, model: Model3do, fileVersion: Model3doFileVersion, allowErrors: bool = False):
     tok.assertIdentifier("RADIUS")
     model.radius = tok.getFloatNumber()
 
@@ -97,9 +150,11 @@ def _parse_model_geometry_section(tok: Tokenizer, model: Model3do, fileVersion: 
     model.insertOffset = tok.getVector3f()
 
     tok.assertIdentifier("GEOSETS")
-    numGeoSets = tok.getIntNumber()
+    numGeoSets = _read_count(tok, 'geoset')
     for i in range(0, numGeoSets):
         geoset = Model3doGeoSet()
+        if allowErrors:
+            model.geosets.append(geoset)
 
         tok.assertIdentifier("GEOSET")
         geosetIdx = tok.getIntNumber()
@@ -107,7 +162,7 @@ def _parse_model_geometry_section(tok: Tokenizer, model: Model3do, fileVersion: 
             print(f"Warning: Index mismatch while loading 3DO geosets. {geosetIdx} != {i}")
 
         tok.assertIdentifier("MESHES")
-        numMeshes = tok.getIntNumber()
+        numMeshes = _read_count(tok, 'mesh')
         for j in range(0, numMeshes):
             tok.assertIdentifier("MESH")
             meshIdx = tok.getIntNumber()
@@ -117,14 +172,15 @@ def _parse_model_geometry_section(tok: Tokenizer, model: Model3do, fileVersion: 
             tok.assertIdentifier("NAME")
             name = tok.getDelimitedStringToken(lambda c: c == '\n')
             mesh = Mesh3do(meshIdx, name.value.strip())
-
+            if allowErrors:
+                geoset.meshes.append(mesh)
 
             tok.assertIdentifier("RADIUS")
             mesh.radius = tok.getFloatNumber()
 
             identifier = tok.getIdentifier()
             if identifier.upper() == 'SHADOW': # Grim Fandango
-                tok.getToken() # Skip SHADOW
+                mesh.shadow = tok.getIntNumber()
                 tok.assertIdentifier("GEOMETRYMODE")
             elif identifier.upper() != 'GEOMETRYMODE':
                 raise AssertionError(f"Expected identifier 'GEOMETRYMODE', found '{identifier}'! line: {tok.line} column: {tok.column}")
@@ -139,7 +195,7 @@ def _parse_model_geometry_section(tok: Tokenizer, model: Model3do, fileVersion: 
 
 
             tok.assertIdentifier("VERTICES")
-            numVertices = tok.getIntNumber()
+            numVertices = _read_count(tok, 'vertex')
             for k in range(0, numVertices):
                 uvIdx = tok.getIntNumber()
                 if uvIdx != k:
@@ -147,19 +203,20 @@ def _parse_model_geometry_section(tok: Tokenizer, model: Model3do, fileVersion: 
 
                 tok.assertPunctuator(':')
 
-                mesh.vertices.append(tok.getVector3f())
+                vertex = tok.getVector3f()
                 if fileVersion == Model3doFileVersion.Version2_1:
                     intensity = tok.getFloatNumber()
-                    mesh.vertexColors.append(Vector4f(*((intensity, )*3), 1.0))
+                    color = Vector4f(*((intensity, )*3), 1.0)
                 elif fileVersion == Model3doFileVersion.Version2_2:
                     color = Vector4f(*tok.getVector3f(), 1.0) # RGB
-                    mesh.vertexColors.append(color)
                 else: # 2.3
-                    mesh.vertexColors.append(tok.getVector4f()) #RGBA
+                    color = tok.getVector4f() #RGBA
+                mesh.vertices.append(vertex)
+                mesh.vertexColors.append(color)
 
             tok.assertIdentifier("TEXTURE")
             tok.assertIdentifier("VERTICES")
-            numUVs = tok.getIntNumber()
+            numUVs = _read_count(tok, 'UV')
             for k in range(0, numUVs):
                 uvIdx = tok.getIntNumber()
                 if uvIdx != k:
@@ -177,7 +234,7 @@ def _parse_model_geometry_section(tok: Tokenizer, model: Model3do, fileVersion: 
                 mesh.normals.append(tok.getVector3f())
 
             tok.assertIdentifier("FACES")
-            numFaces = tok.getIntNumber()
+            numFaces = _read_count(tok, 'face')
             for k in range(0, numFaces):
                 faceIdx = tok.getIntNumber()
                 if faceIdx != k:
@@ -200,11 +257,17 @@ def _parse_model_geometry_section(tok: Tokenizer, model: Model3do, fileVersion: 
                 else: # 2.3
                     face.color    = tok.getVector4f()
 
-                numFaceVerts = tok.getIntNumber()
+                numFaceVerts = _read_count(tok, 'face corner')
                 for _ in range(0, numFaceVerts):
                     idxs = tok.getPairOfInts()
                     face.vertexIdxs.append(idxs[0])
                     face.uvIdxs.append(idxs[1])
+
+                # Repeated corners and zero-area triangles exist in retail
+                # assets. Keep their records; Blender handles their topology
+                # separately without requiring lossy broken-file recovery.
+                if not allowErrors and numFaceVerts < 3:
+                    raise ValueError(f"Mesh '{mesh.name}', face {k}: polygon has fewer than three corners")
 
                 mesh.faces.append(face)
 
@@ -217,14 +280,16 @@ def _parse_model_geometry_section(tok: Tokenizer, model: Model3do, fileVersion: 
                 tok.assertPunctuator(':')
                 mesh.faces[k].normal = tok.getVector3f()
 
-            geoset.meshes.append(mesh)
-        model.geosets.append(geoset)
+            if not allowErrors:
+                geoset.meshes.append(mesh)
+        if not allowErrors:
+            model.geosets.append(geoset)
 
 def _parse_hierarchy_section(tok: Tokenizer, model: Model3do):
     tok.assertIdentifier("HIERARCHY")
     tok.assertIdentifier("NODES")
 
-    numNodes = tok.getIntNumber()
+    numNodes = _read_count(tok, 'hierarchy node')
     for i in range(0, numNodes):
         nodeIdx = tok.getIntNumber()
         if nodeIdx != i:
@@ -239,7 +304,7 @@ def _parse_hierarchy_section(tok: Tokenizer, model: Model3do):
         node.parentIdx     = tok.getIntNumber()
         node.firstChildIdx = tok.getIntNumber()
         node.siblingIdx    = tok.getIntNumber()
-        node.numChildren   = tok.getIntNumber()
+        node.numChildren   = _read_count(tok, 'child')
 
         node.position      = tok.getVector3f()
         node.rotation      = tok.getVector3f()
@@ -248,3 +313,10 @@ def _parse_hierarchy_section(tok: Tokenizer, model: Model3do):
         node.name          = tok.getSpaceDelimitedString()
 
         model.meshHierarchy.append(node)
+
+
+def _read_count(tok: Tokenizer, label: str) -> int:
+    count = tok.getIntNumber()
+    if count < 0:
+        raise ValueError(f'3DO {label} count must be nonnegative')
+    return count

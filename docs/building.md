@@ -5,6 +5,12 @@ portable JSON receipt. It requires no third-party dependencies or Git commands.
 Blender's official builder and validator remain the compatibility authority;
 this script adds deterministic bytes and per-file provenance.
 
+Upstream's `scripts/make_addon.py` remains the general extension packager. This
+helper serves builds needing repeatable archive bytes and provenance receipts;
+its explicit source allowlist and external-output requirement are intentional.
+Both packagers abort on source-directory enumeration errors. An unreadable
+subdirectory must not silently disappear from an apparently successful package.
+
 ```sh
 python3 scripts/build_extension.py --output-dir /external/sith-packages
 ```
@@ -55,4 +61,5 @@ python -B -m unittest discover -s tests -p test_build_extension.py -v
 
 They cover member layout, normalization, deterministic bytes, receipts, manifest
 names, invalid inputs, unknown resources, no-overwrite behavior and source/output
-link rejection. Link fixtures use explicit capability skips on unsupported hosts.
+link rejection, and incomplete source scans. Link fixtures use explicit capability
+skips on unsupported hosts.

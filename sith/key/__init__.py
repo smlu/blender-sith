@@ -16,6 +16,7 @@
 
 from .key import (
     Key,
+    KeyFileFormat,
     KeyFlag,
     Keyframe,
     KeyframeFlag,
@@ -24,13 +25,20 @@ from .key import (
     KeyNode
 )
 
-from .keyExporter import exportKey
-from .keyImporter import importKey
+def __getattr__(name):
+    if name == 'exportKey':
+        from .keyExporter import exportKey
+        return exportKey
+    if name == 'importKey':
+        from .keyImporter import importKey
+        return importKey
+    raise AttributeError(f'module {__name__!r} has no attribute {name!r}')
 
 __all__ = [
     "exportKey",
     "importKey",
     "Key",
+    "KeyFileFormat",
     "KeyFlag",
     "Keyframe",
     "KeyframeFlag",

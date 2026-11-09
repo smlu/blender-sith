@@ -15,7 +15,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 from xmlrpc.client import Boolean
-import bpy, mathutils
+import bpy, mathutils, math
 
 from ..model.utils import *
 from ..types import BenchmarkMeter
@@ -25,17 +25,40 @@ from typing import Optional
 
 from .key import *
 from . import keyLoader
+from .keyUtils import getActionFCurves, getActionSlotFCurves, prepareSceneFrameRate, setSceneFrameRate, setSceneKeyFlags, markerName, rememberImportedJump, validateConstraintAnimation, validateKeyActionState, kKeyBinaryData, kKeyImportReport
+from .keyBinary import keyForPlayback
+import json
+from ..model.model3do import Model3do, Mesh3doNode
 
-def importKey(keyPath: str, scene: bpy.types.Scene, clearScene: bool, validateActiveObject: bool, namedMarkers: bool):
+kKeyFrameSnapTolerance = 0.0001  # Blender's F-curve exact-key matching tolerance, in frames.
+
+
+def importKey(keyPath: str, scene: bpy.types.Scene, clearScene: bool, validateActiveObject: bool, namedMarkers: bool, *, allowErrors=False, requireFrameZero=True, warnings=None):
+    """Apply KEY tracks to a model in the supplied, currently active context scene."""
     with BenchmarkMeter(' done in {:.4f} sec.'):
         print("importing KEY: %r..." % (keyPath), end="")
 
-        key = keyLoader.loadKey(keyPath)
+        recoveryWarnings = []
+        sourceKey = keyLoader.loadKey(keyPath, allowErrors=allowErrors, warnings=recoveryWarnings)
+        key = keyForPlayback(sourceKey)
+        if scene != bpy.context.scene:
+            raise ValueError(f"Destination scene '{scene.name}' must match the active context before KEY import")
+        # Even empty tracks update timing and markers. Reject linked scenes
+        # before clearing animation or copying any destination actions.
+        if not scene.is_editable:
+            raise ValueError(f"Make scene '{scene.name}' local or editable before KEY import")
+        prepareSceneFrameRate(scene, key.fps)
+        samplesByJoint = _prepare_import_samples(key, requireFrameZero=requireFrameZero)
 
-        # Check selected object or find anim object in the scene
+        # 1. Resolve the model root and its joint mapping before clearing any
+        # animation, so an incompatible or ambiguous skeleton leaves it intact.
+        # Linked and local IDs may share a name; membership must use identity.
+        sceneObjects = set(scene.objects)
         obj = bpy.context.view_layer.objects.active
         if obj:
             obj = _get_parent(obj)
+            if obj not in sceneObjects:
+                raise ValueError(f"Model root '{obj.name}' is outside destination scene '{scene.name}'; include its hierarchy before KEY import")
             if validateActiveObject and not _check_obj(obj, key.nodes, key.numJoints):
                 raise ValueError(f"Selected object '{obj.name}' doesn't contain all required nodes to animate!")
         else:
@@ -43,57 +66,264 @@ def importKey(keyPath: str, scene: bpy.types.Scene, clearScene: bool, validateAc
             if obj is None:
                 raise ValueError(f"Couldn't find a valid object to animate!")
 
+        jointLookup = _joint_lookup(obj, key.numJoints)
+        # Object parenting is global: a root can have joint descendants that
+        # belong only to another scene, including joints absent from this KEY.
+        for joint in jointLookup[0]:
+            if joint not in sceneObjects:
+                raise ValueError(f"Model joint '{joint.name}' is outside destination scene '{scene.name}'; include its hierarchy before KEY import")
+        # Resolve every destination and its supported pivot before clearing any
+        # actions. A bad later joint must not leave an earlier one half-imported.
+        destinations = []
+        pivots = {}
+        resolvedJoints = {}
+        for node in key.nodes:
+            aobj = _find_joint_obj_for_anim_node(obj, node, key.numJoints, jointLookup)
+            if aobj is not None:
+                # Partial name matching must also be unique across source tracks,
+                # not only across candidates for one track. Never overwrite one
+                # joint twice through aliases for distinct source node indices.
+                if aobj in resolvedJoints:
+                    raise ValueError(f"KEY joints {resolvedJoints[aobj]} and {node.idx} resolve to the same joint object '{aobj.name}'; assign unique joint sequence numbers before import")
+                resolvedJoints[aobj] = node.idx
+                if samplesByJoint[node.idx] and not aobj.is_editable:
+                    raise ValueError(f"Make joint '{aobj.name}' local or editable before KEY import")
+                if not clearScene and samplesByJoint[node.idx] and aobj.rotation_mode != kImEulerOrder:
+                    rotation_paths = ('rotation_euler', 'rotation_quaternion', 'rotation_axis_angle')
+                    animation = aobj.animation_data
+                    hasRotation = any(curve.is_valid and not curve.mute and curve.data_path in rotation_paths
+                                      for curve in getActionFCurves(aobj))
+                    hasProcedural = animation and (
+                        any(not driver.mute and driver.data_path in rotation_paths for driver in animation.drivers)
+                        or _has_nla_rotation(animation, rotation_paths)
+                    )
+                    if hasRotation or hasProcedural:
+                        raise ValueError(f"Bake existing rotation animation on '{aobj.name}' to {kImEulerOrder} before merging a KEY, or enable Clear scene")
+                if not clearScene and samplesByJoint[node.idx] and aobj.animation_data:
+                    transform_paths = ('location', 'rotation_euler', 'rotation_quaternion', 'rotation_axis_angle')
+                    if any(not driver.mute and driver.data_path in transform_paths
+                           for driver in aobj.animation_data.drivers):
+                        raise ValueError(f"Mute or remove transform drivers on '{aobj.name}' before merging a KEY, or enable Clear scene")
+                    _validate_import_channels(aobj)
+                pivot = objPivot(aobj, forAnimation=True)
+                if not all(math.isfinite(value) for value in pivot):
+                    raise ValueError(f"Pivot on '{aobj.name}' must be finite")
+                pivots[node.idx] = tuple(pivot)
+            destinations.append((node, aobj))
+
+        _validate_import_pivots(destinations, samplesByJoint, clearScene)
+        # Check every destination-adjusted sample before clearing any action.
+        # Python arithmetic avoids float32 overflow or RNA's silent clamping.
+        positionsByJoint = {
+            node.idx: [_key_position_to_blender(sample.position, pivots[node.idx])
+                       for sample in samplesByJoint[node.idx]]
+            for node, aobj in destinations if aobj is not None
+        }
+        for node, aobj in destinations:
+            if aobj is None:
+                continue
+            coordinates = _get_import_coordinates(samplesByJoint[node.idx], positionsByJoint[node.idx])
+            if not clearScene:
+                _validate_import_merge_times(aobj, coordinates)
+
         if clearScene:
             clearSceneAnimData(scene)
+        else:
+            # Keep linked library data read-only and isolate conflicting users.
+            # Independent, editable slots in a local action may stay shared.
+            for node, aobj in destinations:
+                if aobj is None or not samplesByJoint[node.idx] or not aobj.animation_data:
+                    continue
+                animation = aobj.animation_data
+                slot = animation.action_slot
+                if animation.action and (not animation.action.is_editable
+                                         or (slot and len(slot.users()) > 1)
+                                         or _nla_uses_action_slot(animation, animation.action, slot)):
+                    identifier = slot.identifier if slot else None
+                    animation.action = animation.action.copy()
+                    if identifier is not None:
+                        animation.action_slot = animation.action.slots[identifier]
 
+        # 2. Restore playback metadata and markers. Fractional marker times live
+        # in marker names because Blender timeline markers have integer frames.
         scene.frame_start     = 0
         scene.frame_end       = key.numFrames - 1 if clearScene else max(scene.frame_end, key.numFrames - 1)
         scene.frame_step      = 1
-        scene.render.fps      = int(key.fps)
-        scene.render.fps_base = 1.0
+        setSceneFrameRate(scene, key.fps)
 
         if clearScene:
-            scene.sith_key_flags = key.flags.toSet()
-            scene.sith_key_types = key.nodeTypes.hex()
+            setSceneKeyFlags(scene, key.flags)
+            scene.sith_key_types = format(int(key.nodeTypes), 'x')
+
+        # Opaque fields belong to one replacement clip and model. A merged
+        # animation cannot safely reuse either source's binary record layout.
+        if obj.is_editable:
+            if clearScene and sourceKey.fileFormat == KeyFileFormat.GrimBinary:
+                obj[kKeyBinaryData] = json.dumps({
+                    'header': sourceKey.binaryData,
+                    'nodes': {str(node.idx): {'name': node.meshName, 'metadata': node.binaryData}
+                              for node in sourceKey.nodes}
+                })
+            elif kKeyBinaryData in obj:
+                del obj[kKeyBinaryData]
 
         for m in key.markers:
-            marker_name = str(m.type.value)
-            if namedMarkers:
-                marker_name = m.type.name
-            scene.timeline_markers.new(marker_name, frame=int(m.frame))
+            scene.timeline_markers.new(markerName(m, namedMarkers), frame=math.floor(m.frame))
 
-        for node in key.nodes:
+        # 3. Expand each KEY base-plus-delta track to Blender transform keys,
+        # then restore the engine's linear/held interpolation per segment.
+        for node, aobj in destinations:
             # Get object to animate
-            aobj = _find_joint_obj_for_anim_node(obj, node, key.numJoints)
             if aobj is None:
                 print(f"Couldn't find joint object '{node.meshName}' to animate!")
                 continue
 
-            # Add object's keyframes
-            for keyframe in node.keyframes:
-                _set_obj_location(aobj, keyframe.position)
-                aobj.keyframe_insert(data_path="location", frame=keyframe.frame)
+            # KEY interpolates Euler components, not quaternion shortest paths.
+            samples = samplesByJoint[node.idx]
+            if not samples:
+                continue
+            aobj.rotation_mode = kImEulerOrder
+            _insert_import_samples(aobj, samples, positions=positionsByJoint[node.idx])
 
-                objSetRotation(aobj, keyframe.orientation)
-                aobj.keyframe_insert(data_path=_get_rotation_data_path(aobj), frame=keyframe.frame)
+            # A change flag means linear motion; an unset flag holds that channel.
+            _fix_obj_anim_interpolation(aobj, samples)
 
-            # Fix any broken interpolation between keyframes
-            _fix_obj_anim_interpolation(aobj)
+            # Retain exact discontinuity/late-start data for a replacement import;
+            # later export can reuse it while the generated curves stay unedited.
+            rememberImportedJump(aobj, node, key.numFrames,
+                                 clearScene and (node.keyframes[0].frame > 0.0
+                                                 or any(getattr(entry, '_left_limit', False) for entry in samples)))
 
         # Set current frame to 0
         scene.frame_set(0)
 
-def _set_obj_location(obj: bpy.types.Object, location: Vector3f):
-    obj.location = location
+        # Publish diagnostics only after a successful import. Keep the 3DO
+        # recovery report separate so importing animation cannot overwrite it.
+        if obj.is_editable:
+            if recoveryWarnings:
+                report = bpy.data.texts.new(f'{sourceKey.name} - KEY Import Report')
+                report.write(f'Incomplete KEY import: {keyPath}\n\n' + '\n'.join(recoveryWarnings)
+                             + '\n\nOmitted tracks were not imported. Existing animation is retained only when Clear scene is disabled; inspect before export.\n')
+                report.use_fake_user = True
+                obj[kKeyImportReport] = report.name
+            elif clearScene and kKeyImportReport in obj:
+                del obj[kKeyImportReport]
+        if warnings is not None:
+            warnings.extend(recoveryWarnings)
+        return obj
 
-    # Substract pivot offset from location
-    for c in obj.constraints:
-        if type(c) is bpy.types.PivotConstraint:
-            pivot = -c.offset
-            if c.target:
-                pivot += -c.target.location
-            obj.location += mathutils.Vector(pivot)
-            break
+
+def _nla_uses_action_slot(animation, action, slot):
+    """Slot users count IDs, not an object's active-action and NLA references."""
+    pending = [strip for track in animation.nla_tracks for strip in track.strips]
+    while pending:
+        strip = pending.pop()
+        if strip.type == 'META':
+            pending.extend(strip.strips)
+        elif strip.type == 'CLIP' and strip.action == action and strip.action_slot == slot:
+            # Muted clips also retain their source animation for later reuse.
+            return True
+    return False
+
+
+def _has_nla_rotation(animation, rotation_paths):
+    """Changing rotation mode must not reinterpret an existing NLA rotation clip."""
+    if animation is None or not animation.use_nla:
+        return False
+
+    pending = [strip for track in animation.nla_tracks if not track.mute for strip in track.strips]
+    while pending:
+        strip = pending.pop()
+        if strip.mute:
+            continue
+        if strip.type == 'META':
+            pending.extend(strip.strips)
+        elif strip.type == 'CLIP':
+            if any(curve.is_valid and not curve.mute and curve.data_path in rotation_paths
+                   for curve in getActionSlotFCurves(strip.action, strip.action_slot)):
+                return True
+    return False
+
+
+def _prepare_import_samples(key, *, requireFrameZero=True):
+    """Reject invalid metadata/tracks before clearing any existing animation."""
+    if key.numFrames < 1 or key.numJoints < 0:
+        raise ValueError('KEY requires a positive frame count and nonnegative joint count')
+    if not math.isfinite(key.fps) or key.fps <= 0.0:
+        raise ValueError('Animation FPS must be finite and positive')
+    frame_range = bpy.types.Scene.bl_rna.properties['frame_end']
+    if not frame_range.hard_min <= key.numFrames - 1 <= frame_range.hard_max:
+        raise ValueError(f'KEY duration exceeds Blender timeline limits ({frame_range.hard_max + 1} frames)')
+    if any(not math.isfinite(marker.frame) for marker in key.markers):
+        raise ValueError('KEY marker frames must be finite')
+    if any(marker.type not in KeyMarkerType._value2member_map_ for marker in key.markers):
+        raise ValueError('KEY contains a marker type unsupported by Blender animation import')
+    marker_range = bpy.types.TimelineMarker.bl_rna.properties['frame']
+    if any(not marker_range.hard_min <= math.floor(marker.frame) <= marker_range.hard_max
+           for marker in key.markers):
+        raise ValueError('KEY marker is outside Blender timeline marker limits')
+
+    # Prepare every track first. Otherwise a malformed later joint could fail
+    # only after Clear Animation and earlier joints had already changed the scene.
+    samples = {}
+    for node in key.nodes:
+        if not 0 <= node.idx < key.numJoints:
+            raise ValueError(f'KEY joint index {node.idx} is outside its joint count')
+        if node.idx in samples:
+            raise ValueError(f'Duplicate KEY joint index {node.idx}')
+        samples[node.idx] = _make_import_samples(node, key.numFrames, requireFrameZero=requireFrameZero)
+    return samples
+
+
+def _validate_import_pivots(destinations, samplesByJoint, clearScene):
+    """Preflight incoming poses, not just the destination's current Pivot state."""
+    incoming = {obj: samplesByJoint[node.idx] for node, obj in destinations if obj is not None}
+    rotation_paths = ('rotation_euler', 'rotation_quaternion', 'rotation_axis_angle')
+    for node, obj in destinations:
+        if obj is None or not samplesByJoint[node.idx]:
+            continue
+        if not clearScene:
+            # A currently disabled Pivot may become active later. Check its
+            # channels before filtering by the constraint's current gates.
+            validateConstraintAnimation(obj, constraintTypes={'PIVOT'})
+        pivots = [c for c in obj.constraints if c.type == 'PIVOT' and not c.mute and c.influence]
+        if not pivots:
+            continue
+        if any(c.rotation_range != 'ALWAYS_ACTIVE' for c in pivots):
+            raise ValueError(f"Bake conditional Pivot constraints on '{obj.name}' or set their rotation range to Always before KEY import")
+
+        # Parent rotation changes how a world-space Pivot affects its owner;
+        # it cannot be inverted by the importer's constant local translation.
+        parent = obj.parent
+        while parent is not None:
+            samples = incoming.get(parent, ())
+            if any(any(sample.orientation) for sample in samples):
+                raise ValueError(f"Bake parent rotation for Pivot-constrained object '{obj.name}' before KEY import")
+            if not clearScene:
+                animation = parent.animation_data
+                hasRotation = any(curve.is_valid and not curve.mute and curve.data_path in rotation_paths
+                                  for curve in getActionFCurves(parent))
+                hasDriver = animation and any(not driver.mute and driver.data_path in rotation_paths
+                                              for driver in animation.drivers)
+                if hasRotation or hasDriver or _has_nla_rotation(animation, rotation_paths):
+                    raise ValueError(f"Bake existing parent rotation for Pivot-constrained object '{obj.name}' before KEY import")
+            parent = parent.parent
+
+
+def _set_obj_location(obj: bpy.types.Object, location: Vector3f):
+    # Undo KEY export's active-pivot subtraction in Blender local coordinates.
+    obj.location = _key_position_to_blender(location, objPivot(obj, forAnimation=True))
+
+
+def _key_position_to_blender(position, pivot):
+    validateFloat32((*position, *pivot), 'KEY position and Pivot')
+    # Match Blender's float32 operands, but check the sum in Python precision
+    # before assigning it to RNA (which would silently clamp an overflow).
+    position, pivot = mathutils.Vector(position), mathutils.Vector(pivot)
+    values = tuple(float(position[index]) + float(pivot[index]) for index in range(3))
+    validateFloat32(values, 'Pivot-adjusted KEY position')
+    return values
+
 
 def _can_animate_obj(obj: bpy.types.Object, node:KeyNode, maxJoints: int) -> bool:
     if obj.sith_model3do_hnode_idx > -1 and obj.sith_model3do_hnode_idx < maxJoints:
@@ -107,20 +337,82 @@ def _can_animate_obj(obj: bpy.types.Object, node:KeyNode, maxJoints: int) -> boo
         return True
     return False
 
-def _find_joint_obj_for_anim_node(obj: bpy.types.Object, node: KeyNode, maxJoints: int ) -> Optional[bpy.types.Object]:
-    if _can_animate_obj(obj, node, maxJoints):
-            return obj
-    for cobj in obj.children:
-        jobj =  _find_joint_obj_for_anim_node(cobj, node, maxJoints)
-        if jobj:
-            return jobj
-    return None
+
+def _joint_lookup(obj, maxJoints):
+    """Map KEY indices to export-normalized joints, or allow partial-name lookup."""
+    if obj.type not in ('MESH', 'EMPTY'):
+        return [], None
+    model = Model3do()
+
+    def visit(current, parent):
+        if current.type not in ('EMPTY', 'MESH') or isRadiusObj(current):
+            return
+        index = len(model.meshHierarchy)
+        joint = Mesh3doNode()
+        joint.idx, joint.parentIdx, joint.obj = current.sith_model3do_hnode_idx, parent, current
+        model.meshHierarchy.append(joint)
+
+        for child in current.children:
+            visit(child, index)
+
+    # The top-level EMPTY is a model wrapper, not a KEY joint, just as in 3DO
+    # export. Radius helpers and unsupported subtrees do not consume joint slots.
+    if obj.type == 'MESH' or not obj.children:
+        visit(obj, -1)
+    else:
+        for child in obj.children:
+            visit(child, -1)
+
+    # Partial matching must use the same eligible joints as complete matching,
+    # never a wrapper, radius helper or object below an unsupported parent.
+    candidates = [joint.obj for joint in model.meshHierarchy]
+    if len(model.meshHierarchy) == maxJoints:
+        # Sequence properties are sort hints, not necessarily dense KEY indices.
+        # Reuse the export ordering for complete skeletons (including automatic
+        # and sparse sequence values) instead of interpreting those hints as IDs.
+        numbers = [joint.idx for joint in model.meshHierarchy if joint.idx >= 0]
+        if len(numbers) != len(set(numbers)):
+            raise ValueError('Ambiguous joint sequence numbers')
+
+        model.reorderNodes()
+        return candidates, {joint.idx: joint.obj for joint in model.meshHierarchy}
+
+    # Partial skeletons cannot reconstruct the complete export order reliably;
+    # retain explicit-index/name matching for those instead of guessing a layout.
+    return candidates, None
+
+
+def _find_joint_obj_for_anim_node(obj: bpy.types.Object, node: KeyNode, maxJoints: int, lookup=None) -> Optional[bpy.types.Object]:
+    candidates, ordered = _joint_lookup(obj, maxJoints) if lookup is None else lookup
+    if ordered is not None:
+        return ordered.get(node.idx)
+
+    # For partial models, explicit IDs take priority over name matches anywhere
+    # in the subtree. Reject ambiguity rather than animate an arbitrary object.
+    indexed = [candidate for candidate in candidates
+               if 0 <= candidate.sith_model3do_hnode_idx < maxJoints
+               and candidate.sith_model3do_hnode_idx == node.idx]
+    if len(indexed) > 1:
+        raise ValueError(f'Ambiguous joint sequence number {node.idx}')
+    if indexed:
+        return indexed[0]
+
+    fallback = [candidate for candidate in candidates if _can_animate_obj(candidate, node, maxJoints)]
+    if len(fallback) > 1:
+        raise ValueError(f"Ambiguous joint name '{node.meshName}'")
+    return fallback[0] if fallback else None
+
 
 def _check_obj(obj, nodes: List[KeyNode], maxJoints: int) -> bool:
+    lookup = _joint_lookup(obj, maxJoints)
+    matched = set()
     for node in nodes:
-        if _find_joint_obj_for_anim_node(obj, node, maxJoints) is None:
+        joint = _find_joint_obj_for_anim_node(obj, node, maxJoints, lookup)
+        if joint is None or joint in matched:
             return False
+        matched.add(joint)
     return True
+
 
 def _find_anim_obj_in_scene(scene: bpy.types.Scene, nodes: List[KeyNode], maxJoints: int) -> Optional[bpy.types.Object]:
     for obj in scene.objects:
@@ -130,10 +422,12 @@ def _find_anim_obj_in_scene(scene: bpy.types.Scene, nodes: List[KeyNode], maxJoi
             return obj
     return None
 
+
 def _get_parent(obj: bpy.types.Object) -> bpy.types.Object:
     while obj.parent is not None:
         obj = obj.parent
     return obj
+
 
 def _get_rotation_data_path(obj: bpy.types.Object) -> str:
     if obj.rotation_mode == 'QUATERNION':
@@ -143,63 +437,256 @@ def _get_rotation_data_path(obj: bpy.types.Object) -> str:
     else:
         return 'rotation_euler'
 
-def _get_channelbag_fcurves(obj: bpy.types.Object):
-    """Get fcurves from the channelbag for the object's action slot (Blender 5.0+)."""
-    action = obj.animation_data.action
-    slot = obj.animation_data.action_slot
-    if not slot or not action.layers:
-        return None
-    for layer in action.layers:
-        for strip in layer.strips:
-            if hasattr(strip, 'channelbag'):
-                cb = strip.channelbag(slot)
-                if cb is not None:
-                    return cb.fcurves
-    return None
 
-def _fix_obj_anim_interpolation(obj: bpy.types.Object):
-    """ fixes broken quaternion interpolation between frames and sets it to LINEAR"""
+def _align_orientation(orientation, reference):
+    # Choose equivalent angles near the extrapolated pose, retaining full turns.
+    return Vector3f(*(value + 360.0 * round((reference[i] - value) / 360.0)
+                      for i, value in enumerate(orientation)))
 
-    interpolation = 'LINEAR'
-    fcurves = _get_channelbag_fcurves(obj)
-    if fcurves is None:
+
+def _make_import_samples(node, end_frame, *, requireFrameZero=True):
+    """Expand KEY deltas to curve endpoints, preserving holds and pose jumps."""
+    samples = []
+    previous = None
+    for index, source in enumerate(node.keyframes):
+        # 1. Validate and copy the source entry; do not modify the parsed KEY.
+        validateFloat32((
+            value
+            for vector in (source.position, source.orientation, source.deltaPosition, source.deltaRotation)
+            for value in vector
+        ), 'KEY transforms and deltas')
+        if not math.isfinite(source.frame) or source.frame < 0.0 or (previous and source.frame <= previous.frame):
+            raise ValueError('KEY entries must have finite, strictly increasing, nonnegative frames')
+        validateFloat32((source.frame,), 'KEY entry frame')
+        # Keep the frame-zero compatibility policy separate from integrity
+        # checks. Relaxed import below explicitly evaluates late-start motion.
+        if requireFrameZero and index == 0 and mathutils.Vector((source.frame, 0.0))[0] != 0.0:
+            raise ValueError('KEY tracks must start at stored frame zero')
+
+        entry = Keyframe()
+        entry.frame = source.frame
+        entry.position = source.position
+        entry.orientation = source.orientation
+        entry.flags = source.flags
+        entry.deltaPosition = source.deltaPosition
+        entry.deltaRotation = source.deltaRotation
+
+        if previous is not None:
+            # Follow the previous segment's Euler winding rather than wrapping
+            # each stored orientation independently to the nearest zero angle.
+            reference = list(previous.orientation)
+            if previous.flags & KeyframeFlag.OrientationChange:
+                reference = [value + previous.deltaRotation[i] * (entry.frame - previous.frame)
+                             for i, value in enumerate(reference)]
+            entry.orientation = _align_orientation(entry.orientation, reference)
+
+        if index == 0 and not requireFrameZero and mathutils.Vector((entry.frame, 0.0))[0] != 0.0:
+            # Before the first stored entry, base-plus-delta evaluation uses a
+            # negative elapsed time. Add that pose explicitly; Blender's default
+            # extrapolation would instead hold the late first pose unchanged.
+            first = Keyframe()
+            first.frame = 0.0
+            first.flags = entry.flags
+            first.position = Vector3f(*(
+                value - (entry.deltaPosition[i] * entry.frame if entry.flags & KeyframeFlag.PositionChange else 0.0)
+                for i, value in enumerate(entry.position)
+            ))
+            first.orientation = Vector3f(*(
+                value - (entry.deltaRotation[i] * entry.frame if entry.flags & KeyframeFlag.OrientationChange else 0.0)
+                for i, value in enumerate(entry.orientation)
+            ))
+            samples.append(first)
+
+        samples.append(entry)
+
+        if index + 1 < len(node.keyframes):
+            # 2. Extrapolate this segment to the next entry. Its deltas need not
+            # land on that entry's stored pose: a mismatch is a discontinuity.
+            following = node.keyframes[index + 1]
+            span = following.frame - entry.frame
+            if not math.isfinite(span) or span <= 0.0:
+                raise ValueError('KEY entries must have strictly increasing frames')
+
+            end_position = [value + entry.deltaPosition[i] * span for i, value in enumerate(entry.position)]
+            end_rotation = [value + entry.deltaRotation[i] * span for i, value in enumerate(entry.orientation)]
+            next_rotation = _align_orientation(following.orientation, end_rotation)
+            position_jump = (
+                bool(entry.flags & KeyframeFlag.PositionChange)
+                and max(abs(a - b) for a, b in zip(end_position, following.position)) > 1.0e-5
+            )
+            rotation_jump = (
+                bool(entry.flags & KeyframeFlag.OrientationChange)
+                and max(abs(a - b) for a, b in zip(end_rotation, next_rotation)) > 0.001
+            )
+
+            if position_jump or rotation_jump:
+                # 3. Add the pose just before the jump, then hold it until the
+                # next entry supplies the new pose. This preserves motion up to
+                # the boundary rather than interpolating towards the wrong end.
+                # Blender evaluates keys within 0.0001 frames as an exact match.
+                # Keep the left sample outside that range; the exact source
+                # segment is retained separately only while the curves are unedited.
+                epsilon = min(span * 0.25, max(0.00025, abs(following.frame) * 2.0 ** -21))
+                if epsilon <= 0.0002:
+                    raise ValueError('KEY discontinuity is too close to represent at Blender frame precision')
+
+                left = Keyframe()
+                left._left_limit = True
+                left.frame = following.frame - epsilon
+                delta = left.frame - entry.frame
+                left.position = Vector3f(*(
+                    value + (entry.deltaPosition[i] * delta if entry.flags & KeyframeFlag.PositionChange else 0.0)
+                    for i, value in enumerate(entry.position)
+                ))
+                left.orientation = Vector3f(*(
+                    value + (entry.deltaRotation[i] * delta if entry.flags & KeyframeFlag.OrientationChange else 0.0)
+                    for i, value in enumerate(entry.orientation)
+                ))
+
+                # Stop only channels that jump. Other channels may keep moving
+                # across the tiny interval before the next source entry.
+                left.flags = KeyframeFlag(int(entry.flags) & ~(1 if position_jump else 0) & ~(2 if rotation_jump else 0))
+                samples.append(left)
+
+        previous = entry
+
+    if previous is not None and previous.frame < end_frame:
+        # 4. The last entry's delta remains active through the final fractional
+        # playback interval; an explicit endpoint prevents Blender extrapolation.
+        last = Keyframe()
+        last.frame = float(end_frame)
+        span = last.frame - previous.frame
+        last.position = Vector3f(*(
+            value + (previous.deltaPosition[i] * span if previous.flags & KeyframeFlag.PositionChange else 0.0)
+            for i, value in enumerate(previous.position)
+        ))
+        last.orientation = Vector3f(*(
+            value + (previous.deltaRotation[i] * span if previous.flags & KeyframeFlag.OrientationChange else 0.0)
+            for i, value in enumerate(previous.orientation)
+        ))
+        samples.append(last)
+
+    # Check extrapolated values and stored times before any destination changes.
+    _get_import_coordinates(samples, [sample.position for sample in samples])
+    return samples
+
+
+def _fix_obj_anim_interpolation(obj: bpy.types.Object, samples):
+    # Match Blender's float32 key times before looking up each KEY change flag.
+    flags = {mathutils.Vector((entry.frame, 0.0))[0]: entry.flags for entry in samples}
+    for curve in getActionFCurves(obj):
+        if curve.data_path not in ('location', 'rotation_euler'):
+            continue
+
+        change = KeyframeFlag.PositionChange if curve.data_path == 'location' else KeyframeFlag.OrientationChange
+        for point in curve.keyframe_points:
+            if point.co[0] in flags:
+                point.interpolation = 'LINEAR' if flags[point.co[0]] & change else 'CONSTANT'
+
+        # FCurve.update() also deduplicates nearby keys, erasing left-limit samples.
+        curve.keyframe_points.sort()
+        curve.keyframe_points.handles_recalc()
+
+
+def _validate_import_channels(obj):
+    """Reject incompatible destination curves before changing any joint or action."""
+    validateKeyActionState(obj)
+    for curve in getActionFCurves(obj):
+        if curve.data_path not in ('location', 'rotation_euler'):
+            continue
+        # Blender's samples and keyframes share a point count. Adding raw keys
+        # to sampled storage would leave two buffers with inconsistent lengths.
+        if curve.sampled_points:
+            raise ValueError(f"Convert sampled transform curves on '{obj.name}' to keyframes before merging a KEY, or enable Clear scene")
+        if curve.mute:
+            raise ValueError(f"Unmute transform curves on '{obj.name}' before merging a KEY, or enable Clear scene")
+        if any(not modifier.mute for modifier in curve.modifiers):
+            raise ValueError(f"Mute or remove transform F-curve modifiers on '{obj.name}' before merging a KEY, or enable Clear scene")
+
+
+def _get_import_coordinates(samples, positions):
+    """Preflight float32 samples without assigning any Blender object channels."""
+    if len(positions) != len(samples):
+        raise ValueError('KEY sample/local-position count mismatch')
+
+    coordinates = {(path, axis): {} for path in ('location', 'rotation_euler') for axis in range(3)}
+    previousFrame, previousPose = None, None
+    for sample, position in zip(samples, positions):
+        validateFloat32((sample.frame, *position, *sample.orientation), 'KEY sample')
+        frame = mathutils.Vector((sample.frame, 0.0))[0]
+        if frame < 0 or (previousFrame is not None and frame <= previousFrame):
+            raise ValueError('KEY sample times collide or change order at float32 frame precision')
+
+        # RNA stores float32 channel values too. Equal stored poses are harmless
+        # even at close times; different poses can be shadowed by the next key.
+        pose = (*mathutils.Vector(position),
+                *mathutils.Vector(tuple(math.radians(sample.orientation[i]) for i in (0, 2, 1))))
+        if (previousFrame is not None and frame - previousFrame <= kKeyFrameSnapTolerance
+                and pose != previousPose):
+            raise ValueError('KEY pose changes are too close to represent at Blender frame precision')
+        for channel, value in zip(coordinates, pose):
+            coordinates[channel][frame] = value
+        previousFrame, previousPose = frame, pose
+    return coordinates
+
+
+def _validate_import_merge_times(obj, coordinates):
+    """Check incoming/existing neighbors before action isolation or key insertion."""
+    for curve in getActionFCurves(obj):
+        incoming = coordinates.get((curve.data_path, curve.array_index))
+        if not incoming:
+            continue
+        values = {point.co[0]: point.co[1] for point in curve.keyframe_points}
+        values.update(incoming)  # An exact time match deliberately replaces that key.
+        times = sorted(values)
+        for left, right in zip(times, times[1:]):
+            if (right - left <= kKeyFrameSnapTolerance and (left in incoming or right in incoming)
+                    and values[left] != values[right]):
+                raise ValueError('KEY merge keys are too close to represent at Blender frame precision')
+
+
+def _insert_import_samples(obj, samples, *, positions=None):
+    """Add exact float-time samples without Blender's nearby-key replacement."""
+    if not samples:
         return
 
-    fq = [
-        fcurves.find('rotation_quaternion', index = 0), # w
-        fcurves.find('rotation_quaternion', index = 1), # x
-        fcurves.find('rotation_quaternion', index = 2), # y
-        fcurves.find('rotation_quaternion', index = 3), # z
-    ]
+    # Keep the low-level insertion safe for direct callers too. The public
+    # importer also checks every destination before updating scene metadata.
+    _validate_import_channels(obj)
 
-    def _get_quat_at_frame(frame: int):
-        return mathutils.Quaternion((
-            fq[0].keyframe_points[frame].co[1], # w
-            fq[1].keyframe_points[frame].co[1], # x
-            fq[2].keyframe_points[frame].co[1], # y
-            fq[3].keyframe_points[frame].co[1], # z
-        ))
+    if positions is None:
+        pivot = objPivot(obj, forAnimation=True)
+        positions = [_key_position_to_blender(sample.position, pivot) for sample in samples]
+    coordinates = _get_import_coordinates(samples, positions)
+    _validate_import_merge_times(obj, coordinates)
 
-    def _set_interpolation_for_frame(frame: int, interpolation: str):
-        for f in fq:
-            f.keyframe_points[frame].interpolation = interpolation
+    # 1. Preserve the prior bootstrap pose, but only after all checks succeed.
+    obj.location = positions[-1]
+    obj.rotation_euler = tuple(math.radians(samples[-1].orientation[i]) for i in (0, 2, 1))
 
-    def _negate_quat_at_frame(frame: int):
-        for f in fq:
-            f.keyframe_points[frame].co[1] = -f.keyframe_points[frame].co[1]
+    # 2. Create any missing channels through Blender's action/slot API, then
+    # populate their raw arrays so nearby discontinuity keys are not merged.
+    curves = {(curve.data_path, curve.array_index): curve for curve in getActionFCurves(obj)}
+    for path, axis in coordinates:
+        if (path, axis) not in curves:
+            # Let Blender create the action/slot/channel, then populate its raw points.
+            if not obj.keyframe_insert(data_path=path, index=axis, frame=samples[0].frame):
+                raise ValueError(f"Cannot create KEY channel {path}[{axis}] on '{obj.name}'")
 
-    # negate quaternion so that interpolation takes the shortest path
-    nextQuat = None
-    if len(fq[0].keyframe_points) > 0:
-        nextQuat = _get_quat_at_frame(0)
-        _set_interpolation_for_frame(0, interpolation)
+    # 3. Reacquire curves after Blender creates channels, reserve point storage
+    # once per curve, and merge only keys with exactly matching float32 times.
+    curves = {(curve.data_path, curve.array_index): curve for curve in getActionFCurves(obj)}
+    for channel, values in coordinates.items():
+        points = curves[channel].keyframe_points
+        existing = {point.co[0]: index for index, point in enumerate(points)}
+        next_index = len(points)
+        points.add(sum(frame not in existing for frame in values))
 
-    for i in range(len(fq[0].keyframe_points) - 1):
-        _set_interpolation_for_frame(i + 1, interpolation)
-
-        curQuat = nextQuat
-        nextQuat = _get_quat_at_frame(i + 1)
-
-        if curQuat.dot(nextQuat) < 0:
-            nextQuat.negate()
-            _negate_quat_at_frame(i + 1)
+        # Keep indices rather than point references: add() can reallocate the array.
+        for frame, value in values.items():
+            index = existing.get(frame)
+            if index is None:
+                index = next_index
+                next_index += 1
+            points[index].co = (frame, value)
+        points.sort()
