@@ -41,6 +41,7 @@ k3doLightingMode   = "3do_lighting_mode"
 k3doTextureMode    = "3do_texture_mode"
 k3doUvAbsolute     = "3do_uv_absolute"
 k3doLooseColors    = "3do_loose_vertex_colors"
+k3doImportedPivot  = "3do_imported_pivot"
 kDefaultFaceColor  = Vector4f(0.0, 0.0, 0.0, 1.0)  # Black color
 kImEulerOrder      = "YXZ"                         # Infernal machine euler orientation order Y - roll, X - pitch, Z - yaw
 kMeshRadius        = "MESH_RADIUS_"
@@ -342,6 +343,30 @@ def objRotationToPYR(obj: bpy.types.Object) -> Vector3f:
         euler = mathutils.Euler(obj.rotation_euler, obj.rotation_mode)
 
     return eulerToPYR(euler)
+
+
+def objImportedPivot(obj: bpy.types.Object) -> Optional[mathutils.Vector]:
+    """Read the mesh-only translation baked by native 3DO import.
+
+    This is local-coordinate provenance, not a Blender constraint or KEY
+    channel offset. An active authored Pivot takes precedence, including a
+    zero offset; muted and zero-influence constraints leave it available.
+    """
+    if k3doImportedPivot not in obj:
+        return None
+    value = obj[k3doImportedPivot]
+    try:
+        if isinstance(value, (str, bytes, dict)) or len(value) != 3:
+            raise ValueError('Expected three components')
+        if any(isinstance(component, bool) or not isinstance(component, (int, float))
+               for component in value):
+            raise ValueError('Expected numeric components')
+        validateFloat32(value, 'Imported pivot metadata')
+    except (TypeError, ValueError, OverflowError) as error:
+        raise ValueError(f"Invalid imported pivot metadata on '{obj.name}'") from error
+    if any(c.type == 'PIVOT' and not c.mute and c.influence for c in obj.constraints):
+        return None
+    return mathutils.Vector(value)
 
 
 def objPivot(obj: bpy.types.Object, *, forAnimation=False) -> mathutils.Vector:

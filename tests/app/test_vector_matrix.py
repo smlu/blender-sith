@@ -56,6 +56,7 @@ class ResourceVectorMatrixTests(SceneTestCase):
         for before, after in zip(source.meshHierarchy, target.meshHierarchy):
             self.assertEqual(before.meshIdx < 0, after.meshIdx < 0)
             self.assert_vector(after.position, before.position)
+            self.assert_vector(after.pivot, before.pivot)
             if before.meshIdx < 0:
                 continue
             old = source.geosets[0].meshes[before.meshIdx]
@@ -67,7 +68,9 @@ class ResourceVectorMatrixTests(SceneTestCase):
             # Check every vertex/color pair, including unused and coincident
             # vertices. Face-corner-only comparisons would miss those losses.
             for position, color in zip(old.vertices, old.vertexColors):
-                expected_position = tuple(position[i] + before.pivot[i] for i in range(3))
+                # Scene coordinates remain baked; native re-export restores the
+                # separate pivot so attachment frames and surfaces both survive.
+                expected_position = tuple(position)
                 expected_color = color_for_version(color if colors else (0, 0, 0, 1), version)
                 self.assertTrue(any(
                     max(abs(a - b) for a, b in zip(p, expected_position)) < 2e-6

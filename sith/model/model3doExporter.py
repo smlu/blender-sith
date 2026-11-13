@@ -114,6 +114,14 @@ def _set_hnode_pose(node: Mesh3doNode, scale: mathutils.Vector):
         node.position = Vector3f(*(scaledLocation - pivot))
         node.pivot    = Vector3f(*pivot)
 
+    imported = objImportedPivot(node.obj)
+    if imported is not None:
+        # The importer changed mesh coordinates, not joint-position channels.
+        # Match the scale baked into compensated native vertices; descendants
+        # still inherit the joint frame without this mesh-only translation.
+        meshScale = vectorMultiply(scale, node.obj.scale)
+        node.pivot = Vector3f(*vectorMultiply(imported, meshScale))
+
 
 def _get_mat_name_org(mat: bpy.types.Material) -> str:
     return mat.name.lower() if mat else ""
@@ -168,6 +176,7 @@ def _model3do_add_mesh(model: Model3do, obj: bpy.types.Object, scale: mathutils.
     mesh = obj.data
     if mesh is None:
         return -1
+    importedPivot = objImportedPivot(obj)
     # Material slots may override shared mesh materials on this object only.
     # Resolve their effective values without changing either datablock.
     materials = [slot.material for slot in obj.material_slots]
@@ -310,7 +319,8 @@ def _model3do_add_mesh(model: Model3do, obj: bpy.types.Object, scale: mathutils.
 
         for loop, source_loop in loops:
             used_vertices.add(loop.vert.index)
-            vertx  = Vector3f(*vectorMultiply(loop.vert.co, scale))
+            coordinate = loop.vert.co if importedPivot is None else loop.vert.co - importedPivot
+            vertx  = Vector3f(*vectorMultiply(coordinate, scale))
             currentNormal = corner_normals[source_loop].vector if corner_normals is not None else loop.vert.normal
             normal = _scaled_normal(source_normal(loop.vert, currentNormal, source_loop), scale)
             color_index = loop.vert.index if active_color and active_color.domain == 'POINT' else source_loop
@@ -384,7 +394,8 @@ def _model3do_add_mesh(model: Model3do, obj: bpy.types.Object, scale: mathutils.
         if vertex.index in used_vertices:
             continue
 
-        position = Vector3f(*vectorMultiply(vertex.co, scale))
+        coordinate = vertex.co if importedPivot is None else vertex.co - importedPivot
+        position = Vector3f(*vectorMultiply(coordinate, scale))
         color = (Vector4f(*loose_colors.data[vertex.index].color)
                  if exportVertexColors and loose_colors else kDefaultVertexColor)
         if not all(math.isfinite(value) for value in (*position, *color)):
@@ -413,7 +424,10 @@ def _set_mesh_properties(mesh: Mesh3do, obj: bpy.types.Object, scale: mathutils.
 
     radius_obj = getMeshRadiusObj(mesh, obj)
     if radius_obj is None:
-        mesh.radius = objRadius(obj, scale)
+        # Restored pivots move the mesh frame back to its native origin. Bound
+        # the emitted local coordinates, rather than the importer's baked mesh.
+        mesh.radius = (max((mathutils.Vector(v).length for v in mesh.vertices), default=0.0)
+                       if objImportedPivot(obj) is not None else objRadius(obj, scale))
     else:
         mesh.radius = radiusHelperValue(radius_obj, scale)
 

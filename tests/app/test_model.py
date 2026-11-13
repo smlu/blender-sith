@@ -75,7 +75,8 @@ class ModelImportExportTests(SceneTestCase):
                 self.assertEqual(mesh.faces[0].vertexIdxs, [0, 1, 2])
                 self.assertEqual(int(mesh.faces[0].type), 0x103)
                 self.assertEqual(mesh.uvs, [(0, 0), (1, 0), (0, 1)])
-                self.assert_vector(mesh.vertices[0], (0.125, 0, 0))
+                self.assert_vector(model.meshHierarchy[1].pivot, (0.125, 0, 0))
+                self.assert_vector(mesh.vertices[0], (0, 0, 0))
                 if version.value == 2.1:
                     self.assert_vector(mesh.vertexColors[0], (1 / 3, 1 / 3, 1 / 3, 1), 1e-6)
                 else:

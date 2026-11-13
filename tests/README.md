@@ -305,7 +305,7 @@ blender --background --factory-startup --python-exit-code 1 --python tests/run.p
 
 `app/` enables the current add-on through Blender's restricted registration path
 and exercises actual Blender data and
-operators: 3DO scene import/export, hierarchy, pivot baking,
+operators: 3DO scene import/export, hierarchy, reversible native pivot baking,
 face properties, colors, pixel-sized legacy UVs, radius helpers, MAT images,
 shader links, transparency, cels, placeholders and reload, as well as KEY actions,
 slots, F-curves and animation import/export. The runner disables it in `finally`.
@@ -316,6 +316,15 @@ startup files or preferences. No pytest, mocking framework or installed add-on i
 needed. Blender already provides NumPy. Standard-library `unittest.mock` is used
 for targeted fault injection, layouts and selected UI/file-browser boundaries;
 the suite does not replace Blender wholesale with fake modules.
+
+Native-pivot regressions check restored native mesh frames and equivalent scene
+surfaces across text versions, order/sync options and two serialized cycles.
+They cover Empty nodes, reflected/inherited scale, loose vertices, native-local
+mesh bounds, active zero-offset and muted/disabled Pivot precedence, malformed
+metadata before file replacement, older scenes without metadata, saved .blend
+metadata and unchanged KEY positions. Binary and shared-mesh option tests also
+retain pivots separately from vertices. These are file/Blender guarantees, not
+game attachment playback tests.
 
 Recovery tests also check the real import operator's opt-in default and warning/error
 paths, persisted Text Editor reports, vertices-only Blender meshes, preserved valid
