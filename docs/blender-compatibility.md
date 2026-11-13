@@ -348,18 +348,23 @@ a Pivot-constrained joint. Those must be baked or disabled first. Muted drivers,
 inactive NLA and translation-only parent motion remain supported. **Clear scene**
 may remove the old procedural motion instead when the initial Pivot is representable.
 
-Import intentionally bakes each 3DO node's pivot offset into its mesh vertices so
-the model can be edited directly in Blender. The original offsets are not retained
-for automatic reconstruction on export; imported objects normally export with
-zero pivots. This can preserve visible geometry and animation without preserving
-the original mesh coordinate frames.
+Import bakes each 3DO node's pivot into its editable mesh vertices and retains the
+original local offset as `3do_imported_pivot` metadata on both mesh and Empty
+objects. Export compensates only its temporary vertex coordinates and restores
+the native pivot, preserving the native mesh frame without changing joint-position
+channels or the visible surface. Object and inherited scale apply to both the
+compensated vertices and restored pivot. KEY channels do not use this metadata.
 
-Engine joint matrices can therefore have different translation components after
-export. In IJIM, this can affect mesh attachments or scripts using
-`GetThingJointPos`, even when the model looks and animates correctly. Check these
-uses in the target game when replacing a model that originally had nonzero pivots.
-Exact preservation would require an export-aware, visually editable pivot workflow;
-the current importer does not provide one.
+An active authored Pivot constraint takes precedence, even at zero offset; its
+existing validation and animation restrictions still apply. Muted/zero-influence
+constraints allow the imported pivot to be restored. Older .blend files lacking
+this metadata keep zero-pivot exports and require a fresh native import to recover
+the original offsets. The stored offset is local-coordinate provenance, not an
+automatic repair for arbitrary origin or Apply Transform edits.
+
+Native-frame preservation is tested through serialized 3DO/Blender comparisons.
+Check attachments and joint-position script uses in the target game when replacing
+a model; these comparisons do not establish game-runtime attachment behavior.
 
 ### Unapplied Transforms
 

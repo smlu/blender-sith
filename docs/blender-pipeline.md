@@ -155,18 +155,30 @@ unscaled source hierarchy, column-vector notation:
 source pivot moves this joint's mesh, not its child joint's origin
 ```
 
-Import adds the pivot to mesh vertices. It does **not** recreate that source pivot
-as an editable Blender constraint/property. Joint position and rotation stay on
-the object, so the model looks correct while remaining convenient to edit. The
-original split between vertex coordinates and pivot is then lost.
+Import adds the pivot to mesh vertices and stores its original local value in
+the object's `3do_imported_pivot` metadata, including on Empty nodes. Joint
+position and rotation stay on the object, so the editable surface is unchanged.
+Re-export subtracts that baked offset from its temporary vertex coordinates and
+restores the separate native pivot, preserving the native mesh frame as well as
+the visible surface. Object and inherited scale apply to both the compensated
+vertices and restored pivot; the scene mesh itself is not changed during export.
+
+This metadata is local-coordinate provenance, not a live constraint or an
+automatic repair of arbitrary origin/rig/Apply Transform edits. Such edits need
+their own origin/pivot review. Older .blend files without the metadata retain
+their previous zero-pivot export behavior; reimport the native file to recover
+its original pivot. Malformed metadata is rejected before writing output.
 
 An explicitly authored, supported Blender Pivot constraint is a separate case:
 export can encode its pivot and adjust node position. It must satisfy the
 adapter's restrictions. Static 3DO export supports some evaluated world-space
 pivots; KEY requires relative, target-free pivots. See
 [Pivot compatibility](blender-compatibility.md#pivot-compatibility) for parent,
-space and animation restrictions. A source pivot baked on import is not such a
-live constraint.
+space and animation restrictions. An active authored Pivot takes precedence over
+imported metadata, even with zero offset; muted and zero-influence constraints
+leave the imported pivot available. A source pivot baked on import is not such a
+live constraint. These round-trip guarantees concern native mesh frames, not a
+claim that a particular game's weapon attachment or animation has been tested.
 
 ### Geometry, Colors And Normals
 
@@ -522,8 +534,9 @@ apply. Recovery and the frame-zero policy are independent. See
 [KEY recovery](formats/key.md#opt-in-recovery) for supported damage and limits.
 
 For supported live pivots, imported local location is `KEY position + pivot`;
-export subtracts the pivot again. A baked 3DO source pivot remains baked and is
-not reconstructed here.
+export subtracts the pivot again. Imported native-pivot metadata is separate
+from these KEY channels: it compensates mesh coordinates on 3DO export and does
+not add to or subtract from KEY positions.
 
 ### Time And Markers
 
@@ -581,7 +594,7 @@ frame zero. The exported frame count remains `scene.frame_end + 1`.
 | Data | Core codec | Blender round trip |
 | --- | --- | --- |
 | Extra geosets | Model resource retains them | LOD 0 only |
-| Original pivots | Retained in model fields | Baked into vertices; not reversibly recovered |
+| Original pivots | Retained in model fields | Baked for editing; local metadata restores the native pivot/mesh frame on export |
 | Shared or unbound mesh records | Representable in resources | Original sharing/unbound records not guaranteed |
 | Vertex/face counts | Retained unless edited | Can change at seams or repeated corners |
 | Face normals | Stored field | Derived from emitted geometry |

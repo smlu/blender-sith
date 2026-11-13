@@ -311,7 +311,7 @@ Change only the properties you need; other values on the selected faces stay unc
 - 🎛️ Toggle it under **Object Properties > 3DO Properties > Preview > Extra Light**.
 - 🎨 Preview does not bake into vertex colors or texture pixels.
 
-> ⚠️ Imported pivots are baked into the mesh. Test joint attachments in the game when replacing models with nonzero pivots.
+> ⚠️ Imported pivots are baked into the editable mesh and retained as local metadata for native re-export. Older .blend files without that metadata need a fresh native import to recover original pivots. Review origin/Apply Transform edits separately, and test joint attachments in the target game; native mesh-frame preservation is not a game-runtime test.
 
 ## 🔧 Troubleshooting
 
