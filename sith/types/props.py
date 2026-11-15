@@ -20,8 +20,10 @@ import bpy
 def HexProperty(varName: str, name: Optional[str] = '', description: Optional[str] = '', default : Optional[str] = '', maxlen: int = 0, options: Optional[set] = set(), pad: bool = False) -> bpy.props.StringProperty:
     """Hex text property; Blender's maxlen=0 preserves all mask digits."""
     def normalize(value):
-        int(value, 16)
-        value = value.upper().lstrip('0X') or '0'
+        number = int(value, 16)
+        if number < 0:
+            raise ValueError('Hexadecimal masks cannot be negative')
+        value = format(number, 'X')
         if pad:
             value = value.zfill(len(value) + len(value) % 2)
         return value
