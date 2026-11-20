@@ -26,7 +26,7 @@ from .model3do import (
     Mesh3do
 )
 
-def import3do(file_path: Union[Path, str], mat_dirs: List[Union[Path, str]] = [], cmp_file: str = '', uvAbsolute_2_1: bool = True, importVertexColors: bool = True, importRadiusObj: bool = False, preserveOrder: bool = True, clearScene: bool = True, *, allowErrors: bool = False, warnings: Optional[List[str]] = None, importVertexNormals: bool = False) -> bpy.types.Object:
+def import3do(file_path: Union[Path, str], mat_dirs: List[Union[Path, str]] = [], cmp_file: str = '', uvAbsolute_2_1: bool = True, importVertexColors: bool = True, importRadiusObj: bool = False, preserveOrder: bool = True, clearScene: bool = True, *, allowErrors: bool = False, warnings: Optional[List[str]] = None, importVertexNormals: bool = False, importPivotHelpers: bool = False) -> bpy.types.Object:
     """Import strictly by default; opt-in recovery retains incomplete geometry.
 
     Recovery diagnostics are returned through ``warnings`` and saved as a Blender
@@ -109,6 +109,9 @@ def import3do(file_path: Union[Path, str], mat_dirs: List[Union[Path, str]] = []
                 if node.parentIdx == -1:
                     node.obj.parent_type = 'OBJECT'
                     node.obj.parent = baseObj
+            if importPivotHelpers:
+                for node in model.meshHierarchy:
+                    makePivotHelper(node.obj)
 
             # Keep recovery diagnostics with the imported model, not just stdout.
             if diagnostics:
@@ -230,8 +233,9 @@ def _set_obj_rotation(obj, rotation):
     objSetRotation(obj, rotation)
 
 def _set_obj_pivot(obj, pivot):
-    # Bake source pivot translation into the mesh for the editable zero-pivot
-    # workflow. This does not recreate the original joint-origin/pivot metadata.
+    # Keep editable mesh coordinates baked, but retain the native mesh-frame
+    # origin for re-export. EMPTY nodes can also be attachment frames.
+    obj[k3doPivot] = list(pivot)
     pvec = mathutils.Vector(pivot)
     if  obj.type == 'MESH' and obj.data is not None and pvec.length > 0:
         obj.data.transform(mathutils.Matrix.Translation(pvec))
@@ -469,8 +473,8 @@ def _create_objects_from_model(model: Model3do, uvAbsolute: bool, geosetNum: int
         if node.binaryData is not None:
             obj[kModel3doBinaryNode] = json.dumps(node.binaryData)
 
-        # Bake mesh pivots, but retain local node position and PYR rotation on
-        # the object so parenting reconstructs the resource's relative poses.
+        # Bake mesh pivots and retain their provenance separately from local
+        # position/PYR channels so both visible poses and attachments round trip.
         _set_obj_pivot(obj, node.pivot)
         if obj.type == 'MESH' and kModel3doBinaryMesh in obj.data:
             # Blender compresses custom normals. Snapshot the displayed values

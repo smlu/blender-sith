@@ -345,7 +345,7 @@ def _joint_lookup(obj, maxJoints):
     model = Model3do()
 
     def visit(current, parent):
-        if current.type not in ('EMPTY', 'MESH') or isRadiusObj(current):
+        if current.type not in ('EMPTY', 'MESH') or isRadiusObj(current) or isPivotHelperObj(current):
             return
         index = len(model.meshHierarchy)
         joint = Mesh3doNode()
@@ -357,7 +357,7 @@ def _joint_lookup(obj, maxJoints):
 
     # The top-level EMPTY is a model wrapper, not a KEY joint, just as in 3DO
     # export. Radius helpers and unsupported subtrees do not consume joint slots.
-    if obj.type == 'MESH' or not obj.children:
+    if obj.type == 'MESH' or not jointChildren(obj):
         visit(obj, -1)
     else:
         for child in obj.children:

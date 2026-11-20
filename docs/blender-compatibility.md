@@ -348,18 +348,41 @@ a Pivot-constrained joint. Those must be baked or disabled first. Muted drivers,
 inactive NLA and translation-only parent motion remain supported. **Clear scene**
 may remove the old procedural motion instead when the initial Pivot is representable.
 
-Import intentionally bakes each 3DO node's pivot offset into its mesh vertices so
-the model can be edited directly in Blender. The original offsets are not retained
-for automatic reconstruction on export; imported objects normally export with
-zero pivots. This can preserve visible geometry and animation without preserving
-the original mesh coordinate frames.
+Import bakes each 3DO node's pivot into its editable mesh vertices and retains the
+original local offset as the shared `3do_pivot` property on both Mesh and Empty
+objects. Export compensates only its temporary vertex coordinates and restores
+the native pivot, preserving the native mesh frame without changing joint-position
+channels or the visible surface. Object and inherited scale apply to both the
+compensated vertices and restored pivot. KEY channels do not use this property.
+The **Native Pivot** XYZ control uses the same storage for newly authored joints.
+It defines a static exported mesh/attachment frame while keeping the editable
+surface unchanged. The model-wrapper Empty is not a joint and has no native pivot.
+An optional pivot helper child shows the same offset in the viewport. While it
+exists, its position is the pivot, and it follows the joint's animation in the
+engine's attachment frame.
 
-Engine joint matrices can therefore have different translation components after
-export. In IJIM, this can affect mesh attachments or scripts using
-`GetThingJointPos`, even when the model looks and animates correctly. Check these
-uses in the target game when replacing a model that originally had nonzero pivots.
-Exact preservation would require an export-aware, visually editable pivot workflow;
-the current importer does not provide one.
+An active authored Pivot constraint takes precedence, even at zero offset; its
+existing validation and animation restrictions still apply. Muted/zero-influence
+constraints allow the stored pivot to be restored. Saved scenes containing only
+the previous `3do_imported_pivot` key remain readable without mutation. An explicit
+`3do_pivot`, including zero, wins; editing XYZ writes that key and removes the old
+one. Scenes lacking both keys keep zero-pivot exports and require a fresh native
+import to recover lost offsets. Review arbitrary origin or Apply Transform edits
+separately; the property does not automatically compensate those operations.
+
+**Bake Pivots** is off by default. When enabled, 3DO export ignores stored native
+offsets and writes current editable vertices with zero pivots, even if the stored
+offset is obsolete or malformed. This intentionally discards attachment-frame
+offsets while retaining the surface and descendant joint poses. Supported Blender
+Pivot constraints are still validated and baked into temporary exported mesh
+coordinates; unsupported constraints still fail. Blender data and KEY channels
+are not changed. Automatic mesh radii use final emitted coordinates, explicit
+radius helpers retain their values subject to enclosure validation, and the
+authored model-radius policy is unchanged. This is not animation baking.
+
+Native-frame preservation is tested through serialized 3DO/Blender comparisons.
+Check attachments and joint-position script uses in the target game when replacing
+a model; these comparisons do not establish game-runtime attachment behavior.
 
 ### Unapplied Transforms
 

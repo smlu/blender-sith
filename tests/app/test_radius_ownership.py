@@ -106,5 +106,5 @@ class RadiusOwnershipTests(SceneTestCase):
         self.assertIsNone(getMeshRadiusObj(None, first))
         model = makeModel3doFromObj('fallback.3do', root)
         radius = model.geosets[0].meshes[model.meshHierarchy[1].meshIdx].radius
-        self.assertGreater(radius, 1)
-        self.assertLess(radius, 2)
+        # Pivot baking no longer inflates the native mesh's local bound.
+        self.assertAlmostEqual(radius, 1)
