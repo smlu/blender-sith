@@ -357,7 +357,9 @@ compensated vertices and restored pivot. KEY channels do not use this property.
 The **Native Pivot** XYZ control uses the same storage for newly authored joints.
 It defines a static exported mesh/attachment frame while keeping the editable
 surface unchanged. The model-wrapper Empty is not a joint and has no native pivot.
-Live viewport origin/gizmo and attachment-frame evaluation are follow-up work.
+An optional pivot helper child shows the same offset in the viewport. While it
+exists, its position is the pivot, and it follows the joint's animation in the
+engine's attachment frame.
 
 An active authored Pivot constraint takes precedence, even at zero offset; its
 existing validation and animation restrictions still apply. Muted/zero-influence

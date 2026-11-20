@@ -136,7 +136,7 @@ def _get_mat_name(mat: bpy.types.Material) -> str:
     return name if name.endswith('.mat') else name + '.mat'
 
 def _is_aux_obj(obj: bpy.types.Object) -> bool:
-    return isRadiusObj(obj)
+    return isRadiusObj(obj) or isPivotHelperObj(obj)
 
 def _uv_add_image_size(uv: mathutils.Vector, mat) -> mathutils.Vector:
     image = getMaterialImage(mat)
@@ -655,7 +655,7 @@ def makeModel3doFromObj(name: str, obj: bpy.types.Object, uvAbsolute: bool = Fal
 
     # 1. A mesh root is a joint. An EMPTY with children is instead the model
     # wrapper: its location becomes INSERT OFFSET, not a hierarchy-node pose.
-    if obj.type == 'MESH' or len(obj.children) == 0:
+    if obj.type == 'MESH' or len(jointChildren(obj)) == 0:
         _model3do_add_obj(model, obj, uvAbsolute=uvAbsolute, exportVertexColors=exportVertexColors, hierarchyOnly=hierarchyOnly, bakePivots=bakePivots)
     else:
         validateObjTransform(obj)

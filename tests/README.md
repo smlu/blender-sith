@@ -306,6 +306,7 @@ blender --background --factory-startup --python-exit-code 1 --python tests/run.p
 `app/` enables the current add-on through Blender's restricted registration path
 and exercises actual Blender data and
 operators: 3DO scene import/export, hierarchy, reversible native pivot baking,
+pivot helpers checked against the engine's joint-frame chain through KEY playback,
 face properties, colors, pixel-sized legacy UVs, radius helpers, MAT images,
 shader links, transparency, cels, placeholders and reload, as well as KEY actions,
 slots, F-curves and animation import/export. The runner disables it in `finally`.

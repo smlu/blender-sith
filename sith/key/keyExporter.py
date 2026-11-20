@@ -497,7 +497,7 @@ def _make_key_from_obj(key_name: str, obj: bpy.types.Object, scene: bpy.types.Sc
     # Its procedural/animated motion must be baked onto joints before export.
     validateKeyActionState(obj)
     validateConstraintAnimation(obj)
-    if obj.type == 'EMPTY' and obj.children:
+    if obj.type == 'EMPTY' and jointChildren(obj):
         transform_paths = ('location', 'rotation_euler', 'rotation_quaternion', 'rotation_axis_angle')
         if any(curve.is_valid and not curve.mute and curve.data_path in transform_paths
                for curve in getActionFCurves(obj)):

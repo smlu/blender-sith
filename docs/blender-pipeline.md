@@ -166,8 +166,11 @@ vertices and restored pivot; the scene mesh itself is not changed during export.
 The **Native Pivot** XYZ control authors this same local offset on Mesh or Empty
 joints. Changing it preserves editable geometry and joint channels while defining
 the exported native frame. It is static and non-animatable, not a live constraint
-or an automatic repair of arbitrary origin/rig/Apply Transform edits. A visual
-helper and full viewport attachment-frame evaluation remain follow-up work.
+or an automatic repair of arbitrary origin/rig/Apply Transform edits. **Show Pivot
+Helper** (or **Import Pivot Helpers**) adds a movable arrows child at the pivot.
+While it exists, its position is the pivot. As a child of the joint it evaluates
+the engine's attachment frame, `parent · T(-parentPivot) · J · T(pivot)`, through
+KEY playback, so parented objects preview attachments.
 Saved .blend files with only the old `3do_imported_pivot` key are read without
 migration. The canonical property takes precedence even when explicitly zero;
 editing the numeric control writes it and removes the legacy key. Scenes without

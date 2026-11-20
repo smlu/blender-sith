@@ -53,6 +53,8 @@ kModel3doGeometryMode = "sith_model3do_geometry_mode"
 kModel3doRadius       = "_sith_radius"
 kModel3doRadiusShape  = "_sith_radius_shape"
 kModel3doRadiusKind   = "_sith_radius_kind"
+kModel3doPivotHelper  = "_sith_pivot_helper"
+kPivotHelperPrefix    = "PIVOT_"
 kModel3doImportReport = "_sith_import_report"
 kModel3doShadow       = "sith_model3do_shadow"
 kModel3doBinaryModel  = "_sith_modl_model"
@@ -239,6 +241,23 @@ def _get_radius_child(obj, kind):
 def getModelRadiusObj(obj: bpy.types.Object) -> Optional[bpy.types.Object]:
     return _get_radius_child(obj, kModelRadius)
 
+
+def isPivotHelperObj(obj) -> bool:
+    """Pivot helpers mark a joint's native pivot; they are never joints."""
+    return bool(obj.get(kModel3doPivotHelper))
+
+
+def jointChildren(obj) -> list:
+    """Children that can be joints or model content, without pivot helpers."""
+    return [child for child in obj.children if not isPivotHelperObj(child)]
+
+
+def getPivotHelperObj(obj: bpy.types.Object) -> Optional[bpy.types.Object]:
+    helpers = [child for child in obj.children if isPivotHelperObj(child)]
+    if len(helpers) > 1:
+        raise ValueError(f"Multiple pivot helpers belong to '{obj.name}'")
+    return helpers[0] if helpers else None
+
 def getMeshObjectByName(meshName: str) -> bpy.types.Object:
     if meshName in bpy.context.scene.objects:
         return bpy.context.scene.objects[meshName]
@@ -359,7 +378,29 @@ def _validatedNativePivot(obj: bpy.types.Object, value) -> mathutils.Vector:
     return mathutils.Vector(value)
 
 
+def pivotHelperValue(helper: bpy.types.Object) -> mathutils.Vector:
+    """A helper's origin in its owner's local frame is that joint's native pivot."""
+    if helper.parent_type != 'OBJECT':
+        raise ValueError(f"Bake {helper.parent_type} parenting on pivot helper '{helper.name}' before 3DO export")
+    if any(not constraint.mute and constraint.influence for constraint in helper.constraints):
+        raise ValueError(f"Apply active constraints on pivot helper '{helper.name}' before 3DO export")
+    # A Ctrl+P parent inverse is part of the helper's placement in its owner.
+    return _validatedNativePivot(helper, (helper.matrix_parent_inverse @ helper.matrix_basis).translation)
+
+
+def _placePivotHelper(helper: bpy.types.Object, pivot: mathutils.Vector):
+    try:
+        placement = helper.matrix_parent_inverse.inverted()
+    except ValueError as error:
+        raise ValueError(f"Pivot helper '{helper.name}' has a degenerate parent inverse") from error
+    helper.location = placement @ pivot - helper.delta_location
+
+
 def _storedNativePivot(obj: bpy.types.Object) -> Optional[mathutils.Vector]:
+    # A pivot helper, like a radius helper, is authoritative while it exists.
+    helper = getPivotHelperObj(obj)
+    if helper is not None:
+        return pivotHelperValue(helper)
     # Presence, not truthiness: an explicitly authored zero overrides old data.
     key = k3doPivot if k3doPivot in obj else k3doImportedPivot
     return _validatedNativePivot(obj, obj[key]) if key in obj else None
@@ -373,9 +414,52 @@ def getNativePivot(obj: bpy.types.Object):
 
 def setNativePivot(obj: bpy.types.Object, value):
     """Author the native mesh frame without changing geometry or KEY channels."""
-    obj[k3doPivot] = list(_validatedNativePivot(obj, value))
+    pivot = _validatedNativePivot(obj, value)
+    obj[k3doPivot] = list(pivot)
     if k3doImportedPivot in obj:
         del obj[k3doImportedPivot]
+    helper = getPivotHelperObj(obj)
+    if helper is not None:
+        _placePivotHelper(helper, pivot)
+
+
+def makePivotHelper(obj: bpy.types.Object) -> bpy.types.Object:
+    """Show a joint's native pivot as a movable child at the engine's joint frame.
+
+    The engine places attachments and joint queries at T(-parentPivot) · J · T(pivot);
+    as a child at the pivot offset, the helper follows Blender animation there.
+    """
+    existing = getPivotHelperObj(obj)
+    if existing is not None:
+        return existing
+    value = _storedNativePivot(obj)
+    if value is None:
+        value = mathutils.Vector((0.0, 0.0, 0.0))
+    helper = bpy.data.objects.new(kPivotHelperPrefix + obj.name, None)
+    helper[kModel3doPivotHelper] = True
+    helper.empty_display_type = 'ARROWS'
+    extent = max((vertex.co.length for vertex in obj.data.vertices), default=0.0) \
+        if obj.type == 'MESH' and obj.data is not None else 0.0
+    helper.empty_display_size = max(extent * 0.5, 0.01)
+    helper.show_in_front = True
+    for collection in obj.users_collection or (bpy.context.scene.collection,):
+        collection.objects.link(helper)
+    helper.parent_type = 'OBJECT'
+    helper.parent = obj
+    helper.location = value
+    return helper
+
+
+def removePivotHelper(obj: bpy.types.Object):
+    """Keep the helper's current pivot as the stored value, then delete it."""
+    helper = getPivotHelperObj(obj)
+    if helper is None:
+        return
+    value = pivotHelperValue(helper)
+    obj[k3doPivot] = list(value)
+    if k3doImportedPivot in obj:
+        del obj[k3doImportedPivot]
+    bpy.data.objects.remove(helper)
 
 
 def objNativePivot(obj: bpy.types.Object) -> Optional[mathutils.Vector]:

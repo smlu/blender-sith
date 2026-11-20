@@ -74,6 +74,10 @@ from .model.utils import (
     kModel3doShadow,
     kNameOrderPrefix,
     getNativePivot,
+    getPivotHelperObj,
+    isPivotHelperObj,
+    makePivotHelper,
+    removePivotHelper,
     setNativePivot,
 )
 
@@ -404,6 +408,12 @@ class ImportModel3do(bpy.types.Operator, ImportHelper):
         default     = False,
     )
 
+    import_pivot_helpers: bpy.props.BoolProperty(
+        name        = 'Import Pivot Helpers',
+        description = "Show each joint's native pivot as a movable arrows helper. Moving a helper sets that joint's pivot, and objects parented to it follow the joint's attachment frame",
+        default     = False,
+    )
+
     preserve_order: bpy.props.BoolProperty(
         name        = 'Preserve Mesh Hierarchy',
         description = f"Keep the original node order visible in Blender by prefixing joint object names with '{kNameOrderPrefix}<seq_number>_'.\n\nParent links and stored node sequence numbers are preserved with this option on or off. Without prefixes, Blender's name ordering may change unsynced mesh-list order on export.",
@@ -434,6 +444,7 @@ class ImportModel3do(bpy.types.Operator, ImportHelper):
         layout.prop(self, 'vertex_colors')
         layout.prop(self, 'vertex_normals')
         layout.prop(self, 'import_radius_objects')
+        layout.prop(self, 'import_pivot_helpers')
         layout.prop(self, 'preserve_order')
         layout.prop(self, 'allow_errors')
 
@@ -457,7 +468,7 @@ class ImportModel3do(bpy.types.Operator, ImportHelper):
 
         warnings = []
         try:
-            obj = import3do(self.filepath, [self.mat_dir], self.cmp_file, self.uv_absolute_3do_2_1, self.vertex_colors, self.import_radius_objects, self.preserve_order, self.clear_scene, allowErrors=self.allow_errors, warnings=warnings, importVertexNormals=getattr(self, 'vertex_normals', False))
+            obj = import3do(self.filepath, [self.mat_dir], self.cmp_file, self.uv_absolute_3do_2_1, self.vertex_colors, self.import_radius_objects, self.preserve_order, self.clear_scene, allowErrors=self.allow_errors, warnings=warnings, importVertexNormals=getattr(self, 'vertex_normals', False), importPivotHelpers=getattr(self, 'import_pivot_helpers', False))
         except (AssertionError, TypeError, ValueError, OSError, IndexError, RuntimeError) as error:
             self.report({'ERROR'}, f'Cannot import 3DO: {error}')
             return {'CANCELLED'}
@@ -921,6 +932,30 @@ class View3doImportReport(bpy.types.Operator):
         return {'FINISHED'}
 
 
+class Toggle3doPivotHelper(bpy.types.Operator):
+    """Show this joint's native pivot as a movable helper, or remove the helper and keep its current value"""
+    bl_idname  = 'object.sith_toggle_pivot_helper'
+    bl_label   = 'Toggle Pivot Helper'
+    bl_options = {'REGISTER', 'UNDO'}
+
+    @classmethod
+    def poll(cls, context):
+        obj = context.object
+        return obj is not None and obj.type in ('EMPTY', 'MESH') and not isPivotHelperObj(obj)
+
+    def execute(self, context):
+        obj = context.object
+        try:
+            if getPivotHelperObj(obj) is None:
+                makePivotHelper(obj)
+            else:
+                removePivotHelper(obj)
+        except ValueError as error:
+            self.report({'ERROR'}, str(error))
+            return {'CANCELLED'}
+        return {'FINISHED'}
+
+
 class Model3doPanel(bpy.types.Panel):
     """
     Panel exposes 3DO mesh properties to the UI.
@@ -982,6 +1017,12 @@ class Model3doPanel(bpy.types.Panel):
         pivot = node_properties.column()
         pivot.enabled = not any(c.type == 'PIVOT' and not c.mute and c.influence for c in obj.constraints)
         pivot.prop(obj, 'sith_model3do_pivot', text='Native Pivot')
+        try:
+            helper = getPivotHelperObj(obj)
+        except ValueError:
+            helper = None
+        pivot.operator(Toggle3doPivotHelper.bl_idname, icon='EMPTY_ARROWS',
+                       text='Remove Pivot Helper' if helper is not None else 'Show Pivot Helper')
         if not pivot.enabled:
             node_properties.label(text='Blender Pivot constraint overrides Native Pivot')
 
@@ -1180,6 +1221,7 @@ classes = (
     Mesh3doFaceLayer,
     Mesh3doFacePanel,
     View3doImportReport,
+    Toggle3doPivotHelper,
     Model3doPanel,
     ImportMat,
     ExportMat,
