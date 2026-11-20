@@ -326,6 +326,15 @@ metadata and unchanged KEY positions. Binary and shared-mesh option tests also
 retain pivots separately from vertices. These are file/Blender guarantees, not
 game attachment playback tests.
 
+`test_pivot_workflow.py` additionally exercises the shared `3do_pivot` property
+and non-animatable numeric XYZ control on authored Mesh/Empty nodes, saved legacy
+`3do_imported_pivot` fallback without implicit migration, canonical zero priority,
+and explicit Bake Pivots across text/binary output. Baking covers unchanged scene
+geometry and child poses, loose vertices, automatic and authored bounds, legacy
+constraint validation, and discarded unusable metadata without subtract/add
+precision loss. Registered-operator and KEY-channel checks use real Blender.
+The numeric control does not claim live viewport attachment evaluation.
+
 Recovery tests also check the real import operator's opt-in default and warning/error
 paths, persisted Text Editor reports, vertices-only Blender meshes, preserved valid
 UV corners, recomputed face normals and rejection before Clear Scene when no usable

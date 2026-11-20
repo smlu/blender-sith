@@ -69,6 +69,7 @@ Recovery may leave missing geometry or joints.
 | **v2.1 Absolute UV** | On | Write pixel-sized UVs; shown only for 2.1 and Grim Fandango. |
 | **Export Vertex Colors** | Off | Include the active vertex-color layer. |
 | **Sync Mesh List with Node Hierarchy** | On | Order exported meshes to follow the joint hierarchy. |
+| **Bake Pivots** | Off | Write zero pivots, retaining the surface in exported vertices. Use this to discard obsolete native offsets or recover the earlier zero-pivot workflow. The Blender scene is unchanged. |
 | **Export Textures to MAT** | Off | Export the model's image textures; reveals the options below. |
 
 Disable **Sync Mesh List with Node Hierarchy** to keep Blender traversal order instead.
@@ -286,6 +287,7 @@ Open **Object Properties > 3DO Properties**.
 - 🔢 **Sequence No.**: Joint order; `-1` means automatic.
 - 🏷️ **Name**: Exported joint name.
 - 🚩 **Flags / Type**: Game-specific joint settings.
+- 📍 **Native Pivot**: Set the local X/Y/Z native mesh-frame offset on Mesh or Empty joints. Import uses the same property. Editing it preserves the editable surface and KEY joint channels; export compensates native vertices. An active Blender Pivot constraint overrides it.
 
 These are engine properties; they do not necessarily change Blender's viewport.
 
@@ -311,7 +313,21 @@ Change only the properties you need; other values on the selected faces stay unc
 - 🎛️ Toggle it under **Object Properties > 3DO Properties > Preview > Extra Light**.
 - 🎨 Preview does not bake into vertex colors or texture pixels.
 
-> ⚠️ Imported pivots are baked into the editable mesh and retained as local metadata for native re-export. Older .blend files without that metadata need a fresh native import to recover original pivots. Review origin/Apply Transform edits separately, and test joint attachments in the target game; native mesh-frame preservation is not a game-runtime test.
+Native pivots are stored as `3do_pivot`. Saved scenes containing the earlier
+`3do_imported_pivot` key remain readable without migration; editing **Native Pivot**
+writes the shared property, including an explicit zero. Scenes with neither key
+keep their previous zero-pivot export behavior. Reimport the native file to recover
+an original offset that was never stored. **Bake Pivots** deliberately ignores
+stored offsets, including malformed values, and exports the current editable mesh.
+Supported Blender Pivot constraints retain their validation and are baked in the
+exported copy. Automatic mesh bounds use the emitted coordinates; authored radius
+helpers and the model-radius policy remain in effect.
+
+The numeric control defines the exported frame; it does not move the viewport
+origin, add a pivot gizmo, or preview attached objects in that native frame.
+Full viewport pivot/attachment evaluation is follow-up work. Review origin/Apply
+Transform edits separately and test attachments in the target game; these
+file/Blender guarantees are not a game-runtime test.
 
 ## 🔧 Troubleshooting
 

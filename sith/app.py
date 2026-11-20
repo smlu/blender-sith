@@ -72,7 +72,9 @@ from .model.utils import (
     kModel3doGeometryMode,
     kModel3doImportReport,
     kModel3doShadow,
-    kNameOrderPrefix
+    kNameOrderPrefix,
+    getNativePivot,
+    setNativePivot,
 )
 
 from .utils import *
@@ -610,6 +612,12 @@ class ExportModel3do(bpy.types.Operator, ExportHelper):
         default     = True,
     )
 
+    bake_pivots: bpy.props.BoolProperty(
+        name        = 'Bake Pivots',
+        description = 'Write zero node pivots and bake their offsets into exported mesh coordinates. Discards stored native pivot metadata without changing the Blender scene',
+        default     = False,
+    )
+
     export_textures: bpy.props.BoolProperty(
         name='Export Textures to MAT', default=False,
         description='Write the model\'s image textures and all bound cels to the MAT directory. Exports image pixels, not procedural shaders or preview lighting',
@@ -641,6 +649,7 @@ class ExportModel3do(bpy.types.Operator, ExportHelper):
             layout.prop(self, 'absolute_uv')
         layout.prop(self, 'export_vert_colors')
         layout.prop(self, 'sync_mesh_list')
+        layout.prop(self, 'bake_pivots')
         layout.prop(self, 'export_textures')
         if self.export_textures:
             textures = layout.column()
@@ -680,6 +689,7 @@ class ExportModel3do(bpy.types.Operator, ExportHelper):
                 self.absolute_uv = False
             warnings = []
             export3do(self.obj, self.filepath, version, self.absolute_uv, self.export_vert_colors, self.sync_mesh_list,
+                      bakePivots=self.bake_pivots,
                       warnings=warnings, exportTextures=self.export_textures, textureEncoding=self.texture_encoding,
                       texturePalette=self.texture_cmp_file, overwriteTextures=self.overwrite_textures,
                       generateMipmaps=self.texture_mipmaps, textureDirectory=self.texture_directory)
@@ -969,6 +979,11 @@ class Model3doPanel(bpy.types.Panel):
         node_properties.prop(obj, 'sith_model3do_hnode_name' , text='Name')
         node_properties.prop(obj, 'sith_model3do_hnode_flags', text='Flags')
         node_properties.prop(obj, 'sith_model3do_hnode_type' , text='Type')
+        pivot = node_properties.column()
+        pivot.enabled = not any(c.type == 'PIVOT' and not c.mute and c.influence for c in obj.constraints)
+        pivot.prop(obj, 'sith_model3do_pivot', text='Native Pivot')
+        if not pivot.enabled:
+            node_properties.label(text='Blender Pivot constraint overrides Native Pivot')
 
 
 # -- Update callbacks for Mesh3doFaceLayer properties --
@@ -1257,6 +1272,13 @@ def register():
     )
 
     # 3DO Mesh Face custom properties
+    bpy.types.Object.sith_model3do_pivot = bpy.props.FloatVectorProperty(
+        name='Native Pivot', size=3, subtype='XYZ',
+        description='Local native mesh-frame offset for 3DO export. Keeps editable geometry and KEY joint channels unchanged; an active Blender Pivot constraint takes precedence',
+        get=getNativePivot, set=setNativePivot,
+        options={'LIBRARY_EDITABLE'},
+    )
+
     bpy.types.WindowManager.sith_mesh3do_face_layer = bpy.props.PointerProperty(type=Mesh3doFaceLayer)
 
     # KEY custom properties
@@ -1292,6 +1314,7 @@ def unregister():
     del bpy.types.Object.sith_model3do_hnode_type
     del bpy.types.Object.sith_model3do_hnode_name
     del bpy.types.Object.sith_model3do_hnode_idx
+    del bpy.types.Object.sith_model3do_pivot
     del bpy.types.Object.sith_model3do_texture_mode
     delattr(bpy.types.Object, kModel3doGeometryMode)
     delattr(bpy.types.Object, kModel3doShadow)

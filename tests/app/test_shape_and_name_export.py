@@ -98,6 +98,7 @@ class ShapeAndNameExportTests(SceneTestCase):
         operation = SimpleNamespace(filepath=str(self.path), obj=self.obj,
                                     version=Model3doFileVersion.Version2_3.name,
                                     absolute_uv=False, export_vert_colors=False, sync_mesh_list=True,
+                                    bake_pivots=False,
                                     export_textures=False, texture_encoding='RGBA32', texture_cmp_file='',
                                     overwrite_textures=False, texture_mipmaps=True,
                                     texture_directory='mat',

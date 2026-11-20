@@ -156,18 +156,35 @@ source pivot moves this joint's mesh, not its child joint's origin
 ```
 
 Import adds the pivot to mesh vertices and stores its original local value in
-the object's `3do_imported_pivot` metadata, including on Empty nodes. Joint
+the object's neutral `3do_pivot` property, including on Empty nodes. Joint
 position and rotation stay on the object, so the editable surface is unchanged.
 Re-export subtracts that baked offset from its temporary vertex coordinates and
 restores the separate native pivot, preserving the native mesh frame as well as
 the visible surface. Object and inherited scale apply to both the compensated
 vertices and restored pivot; the scene mesh itself is not changed during export.
 
-This metadata is local-coordinate provenance, not a live constraint or an
-automatic repair of arbitrary origin/rig/Apply Transform edits. Such edits need
-their own origin/pivot review. Older .blend files without the metadata retain
-their previous zero-pivot export behavior; reimport the native file to recover
-its original pivot. Malformed metadata is rejected before writing output.
+The **Native Pivot** XYZ control authors this same local offset on Mesh or Empty
+joints. Changing it preserves editable geometry and joint channels while defining
+the exported native frame. It is static and non-animatable, not a live constraint
+or an automatic repair of arbitrary origin/rig/Apply Transform edits. A visual
+helper and full viewport attachment-frame evaluation remain follow-up work.
+Saved .blend files with only the old `3do_imported_pivot` key are read without
+migration. The canonical property takes precedence even when explicitly zero;
+editing the numeric control writes it and removes the legacy key. Scenes without
+either property retain zero-pivot export behavior; reimport to recover lost
+original pivots. Malformed effective stored values fail before writing in the
+default mode; a value superseded by an active Blender Pivot constraint is unused.
+
+The opt-in **Bake Pivots** export option writes zero pivots for every joint,
+including Empty nodes. Stored native offsets are ignored and current editable
+vertices are exported directly, avoiding subtract/add precision loss and allowing
+obsolete or malformed stored offsets to be discarded. Supported Blender Pivot
+constraints are still validated, with their resulting offset baked into the
+temporary exported mesh. Joint positions, descendant joints and Blender data are
+unchanged by export. Automatic mesh radii bound the final emitted coordinates;
+explicit radius helpers and authored model-radius behavior remain unchanged.
+This mode intentionally loses native attachment-frame offsets. It is a 3DO
+export option, not an animation bake or a KEY-channel conversion.
 
 An explicitly authored, supported Blender Pivot constraint is a separate case:
 export can encode its pivot and adjust node position. It must satisfy the
@@ -175,8 +192,8 @@ adapter's restrictions. Static 3DO export supports some evaluated world-space
 pivots; KEY requires relative, target-free pivots. See
 [Pivot compatibility](blender-compatibility.md#pivot-compatibility) for parent,
 space and animation restrictions. An active authored Pivot takes precedence over
-imported metadata, even with zero offset; muted and zero-influence constraints
-leave the imported pivot available. A source pivot baked on import is not such a
+the stored native pivot, even with zero offset; muted and zero-influence constraints
+leave the stored pivot available. A source pivot baked on import is not such a
 live constraint. These round-trip guarantees concern native mesh frames, not a
 claim that a particular game's weapon attachment or animation has been tested.
 
@@ -534,7 +551,7 @@ apply. Recovery and the frame-zero policy are independent. See
 [KEY recovery](formats/key.md#opt-in-recovery) for supported damage and limits.
 
 For supported live pivots, imported local location is `KEY position + pivot`;
-export subtracts the pivot again. Imported native-pivot metadata is separate
+export subtracts the pivot again. The stored native-pivot property is separate
 from these KEY channels: it compensates mesh coordinates on 3DO export and does
 not add to or subtract from KEY positions.
 

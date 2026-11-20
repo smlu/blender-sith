@@ -41,7 +41,8 @@ k3doLightingMode   = "3do_lighting_mode"
 k3doTextureMode    = "3do_texture_mode"
 k3doUvAbsolute     = "3do_uv_absolute"
 k3doLooseColors    = "3do_loose_vertex_colors"
-k3doImportedPivot  = "3do_imported_pivot"
+k3doPivot          = "3do_pivot"
+k3doImportedPivot  = "3do_imported_pivot"  # Read compatibility for saved scenes.
 kDefaultFaceColor  = Vector4f(0.0, 0.0, 0.0, 1.0)  # Black color
 kImEulerOrder      = "YXZ"                         # Infernal machine euler orientation order Y - roll, X - pitch, Z - yaw
 kMeshRadius        = "MESH_RADIUS_"
@@ -345,28 +346,47 @@ def objRotationToPYR(obj: bpy.types.Object) -> Vector3f:
     return eulerToPYR(euler)
 
 
-def objImportedPivot(obj: bpy.types.Object) -> Optional[mathutils.Vector]:
-    """Read the mesh-only translation baked by native 3DO import.
-
-    This is local-coordinate provenance, not a Blender constraint or KEY
-    channel offset. An active authored Pivot takes precedence, including a
-    zero offset; muted and zero-influence constraints leave it available.
-    """
-    if k3doImportedPivot not in obj:
-        return None
-    value = obj[k3doImportedPivot]
+def _validatedNativePivot(obj: bpy.types.Object, value) -> mathutils.Vector:
     try:
         if isinstance(value, (str, bytes, dict)) or len(value) != 3:
             raise ValueError('Expected three components')
         if any(isinstance(component, bool) or not isinstance(component, (int, float))
                for component in value):
             raise ValueError('Expected numeric components')
-        validateFloat32(value, 'Imported pivot metadata')
+        validateFloat32(value, 'Native pivot')
     except (TypeError, ValueError, OverflowError) as error:
-        raise ValueError(f"Invalid imported pivot metadata on '{obj.name}'") from error
+        raise ValueError(f"Invalid native pivot on '{obj.name}'") from error
+    return mathutils.Vector(value)
+
+
+def _storedNativePivot(obj: bpy.types.Object) -> Optional[mathutils.Vector]:
+    # Presence, not truthiness: an explicitly authored zero overrides old data.
+    key = k3doPivot if k3doPivot in obj else k3doImportedPivot
+    return _validatedNativePivot(obj, obj[key]) if key in obj else None
+
+
+def getNativePivot(obj: bpy.types.Object):
+    """RNA getter; merely reading an older scene never migrates its data."""
+    value = _storedNativePivot(obj)
+    return tuple(value) if value is not None else (0.0, 0.0, 0.0)
+
+
+def setNativePivot(obj: bpy.types.Object, value):
+    """Author the native mesh frame without changing geometry or KEY channels."""
+    obj[k3doPivot] = list(_validatedNativePivot(obj, value))
+    if k3doImportedPivot in obj:
+        del obj[k3doImportedPivot]
+
+
+def objNativePivot(obj: bpy.types.Object) -> Optional[mathutils.Vector]:
+    """Resolve the shared authored/imported local native mesh-frame offset.
+
+    An active Blender Pivot constraint takes precedence, including zero;
+    muted and zero-influence constraints leave the stored value available.
+    """
     if any(c.type == 'PIVOT' and not c.mute and c.influence for c in obj.constraints):
         return None
-    return mathutils.Vector(value)
+    return _storedNativePivot(obj)
 
 
 def objPivot(obj: bpy.types.Object, *, forAnimation=False) -> mathutils.Vector:

@@ -35,14 +35,14 @@ kDefaultVertexColor = Vector4f(0.0, 0.0, 0.0, 1.0)
 kHNDefaultFlags     = 0
 kHNDefaultType      = 0
 
-def export3do(obj: bpy.types.Object, path: str, version: Model3doFileVersion, uvAbsolute: bool, exportVertexColors: bool, sync_mesh_list: bool, *, warnings=None, exportTextures=False, textureEncoding='RGBA32', texturePalette='', overwriteTextures=False, generateMipmaps=True, textureDirectory='mat'):
+def export3do(obj: bpy.types.Object, path: str, version: Model3doFileVersion, uvAbsolute: bool, exportVertexColors: bool, sync_mesh_list: bool, *, bakePivots=False, warnings=None, exportTextures=False, textureEncoding='RGBA32', texturePalette='', overwriteTextures=False, generateMipmaps=True, textureDirectory='mat'):
     """Build the resource from a Blender model, then write the requested version."""
     with BenchmarkMeter(' done in {:.4f} sec.'):
         print("exporting 3DO: %r..." % (path), end="")
 
         bpy.path.ensure_ext(path, '.3do')
         model_name = os.path.basename(path)
-        model3do = makeModel3doFromObj(model_name, obj, uvAbsolute=uvAbsolute, exportVertexColors=exportVertexColors, sync_mesh_list=sync_mesh_list)
+        model3do = makeModel3doFromObj(model_name, obj, uvAbsolute=uvAbsolute, exportVertexColors=exportVertexColors, sync_mesh_list=sync_mesh_list, bakePivots=bakePivots)
         if not model3do.meshHierarchy:
             raise ValueError('No exportable joints were found; select a model hierarchy, not only radius helpers.')
         if version != Model3doFileFormat.GrimFandango:
@@ -99,7 +99,7 @@ def export3do(obj: bpy.types.Object, path: str, version: Model3doFileVersion, uv
                         warnings.append(f'Could not remove export temporary directory {staging}: {error}')
 
 
-def _set_hnode_pose(node: Mesh3doNode, scale: mathutils.Vector):
+def _set_hnode_pose(node: Mesh3doNode, scale: mathutils.Vector, *, bakePivots=False):
     """Copy a local pose to a resource node without changing the Blender object."""
     # Only inherited scale affects this translation. The object's own scale is
     # already baked into its mesh vertices by _model3do_add_obj.
@@ -114,13 +114,13 @@ def _set_hnode_pose(node: Mesh3doNode, scale: mathutils.Vector):
         node.position = Vector3f(*(scaledLocation - pivot))
         node.pivot    = Vector3f(*pivot)
 
-    imported = objImportedPivot(node.obj)
-    if imported is not None:
-        # The importer changed mesh coordinates, not joint-position channels.
+    nativePivot = None if bakePivots else objNativePivot(node.obj)
+    if nativePivot is not None:
+        # A native pivot changes mesh coordinates, not joint-position channels.
         # Match the scale baked into compensated native vertices; descendants
         # still inherit the joint frame without this mesh-only translation.
         meshScale = vectorMultiply(scale, node.obj.scale)
-        node.pivot = Vector3f(*vectorMultiply(imported, meshScale))
+        node.pivot = Vector3f(*vectorMultiply(nativePivot, meshScale))
 
 
 def _get_mat_name_org(mat: bpy.types.Material) -> str:
@@ -171,12 +171,14 @@ def _scaled_normal(normal, scale):
     return Vector3f(*(value / length for value in result)) if length else Vector3f(0.0, 0.0, 0.0)
 
 
-def _model3do_add_mesh(model: Model3do, obj: bpy.types.Object, scale: mathutils.Vector, uvAbsolute: bool, exportVertexColors: bool, geometryMode=GeometryMode.Texture) -> int:
+def _model3do_add_mesh(model: Model3do, obj: bpy.types.Object, scale: mathutils.Vector, uvAbsolute: bool, exportVertexColors: bool, geometryMode=GeometryMode.Texture, *, bakePivots=False) -> int:
     """Convert mesh corners to 3DO vertex/color and UV tables, baking scale."""
     mesh = obj.data
     if mesh is None:
         return -1
-    importedPivot = objImportedPivot(obj)
+    # Baked editable coordinates already include the stored native offset.
+    # Do not subtract/add it: obsolete large offsets would lose float precision.
+    nativePivot = None if bakePivots else objNativePivot(obj)
     # Material slots may override shared mesh materials on this object only.
     # Resolve their effective values without changing either datablock.
     materials = [slot.material for slot in obj.material_slots]
@@ -319,7 +321,7 @@ def _model3do_add_mesh(model: Model3do, obj: bpy.types.Object, scale: mathutils.
 
         for loop, source_loop in loops:
             used_vertices.add(loop.vert.index)
-            coordinate = loop.vert.co if importedPivot is None else loop.vert.co - importedPivot
+            coordinate = loop.vert.co if nativePivot is None else loop.vert.co - nativePivot
             vertx  = Vector3f(*vectorMultiply(coordinate, scale))
             currentNormal = corner_normals[source_loop].vector if corner_normals is not None else loop.vert.normal
             normal = _scaled_normal(source_normal(loop.vert, currentNormal, source_loop), scale)
@@ -394,7 +396,7 @@ def _model3do_add_mesh(model: Model3do, obj: bpy.types.Object, scale: mathutils.
         if vertex.index in used_vertices:
             continue
 
-        coordinate = vertex.co if importedPivot is None else vertex.co - importedPivot
+        coordinate = vertex.co if nativePivot is None else vertex.co - nativePivot
         position = Vector3f(*vectorMultiply(coordinate, scale))
         color = (Vector4f(*loose_colors.data[vertex.index].color)
                  if exportVertexColors and loose_colors else kDefaultVertexColor)
@@ -415,7 +417,7 @@ def _model3do_add_mesh(model: Model3do, obj: bpy.types.Object, scale: mathutils.
     return mesh_idx
 
 
-def _set_mesh_properties(mesh: Mesh3do, obj: bpy.types.Object, scale: mathutils.Vector):
+def _set_mesh_properties(mesh: Mesh3do, obj: bpy.types.Object, scale: mathutils.Vector, *, bakePivots=False):
     mesh.geometryMode = objGeometryMode(obj)
     if obj.is_property_set(kModel3doShadow):
         requested = bool(getattr(obj, kModel3doShadow))
@@ -427,7 +429,7 @@ def _set_mesh_properties(mesh: Mesh3do, obj: bpy.types.Object, scale: mathutils.
         # Restored pivots move the mesh frame back to its native origin. Bound
         # the emitted local coordinates, rather than the importer's baked mesh.
         mesh.radius = (max((mathutils.Vector(v).length for v in mesh.vertices), default=0.0)
-                       if objImportedPivot(obj) is not None else objRadius(obj, scale))
+                       if bakePivots or objNativePivot(obj) is not None else objRadius(obj, scale))
     else:
         mesh.radius = radiusHelperValue(radius_obj, scale)
 
@@ -463,7 +465,7 @@ def _get_hnode_last_sibling(first_child: Mesh3doNode, nodes: List[Mesh3doNode]):
         return _get_hnode_last_sibling(nodes[sidx], nodes)
     return first_child
 
-def _model3do_add_hnode(model: Model3do, mesh_idx: int, obj: bpy.types.Object, parent: bpy.types.Object, scale: mathutils.Vector):
+def _model3do_add_hnode(model: Model3do, mesh_idx: int, obj: bpy.types.Object, parent: bpy.types.Object, scale: mathutils.Vector, *, bakePivots=False):
     # Build links with temporary list indices. reorderNodes() later applies the
     # requested sequence order and remaps parent/child/sibling references together.
     name               = _get_obj_hnode_name(obj)
@@ -490,10 +492,11 @@ def _model3do_add_hnode(model: Model3do, mesh_idx: int, obj: bpy.types.Object, p
             snode.siblingIdx = node_idx
         pnode.numChildren += 1
 
-    _set_hnode_pose(node, scale)
+    _set_hnode_pose(node, scale, bakePivots=bakePivots)
     model.meshHierarchy.append(node)
+    return node
 
-def _model3do_add_obj(model: Model3do, obj: bpy.types.Object, parent: bpy.types.Object = None, scale: mathutils.Vector = mathutils.Vector((1.0,) * 3), uvAbsolute: bool = False, exportVertexColors: bool = False, hierarchyOnly: bool = False):
+def _model3do_add_obj(model: Model3do, obj: bpy.types.Object, parent: bpy.types.Object = None, scale: mathutils.Vector = mathutils.Vector((1.0,) * 3), uvAbsolute: bool = False, exportVertexColors: bool = False, hierarchyOnly: bool = False, *, bakePivots=False):
     if _is_aux_obj(obj):
         return
     if obj.type not in ('EMPTY', 'MESH'):
@@ -527,21 +530,29 @@ def _model3do_add_obj(model: Model3do, obj: bpy.types.Object, parent: bpy.types.
     # Bake this object's scale and all ancestor scales into mesh geometry.
     objScale = vectorMultiply(scale, obj.scale)
     mesh_idx = -1 if hierarchyOnly else _model3do_add_mesh(
-        model, obj, objScale, uvAbsolute, exportVertexColors, objGeometryMode(obj)
+        model, obj, objScale, uvAbsolute, exportVertexColors, objGeometryMode(obj), bakePivots=bakePivots
     )
-    if mesh_idx > -1:
-        mesh = model.geosets[0].meshes[mesh_idx]
-        _set_mesh_properties(mesh, obj, objScale)
 
     # Local location is not scaled by the object's own scale in Blender; pass
     # only inherited scale here, then pass the combined scale to its children.
-    _model3do_add_hnode(model, mesh_idx, obj, parent, scale)
+    node = _model3do_add_hnode(model, mesh_idx, obj, parent, scale, bakePivots=bakePivots)
+    if bakePivots:
+        # Stored native pivots were skipped above. Any remaining offset is the
+        # existing Blender Pivot-constraint conversion. Each object owns its
+        # exported mesh record, even when Blender mesh datablocks are shared.
+        if mesh_idx > -1 and any(node.pivot):
+            mesh = model.geosets[0].meshes[mesh_idx]
+            mesh.vertices = [Vector3f(*(v[i] + node.pivot[i] for i in range(3))) for v in mesh.vertices]
+        node.pivot = Vector3f(0.0, 0.0, 0.0)
+    if mesh_idx > -1:
+        mesh = model.geosets[0].meshes[mesh_idx]
+        _set_mesh_properties(mesh, obj, objScale, bakePivots=bakePivots)
 
     # Add children
     for child in obj.children:
         _model3do_add_obj(
             model, child, parent=obj, scale=objScale, uvAbsolute=uvAbsolute,
-            exportVertexColors=exportVertexColors, hierarchyOnly=hierarchyOnly
+            exportVertexColors=exportVertexColors, hierarchyOnly=hierarchyOnly, bakePivots=bakePivots
         )
 
 
@@ -630,10 +641,12 @@ def _sync_model_meshes(model: Model3do):
         geoset.meshes = new_meshes
 
 
-def makeModel3doFromObj(name: str, obj: bpy.types.Object, uvAbsolute: bool = False, exportVertexColors: bool = False, sync_mesh_list: bool = True, hierarchyOnly: bool = False):
+def makeModel3doFromObj(name: str, obj: bpy.types.Object, uvAbsolute: bool = False, exportVertexColors: bool = False, sync_mesh_list: bool = True, hierarchyOnly: bool = False, *, bakePivots=False):
     """Collect local geometry and hierarchy; hierarchyOnly also serves KEY export."""
     if obj.type not in ('MESH', 'EMPTY'):
         raise ValueError('3DO/KEY export requires a MESH or EMPTY root object')
+    if hierarchyOnly and bakePivots:
+        raise ValueError('Pivot baking requires a complete 3DO mesh export')
     model = Model3do(name)
     model.binaryData = getModel3doBinaryData(obj, kModel3doBinaryModel)
     model.geosets.append(Model3doGeoSet())
@@ -643,7 +656,7 @@ def makeModel3doFromObj(name: str, obj: bpy.types.Object, uvAbsolute: bool = Fal
     # 1. A mesh root is a joint. An EMPTY with children is instead the model
     # wrapper: its location becomes INSERT OFFSET, not a hierarchy-node pose.
     if obj.type == 'MESH' or len(obj.children) == 0:
-        _model3do_add_obj(model, obj, uvAbsolute=uvAbsolute, exportVertexColors=exportVertexColors, hierarchyOnly=hierarchyOnly)
+        _model3do_add_obj(model, obj, uvAbsolute=uvAbsolute, exportVertexColors=exportVertexColors, hierarchyOnly=hierarchyOnly, bakePivots=bakePivots)
     else:
         validateObjTransform(obj)
         rotation = makeRotationMatrix(*objRotationToPYR(obj))
@@ -655,7 +668,7 @@ def makeModel3doFromObj(name: str, obj: bpy.types.Object, uvAbsolute: bool = Fal
         for child in obj.children:
             _model3do_add_obj(
                 model, child, parent=obj, scale=obj.scale, uvAbsolute=uvAbsolute,
-                exportVertexColors=exportVertexColors, hierarchyOnly=hierarchyOnly
+                exportVertexColors=exportVertexColors, hierarchyOnly=hierarchyOnly, bakePivots=bakePivots
             )
 
     # 2. Normalize node order before assigning optional mesh order. KEY uses this

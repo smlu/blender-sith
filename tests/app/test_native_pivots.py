@@ -18,7 +18,7 @@ from sith.types import Vector3f
 from sith.key.keyExporter import _make_key_from_obj
 
 
-class NativePivotTests(SceneTestCase):
+class NativePivotFixture(SceneTestCase):
     def setUp(self):
         super().setUp()
         self.directory = tempfile.TemporaryDirectory()
@@ -40,7 +40,7 @@ class NativePivotTests(SceneTestCase):
         export3do(self.root, str(self.output), version, version.value == 2.1, True, sync)
         return load3do(self.output)[0]
 
-    def assert_surface_matches_scene(self, model):
+    def assert_surface_matches_scene(self, model, tolerance=3e-6):
         # The scene uses baked mesh coordinates; the native file uses its pivot.
         # Compare each exported point against the independently evaluated scene.
         bpy.context.view_layer.update()
@@ -57,10 +57,12 @@ class NativePivotTests(SceneTestCase):
             exported = [matrices[node.idx] @ (mathutils.Vector(vertex) + mathutils.Vector(node.pivot))
                         for vertex in model.geosets[0].meshes[node.meshIdx].vertices]
             for point in exported:
-                self.assertLess(min((point - other).length for other in visible), 3e-6)
+                self.assertLess(min((point - other).length for other in visible), tolerance)
             for point in visible:
-                self.assertLess(min((point - other).length for other in exported), 3e-6)
+                self.assertLess(min((point - other).length for other in exported), tolerance)
 
+
+class NativePivotTests(NativePivotFixture):
     def test_native_pivots_and_vertices_survive_two_cycles_all_text_options(self):
         # Losing the pivot still renders correctly, but changes attached models'
         # mesh frame. Assert both native representation and equivalent surfaces.
@@ -166,18 +168,18 @@ class NativePivotTests(SceneTestCase):
         for node_index, value in itertools.product((0, 1), ('bad', 3.0, [1.0, 2.0], [1.0, 2.0, math.nan], [1.0, math.inf, 0.0], [1e39, 0.0, 0.0])):
             with self.subTest(node=node_index, value=value):
                 obj = self.node_object(node_index)
-                obj['3do_imported_pivot'] = value
+                obj['3do_pivot'] = value
                 self.output.write_bytes(b'previous valid export')
                 with self.assertRaisesRegex(ValueError, '[Pp]ivot'):
                     self.export_model()
                 self.assertEqual(self.output.read_bytes(), b'previous valid export')
-                obj['3do_imported_pivot'] = list(self.model.meshHierarchy[node_index].pivot)
+                obj['3do_pivot'] = list(self.model.meshHierarchy[node_index].pivot)
 
     def test_older_scene_without_metadata_keeps_zero_pivot_export(self):
         self.import_model()
         for obj in self.root.children_recursive:
-            if '3do_imported_pivot' in obj:
-                del obj['3do_imported_pivot']
+            if '3do_pivot' in obj:
+                del obj['3do_pivot']
         exported = self.export_model()
         self.assert_vector(exported.meshHierarchy[1].pivot, (0, 0, 0))
         self.assert_vector(exported.geosets[0].meshes[0].vertices[0], (0.125, 0, 0))

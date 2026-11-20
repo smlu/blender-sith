@@ -232,7 +232,7 @@ def _set_obj_rotation(obj, rotation):
 def _set_obj_pivot(obj, pivot):
     # Keep editable mesh coordinates baked, but retain the native mesh-frame
     # origin for re-export. EMPTY nodes can also be attachment frames.
-    obj[k3doImportedPivot] = list(pivot)
+    obj[k3doPivot] = list(pivot)
     pvec = mathutils.Vector(pivot)
     if  obj.type == 'MESH' and obj.data is not None and pvec.length > 0:
         obj.data.transform(mathutils.Matrix.Translation(pvec))

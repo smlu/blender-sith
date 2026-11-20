@@ -349,18 +349,34 @@ inactive NLA and translation-only parent motion remain supported. **Clear scene*
 may remove the old procedural motion instead when the initial Pivot is representable.
 
 Import bakes each 3DO node's pivot into its editable mesh vertices and retains the
-original local offset as `3do_imported_pivot` metadata on both mesh and Empty
+original local offset as the shared `3do_pivot` property on both Mesh and Empty
 objects. Export compensates only its temporary vertex coordinates and restores
 the native pivot, preserving the native mesh frame without changing joint-position
 channels or the visible surface. Object and inherited scale apply to both the
-compensated vertices and restored pivot. KEY channels do not use this metadata.
+compensated vertices and restored pivot. KEY channels do not use this property.
+The **Native Pivot** XYZ control uses the same storage for newly authored joints.
+It defines a static exported mesh/attachment frame while keeping the editable
+surface unchanged. The model-wrapper Empty is not a joint and has no native pivot.
+Live viewport origin/gizmo and attachment-frame evaluation are follow-up work.
 
 An active authored Pivot constraint takes precedence, even at zero offset; its
 existing validation and animation restrictions still apply. Muted/zero-influence
-constraints allow the imported pivot to be restored. Older .blend files lacking
-this metadata keep zero-pivot exports and require a fresh native import to recover
-the original offsets. The stored offset is local-coordinate provenance, not an
-automatic repair for arbitrary origin or Apply Transform edits.
+constraints allow the stored pivot to be restored. Saved scenes containing only
+the previous `3do_imported_pivot` key remain readable without mutation. An explicit
+`3do_pivot`, including zero, wins; editing XYZ writes that key and removes the old
+one. Scenes lacking both keys keep zero-pivot exports and require a fresh native
+import to recover lost offsets. Review arbitrary origin or Apply Transform edits
+separately; the property does not automatically compensate those operations.
+
+**Bake Pivots** is off by default. When enabled, 3DO export ignores stored native
+offsets and writes current editable vertices with zero pivots, even if the stored
+offset is obsolete or malformed. This intentionally discards attachment-frame
+offsets while retaining the surface and descendant joint poses. Supported Blender
+Pivot constraints are still validated and baked into temporary exported mesh
+coordinates; unsupported constraints still fail. Blender data and KEY channels
+are not changed. Automatic mesh radii use final emitted coordinates, explicit
+radius helpers retain their values subject to enclosure validation, and the
+authored model-radius policy is unchanged. This is not animation baking.
 
 Native-frame preservation is tested through serialized 3DO/Blender comparisons.
 Check attachments and joint-position script uses in the target game when replacing
