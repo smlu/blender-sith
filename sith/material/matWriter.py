@@ -153,7 +153,8 @@ def encodeMat(cels, encoding='RGBA32', palette=None, *, generateMipmaps=True, gr
         levels = [pixels]
         # Grim readers advance to the next cel directly after its base pixels.
         if generateMipmaps and not grim:
-            while levels[-1].shape[0] > 1 or levels[-1].shape[1] > 1:
+            # JK/MotS have four texture slots and right-shift both dimensions.
+            while len(levels) < 4 and min(levels[-1].shape[:2]) > 1:
                 levels.append(_next_mip(levels[-1], encoding == 'INDEXED' or info.alpha_bpp > 0))
         output.extend(mmm_serf.pack(width, height, int(transparent), 0, 0, len(levels)))
         for level in levels:

@@ -107,8 +107,9 @@ def check_material(path, target, palette_path, *, grim=None):
     for index, ((width, height, original, _), (rw, rh, levels, _), pixels) in enumerate(zip(cels, restored, images)):
         if (rw, rh) != (width, height):
             raise AssertionError(f'Cel {index}: exported dimensions changed')
-        if len(levels) != (1 if grim else max(width, height).bit_length()):
-            raise AssertionError(f'Cel {index}: incomplete exported mip chain')
+        expected_levels = 1 if grim else min(4, min(width, height).bit_length())
+        if len(levels) != expected_levels:
+            raise AssertionError(f'Cel {index}: expected {expected_levels} mip levels, got {len(levels)}')
         actual = np.asarray(levels[0]).reshape(height, width, 4)
         expected = np.asarray(original[0]).reshape(height, width, 4)
         np.testing.assert_allclose(actual[..., 3], expected[..., 3], atol=1e-7, rtol=0)

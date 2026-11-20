@@ -97,7 +97,7 @@ export/
 | **MAT Directory** | Save MATs in this folder; default `mat` beside the 3DO. Accepts relative, absolute and blend-relative `//` folders. |
 | **Encoding** | Encode textures in the selected [format](#encodings). Defaults to RGBA32; selecting 2.1 or Grim initially selects Indexed. |
 | **ColorMap File** | Use this CMP palette for Indexed encoding; shown for Indexed only. Relative paths are beside the 3DO. |
-| **Generate Mipmaps** | When enabled, create smaller texture levels down to 1x1. On by default; hidden for Grim, which uses the base image only. |
+| **Generate Mipmaps** | On by default. Store up to four levels including the base, stopping when either dimension reaches one pixel. Hidden for Grim, which uses the base image only. |
 | **Overwrite Existing MAT Files** | When enabled, replace existing MATs in the output folder. Off by default. |
 
 Use **Indexed** for the original JKDF2, MOTS and DroidWorks engines. Grim requires
@@ -253,7 +253,7 @@ Or use the **Material Specials** dropdown beside the slots to export the active 
 | **Target** | **Standard** for ordinary Sith MATs; **Grim Fandango** for Grim-compatible indexed output. Standard is the default. |
 | **Encoding** | Choose from the six encodings below. Defaults to RGBA32; fixed to Indexed for Grim. |
 | **ColorMap File** | Use this CMP palette for Indexed encoding; shown for Indexed only. Relative paths are beside this MAT; `//` paths are relative to the blend file. |
-| **Generate Mipmaps** | When enabled, create smaller texture levels down to 1x1. On by default; hidden for Grim, which stores only the base image. |
+| **Generate Mipmaps** | On by default. Store up to four levels including the base, stopping when either dimension reaches one pixel. Hidden for Grim, which stores only the base image. |
 | **Overwrite Existing MAT** | When enabled, allow replacing the existing MAT, with save-dialog confirmation. Off by default. |
 
 #### Encodings

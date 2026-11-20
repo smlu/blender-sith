@@ -181,28 +181,41 @@ class MatWriterTests(unittest.TestCase):
         header, records, restored = decode(encodeMat(cels))
         self.assertEqual(header.texture_count, 2)
         self.assertEqual([record.cel_idx for record in records], [0, 1])
-        self.assertEqual([(cel.width, cel.height, len(cel.pixel_data_array)) for cel in restored], [(4, 2, 3), (1, 3, 2)])
+        self.assertEqual([(cel.width, cel.height, len(cel.pixel_data_array)) for cel in restored], [(4, 2, 2), (1, 3, 1)])
 
     def test_odd_rectangular_mips_include_every_source_pixel(self):
         pixels = np.ones((5, 3, 4))
         pixels[..., :3] = np.arange(5)[:, None, None] / 4
         levels = decode(encodeMat([MatCel(3, 5, pixels)]))[2][0].pixel_data_array
-        self.assertEqual([len(level) // 4 for level in levels], [15, 2, 1])
+        self.assertEqual([len(level) // 4 for level in levels], [15, 2])
         np.testing.assert_allclose(np.asarray(levels[1]).reshape((-1, 4))[:, 0], (0.2, 0.8))
-        self.assertAlmostEqual(levels[2][0], 128 / 255)
 
     def test_alpha_aware_mips_prevent_transparent_color_bleeding(self):
-        pixels = [(1, 0, 0, 1), (0, 0, 1, 0)]
-        level = decode(encodeMat([MatCel(2, 1, pixels)]))[2][0].pixel_data_array[1]
+        pixels = [(1, 0, 0, 1), (0, 0, 1, 0)] * 2
+        level = decode(encodeMat([MatCel(2, 2, pixels)]))[2][0].pixel_data_array[1]
         np.testing.assert_allclose(level, (1, 0, 0, 128 / 255))
 
-    def test_single_pixels_and_long_thin_chains_end_at_one_by_one(self):
-        for width, height in ((1, 1), (1, 16), (16, 1), (8, 4)):
-            with self.subTest(size=(width, height)):
-                cel = MatCel(width, height, np.ones((height, width, 4)))
-                levels = decode(encodeMat([cel]))[2][0].pixel_data_array
-                self.assertEqual(len(levels), max(width, height).bit_length())
-                self.assertEqual(len(levels[-1]), 4)
+    def test_mip_counts_and_payload_boundaries_match_retail_texture_slots(self):
+        # The renderer has four slots including the base and shifts both axes
+        # at each level. Each cel header follows the previous cel's exact payload.
+        sizes = [(256, 256, 4), (64, 16, 4), (4, 16, 3), (8, 2, 2),
+                 (1, 16, 1), (16, 1, 1), (1, 1, 1)]
+        cels = [MatCel(w, h, np.ones((h, w, 4))) for w, h, _ in sizes]
+        for encoding, info in kMatColorFormats.items():
+            modes = [(True, False), (False, False)]
+            if encoding == 'INDEXED':
+                modes.append((True, True))
+            for generate, grim in modes:
+                with self.subTest(encoding=encoding, generate=generate, grim=grim):
+                    data = encodeMat(cels, encoding, palette(), generateMipmaps=generate, grim=grim)
+                    offset = 76 + 40 * len(cels)
+                    for width, height, retail_levels in sizes:
+                        count = retail_levels if generate and not grim else 1
+                        self.assertEqual(struct.unpack_from('<6I', data, offset),
+                                         (width, height, 0, 0, 0, count))
+                        texels = sum((width >> level) * (height >> level) for level in range(count))
+                        offset += 24 + texels * (info.bpp // 8)
+                    self.assertEqual(offset, len(data))
 
     def test_hdr_clamps_and_input_arrays_remain_unchanged(self):
         pixels = np.array([-2, 0.5, 4, 1.5])
