@@ -285,8 +285,9 @@ MAT export reads image pixels/cel bindings, not a baked shader, procedural graph
 lighting result or native-engine rendering. The writer clamps finite HDR channels
 to `[0,1]`; indexed output chooses nearest CMP colors without dithering, reserves
 index zero for alpha below `0.5`, and may lose source palette-index identity.
-Standard output can generate a full area-filtered mip chain; Grim requires indexed
-output with one base image per cel. Authored lower mips are not retained. Model
+Standard output can generate up to four area-filtered levels per cel, stopping
+when either dimension reaches one pixel. Grim requires indexed output with
+one base image per cel. Authored lower mips are not retained. Model
 texture export and replacement of existing MATs are opt-in; standalone MAT export
 defaults to RGBA32 and no overwrite. The batch adapter checks each source's encoding,
 not every possible encoding/target combination for every corpus file.

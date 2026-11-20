@@ -119,8 +119,9 @@ blender --background --factory-startup --python-exit-code 1 --python tests/batch
   Transparent indexed RGB may change when transparency is reassigned to palette
   index zero; it is ignored only where alpha is zero. Palette-color records are
   expanded to texture cels and reported as such, not claimed to be byte-identical.
-  Standard output regenerates a full mip chain; Grim type-3 output stores only the
-  base images. Each exported mip is independently decoded and compared with an
+  Standard output generates up to four levels per cel, stopping when either
+  dimension reaches one pixel. Grim type-3 output stores only the base images.
+  Each exported mip is independently decoded and compared with an
   area-filter reference and format quantization. Original artist-authored lower
   mips are not copied or expected to match regenerated ones.
   Cels are resolved through their material's image bindings. Blender byte-image

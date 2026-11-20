@@ -35,7 +35,8 @@ class PackedMaterialBatchTests(SceneTestCase):
             records = [json.loads(line) for line in (output / 'results.jsonl').read_text().splitlines()]
             self.assertEqual({record['encoding'] for record in records}, {'RGB565', 'RGBA4444', 'RGBA1555'})
             self.assertTrue(all(record['operation'] == 'import-export-import-image-reference' for record in records))
-            self.assertTrue(all(record['exported_mipmap_levels'] == 5 for record in records))
+            self.assertTrue(all(record['source_mipmap_levels'] == 5 for record in records))
+            self.assertTrue(all(record['exported_mipmap_levels'] == 3 for record in records))
             self.assertEqual({path.name: path.read_bytes() for path in root.iterdir()}, before)
 
     def test_batch_round_trips_all_encodings_color_records_and_grim_cels(self):

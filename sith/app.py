@@ -256,7 +256,7 @@ class ExportMat(bpy.types.Operator, ExportHelper):
     )
     generate_mipmaps: bpy.props.BoolProperty(
         name='Generate Mipmaps', default=True,
-        description='Generate a complete alpha-aware mip chain down to 1x1 for standard MAT output',
+        description='Generate up to four levels including the base, stopping when either dimension reaches one pixel',
     )
     overwrite_existing: bpy.props.BoolProperty(
         name='Overwrite Existing MAT', default=False, update=_on_mat_overwrite_update,
@@ -625,7 +625,7 @@ class ExportModel3do(bpy.types.Operator, ExportHelper):
     )
     texture_mipmaps: bpy.props.BoolProperty(
         name='Generate Mipmaps', default=True,
-        description='Generate a complete smaller-image chain down to 1x1, with alpha-aware area filtering',
+        description='Generate up to four levels including the base, stopping when either dimension reaches one pixel',
     )
     overwrite_textures: bpy.props.BoolProperty(
         name='Overwrite Existing MAT Files', default=False,
