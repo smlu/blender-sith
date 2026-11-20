@@ -1,20 +1,37 @@
 # Blender-Sith MCP companion
 
-This optional local stdio server gives an MCP-capable agent five structured tools. It uses the [background runner](agent-use.md) and [deterministic packager](building.md), which must be present alongside it. It uses the official Python MCP SDK and launches fresh background Blender jobs. Installing the ordinary Blender extension does not start a server, open a port, or add dependencies to Blender.
+This optional local stdio server gives an MCP-capable agent four format-specific tools. It uses the official Python MCP SDK and launches fresh background Blender jobs. Installing the ordinary Blender extension does not start a server, open a port, or add dependencies to Blender.
 
-For general scene interaction, use this format-specific companion alongside the [official Blender Lab MCP server](https://www.blender.org/lab/mcp-server/). Keep the two servers in separate external virtual environments: the audited official server uses the MCP SDK 1.x line while this companion pins SDK 2.3.0. This companion does not duplicate a general Python execution or interactive-scene tool. See [Blender alignment](blender-alignment.md) for the integration boundary. Configuring both servers is not evidence of a tested joint session, native installation, or official Blender endorsement.
+The native `auditModelKey` API can also be called directly from a Python script or a [Blender Lab MCP](https://www.blender.org/lab/mcp-server/) session. Keep separate MCP servers in separate external virtual environments, with the dependency versions each requires. This companion does not duplicate a general Python execution or interactive-scene tool. See [Blender alignment](blender-alignment.md) for the integration boundary. Publishing both configurations is not evidence of a tested joint session, native installation, or official Blender endorsement.
 
 | Tool | Behavior |
 | --- | --- |
 | `server_info` | Read configured roots, resource limits and supported operations without launching Blender. |
-| `inspect_3do(path)` | Parse one allowlisted 3DO and return format version, geoset/mesh/vertex/face/hierarchy counts, and up to 100 material names. It does not load referenced files. |
+| `inspect_3do(path)` | Parse one allowlisted 3DO and return format version, geoset/mesh/vertex/face/hierarchy counts, and up to 100 material names. The first 32 geosets also report native triangles, quads, n-gons and triangle equivalents. It does not load referenced files. |
+| `audit_model_key(model_path, key_path, key_target)` | Compare a 3DO hierarchy with one text KEY. Return track-index/name discrepancies, source and skipped marker counts, JKDF2 or MOTS KEY export-limit findings and hashes of both inputs. |
 | `convert_3do_to_blend(path)` | Import geoset zero into a new `.blend` in a unique job directory. Geometry and placeholder materials only; no texture/palette lookup. JK 2.1 UV coordinates remain unnormalized without texture dimensions. |
-| `run_regression` | Run the bundled five-contract baseline 3DO/KEY/MAT harness with logs and a verified launcher receipt. Focused format-fix regressions remain separate. |
-| `build_extension` | Build the **companion checkout's** `sith` directory with the deterministic packager. Return ZIP, SHA-256 and receipt. With a configured Blender executable, also run Blender's built-in extension validator on that exact ZIP. This does not publish or install anything. |
 
-The `addon` configuration selects trusted Python source for parsing/conversion/regression. `build_extension` intentionally packages the companion checkout instead, including its manifest and license. The result identifies that source. Use a matching companion/source tree when you want these operations to target the same version.
+The `addon` setting selects the source for parsing, binding audits and conversion. Use matching source for the native binding API and geometry-only import option.
 
-`build_extension` reports an explicit `validator` result. With the Blender executable route, it runs `blender --command extension validate ZIP` in a fresh bounded process with separate preferences and logs; a rejected archive or validator process failure makes the top-level status `validation_failed`. With the Python+bpy route, packaging can pass while `validator.status` remains `not_run` with the reason that no Blender CLI executable was configured. Importing `bpy` is not a substitute for official extension validation.
+## Will this KEY animate the intended joint?
+
+A replacement 3DO has `root` at hierarchy slot 0 and `head` at slot 1. Two KEY files both call their single track `head`. Before opening a scene, the modeller can ask `audit_model_key` which slot each file addresses.
+
+```json
+{"model_path":"/srv/authorized-models/triangle.3do","key_path":"/srv/authorized-models/head.key","key_target":"MOTS"}
+```
+
+Read `model.binding` in the result. These outcomes use the repository's synthetic two-joint model.
+
+| KEY entry | Binding status | What the modeller learns |
+| --- | --- | --- |
+| `NODE 1`, `MESH NAME head` | `consistent` | The indexed slot exists and its model name matches. A sparse KEY can animate just one joint. |
+| `NODE 0`, `MESH NAME head` | `review` | Slot 0 belongs to `root`. Check the intended destination. A name discrepancy can be intentional. |
+| `NODE 2` with three declared KEY joints | `incompatible` | This model has no slot 2. Changing the label alone cannot supply it. |
+
+The check reads both native files and applies the selected KEY target's numeric and export-limit checks. A completed job can contain an incompatible pair. An empty track list has its own `no_tracks` status when there are no other findings. The report shows at most 32 findings plus totals for every issue. Pose quality and in-game playback still require testing.
+
+The same comparison works in an existing Blender Python script or Blender Lab session with this add-on loaded. Import `auditModelKey` from the add-on's `key.modelBinding` module and pass the objects returned by `load3do(path)[0]` and `loadKey(path)`. The companion handles isolated file reads, input hashes and structured results for MCP clients.
 
 ## Installation
 
@@ -40,6 +57,8 @@ Create an explicit configuration outside the checkout, for example `/srv/blender
 }
 ```
 
+The Blender executable setting also accepts a Microsoft Store App Execution Alias named `blender.exe` or `blender-launcher.exe` directly under `%LOCALAPPDATA%/Microsoft/WindowsApps`. Other reparse routes retain the ordinary checks.
+
 Use absolute existing paths for `addon`, the runtime, and `read_roots`. The job root is created if needed. On Windows use ordinary drive paths and JSON backslash escaping (or forward slashes); UNC/device/alternate-data-stream paths are intentionally unsupported. For the Python+bpy route, replace `blender` with `python` and optionally set `bpy_site` to an existing compatible dependency directory. Do not configure both runtimes. On macOS use the executable inside Blender.app; native macOS execution must be validated separately.
 
 An MCP host entry uses the server environment's Python and this command (adapt the host's enclosing configuration syntax):
@@ -55,25 +74,25 @@ An MCP host entry uses the server environment's Python and this command (adapt t
 }
 ```
 
-Start it through your host after reviewing the configured roots. There is no default account, API key, cloud service or HTTP listener. This repository does not modify your host configuration automatically. The configured timeout applies to each subprocess, not to the entire tool call. Packaging with a Blender executable can use two sequential configured timeouts: one for building and one for validation. Set the host's tool timeout above twice the configured timeout plus cleanup and startup margin when using all tools. Regression cleanup can need up to 45 additional seconds.
+Start it through your host after reviewing the configured roots. There is no default account, API key, cloud service or HTTP listener. This repository does not modify your host configuration automatically. Set the host's tool timeout above the configured job timeout; process-tree cleanup can need up to 30 additional seconds.
 
 ## Scope and failure handling
 
-Inputs must be regular `.3do` files beneath an explicit read root, no larger than 64 MiB. Relative paths, parent traversal and symlink/junction routes are rejected. A job snapshots only that input into a unique external directory before parsing. Automatic neighboring MAT/CMP discovery is disabled inside the new Blender process. Outputs never replace the input. Source/add-on hashes are checked after model operations and the regression launcher verifies its own report and source hashes.
+Inputs must be regular `.3do` files (and a named `.key` for the binding audit) beneath an explicit read root, no larger than 64 MiB. Relative paths, parent traversal and symlink/junction routes are rejected. A job snapshots only its named inputs into a unique external directory before parsing. Geometry-only conversion passes `loadExternalMaterials=False` to the public importer. Interactive imports retain material discovery by default. Outputs never replace the input. Add-on source hashes are checked after each operation. The result also records the SHA-256 of each snapshotted input and of a produced blend file.
 
-Jobs are serialized per server; a concurrent request returns an error instead of launching a second Blender. At a subprocess deadline, the service attempts to terminate its owned process tree and records the cleanup outcome. Cleanup is best effort, not a guarantee that the operating system accepted termination. Blender preferences are isolated, user Python injection/optimization variables are removed, and thread counts default to two. Each outer stdout/stderr log retains at most 1 MiB; structured child reports are limited to 256 KiB. Keep job directories as receipts or remove completed ones yourself; there is no automatic deletion tool or retention policy. Regression creates its own detailed logs inside its result directory.
+Jobs are serialized per server; a concurrent request returns an error instead of launching a second Blender. The configured deadline terminates the owned subprocess tree. Blender preferences are isolated, user Python injection/optimization variables are removed, and thread counts default to two. Each outer stdout/stderr log retains at most 1 MiB; structured child reports are limited to 256 KiB. Keep job directories as receipts or remove completed ones yourself; there is no automatic deletion tool or retention policy.
 
-Controlled Blender CLI invocations (model worker, regression launcher and built-in extension validator) include `--offline-mode`. This sets Blender's online-access preference for the process; it is not an OS network sandbox or a claim that arbitrary installed Python code cannot open sockets. The separate Python+bpy route has no Blender CLI flags.
+The fixed Blender worker invocation includes `--offline-mode`. This sets Blender's online-access preference for the process; it is not an OS network sandbox or a claim that arbitrary installed Python code cannot open sockets. The separate Python+bpy route has no Blender CLI flags.
 
-The four job-producing tools return a `status`. Only `passed` means the requested job completed and its report was accepted. A process exit of zero alone is insufficient. Their results include a job directory for logs, input/output hashes where relevant, and bounded structured results. `server_info` is configuration-only: it does not start a job and does not return a job status or directory. Logs and local receipts may contain input names and absolute local paths; review before publishing them.
+Tool results contain a `status`. Only `passed` means the requested operation completed and its report was accepted. A process exit of zero alone is insufficient. The result includes a job directory for logs, input/output hashes where relevant, and bounded structured results. Logs and local receipts may contain input names and absolute local paths; review before publishing them.
 
 This is a local trusted-user service, **not an OS security sandbox**. The configured runtime, add-on, companion source and writable job directory must remain trusted and unchanged by other users during a call. Filesystem checks are not a defense against a hostile user racing filesystem changes. Blender/parsers execute with the server user's permissions; there is no hard memory or disk quota. Cancelled host requests may finish their bounded job before returning. The service exposes no arbitrary Python, shell, scene-editing, network, publishing, blend-file loading or deletion tool.
 
-Geometry-only conversion is a useful starting point, not a textured round trip or retail-game acceptance test. It inherits the upstream importer restriction to geoset zero, and it does not normalize JK 2.1 UVs using absent texture sizes. `inspect_3do` summarizes all parsed geosets. Record the exact runtime version and platform with each test. Native macOS execution and joint operation with Blender Lab MCP require separate validation.
+Geometry-only conversion is a useful starting point, not a textured round trip or retail-game acceptance test. It inherits the upstream importer restriction to geoset zero, and it does not normalize JK 2.1 UVs using absent texture sizes. `inspect_3do` summarizes all parsed geosets. A successful file audit does not establish in-game animation or native-platform validation.
 
 ## Verification
 
-Run `python -B -m unittest discover -s tests -p test_mcp_server.py -v` with `TEMP`/`TMP` (Windows) or `TMPDIR` (Unix) set to external scratch storage. These unit tests do not require the SDK or Blender. The companion supplies a real stdio integration check using the official SDK client:
+Run `python -B -m unittest discover -s tests/core -p test_mcp_server.py -v` with `TEMP`/`TMP` (Windows) or `TMPDIR` (Unix) set to external scratch storage. These tests are also included in `python tests/run.py --suite core` and require neither the SDK nor Blender. The companion supplies a real stdio integration check using the official SDK client:
 
 ```sh
 /srv/blender-sith-env/bin/python -B /src/blender-sith/mcp_server/smoke_test.py \
@@ -82,6 +101,15 @@ Run `python -B -m unittest discover -s tests -p test_mcp_server.py -v` with `TEM
   --evidence /srv/blender-sith-smoke.json
 ```
 
-This lists all five tools, exercises inspection/conversion, independently verifies the produced blend hash, runs the regressions, builds an extension and verifies traversal rejection. It requires an authorized valid synthetic 3DO and creates new jobs. Its evidence file must be new and outside Git. Keep its absolute-path-bearing evidence local or sanitize it before publication.
+This verifies the four-tool catalog, exercises inspection/conversion, independently verifies the produced blend hash and checks traversal rejection. It requires an authorized valid synthetic 3DO and creates new jobs. Its evidence file must be new and outside Git. Keep its absolute-path-bearing evidence local or sanitize it before publication.
+
+Exercise the paired-file audit separately with the same SDK environment and config:
+
+```sh
+/srv/blender-sith-env/bin/python -B /src/blender-sith/mcp_server/binding_smoke.py \
+  --config /srv/blender-sith-config.json --evidence /srv/new-binding-proof
+```
+
+The script creates a disposable config allowing only its synthetic inputs, exercises 22 cases including absent joints, sparse tracks, source marker counts, invalid timing and target limits, verifies both hashes and checks rejection of an out-of-scope KEY. The findings are in `summary.json`. Topology counts use native surface corners before Blender conversion. A quad contributes two triangle equivalents and a five-corner polygon contributes three.
 
 Protocol documentation: [official Python SDK](https://py.sdk.modelcontextprotocol.io/) and [stdio server guide](https://modelcontextprotocol.io/docs/develop/build-server). The SDK is an optional host dependency with its own MIT license; Blender-Sith and this companion remain GPL-3.0-or-later.

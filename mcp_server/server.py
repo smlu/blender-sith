@@ -6,12 +6,12 @@ from __future__ import annotations
 import argparse
 from contextlib import contextmanager
 import hashlib
-import importlib.util
 import json
 import math
 import os
 from pathlib import Path
 import stat
+import signal
 import subprocess
 import sys
 import threading
@@ -25,17 +25,52 @@ MAX_LOG = 1024 * 1024
 MAX_REPORT = 256 * 1024
 
 
-def load_helper(name, path):
-    spec = importlib.util.spec_from_file_location(name, path)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
 
 
-runner = load_helper("sith_mcp_runner", ROOT / "scripts" / "run_regression.py")
+
+def digest(path):
+    return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def checked_path(value, *, directory=False, exists=True):
+def source_hashes(addon):
+    return {p.relative_to(addon).as_posix(): digest(p)
+            for p in sorted(addon.rglob("*")) if p.is_file() and p.suffix in (".py", ".toml")}
+
+
+def terminate_tree(process):
+    """Bound cleanup to the process created for this operation and its children."""
+    try:
+        if os.name == "nt":
+            taskkill = Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32" / "taskkill.exe"
+            result = subprocess.run([str(taskkill), "/PID", str(process.pid), "/T", "/F"],
+                                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=15)
+            stopped = result.returncode == 0
+        else:
+            try:
+                os.killpg(process.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            stopped = True
+        process.wait(timeout=10)
+        return stopped
+    except (OSError, subprocess.TimeoutExpired):
+        try:
+            process.kill()
+            process.wait(timeout=5)
+        except (OSError, subprocess.TimeoutExpired):
+            pass
+        return False
+
+
+def store_blender_alias(path, info):
+    local = os.environ.get("LOCALAPPDATA")
+    return (os.name == "nt" and local
+            and path.parent == Path(local) / "Microsoft" / "WindowsApps"
+            and path.name.lower() in {"blender.exe", "blender-launcher.exe"}
+            and getattr(info, "st_reparse_tag", None) == 0x8000001B)  # IO_REPARSE_TAG_APPEXECLINK
+
+
+def checked_path(value, *, directory=False, exists=True, blender_alias=False):
     """Reject relative paths, special files, and every link/junction in a route."""
     if not isinstance(value, str) or not value or "\x00" in value:
         raise ValueError("Expected an absolute local path")
@@ -46,17 +81,21 @@ def checked_path(value, *, directory=False, exists=True):
     # On Windows reject device/UNC namespaces and alternate data streams.
     if os.name == "nt" and (str(path).startswith("\\\\") or ":" in str(path)[2:]):
         raise ValueError("UNC/device paths and alternate data streams are unsupported")
+    is_alias = False
     for part in (path, *path.parents):
         if os.path.lexists(part):
             info = part.lstat()
+            if blender_alias and part == path and store_blender_alias(path, info):
+                is_alias = True
+                continue
             if stat.S_ISLNK(info.st_mode) or getattr(info, "st_file_attributes", 0) & getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0):
                 raise ValueError("Symlink/junction routes are forbidden")
     if exists:
         if directory and not path.is_dir():
             raise ValueError("Expected an existing directory")
-        if not directory and not path.is_file():
+        if not directory and not is_alias and not path.is_file():
             raise ValueError("Expected an existing regular file")
-    return path.resolve()
+    return path if is_alias else path.resolve()
 
 
 def bounded_json(path):
@@ -78,7 +117,7 @@ class Service:
         self.addon = checked_path(config.get("addon", str(ROOT / "sith")), directory=True)
         checked_path(str(self.addon / "__init__.py"))
         self.route = "blender" if config.get("blender") else "python"
-        self.executable = checked_path(config[self.route])
+        self.executable = checked_path(config[self.route], blender_alias=self.route == "blender")
         self.bpy_site = None
         if config.get("bpy_site"):
             if self.route != "python":
@@ -105,15 +144,24 @@ class Service:
         self.job_root.mkdir(parents=True, exist_ok=True)
         self.lock = threading.Lock()
 
-    def source(self, value):
+    def source(self, value, extension=".3do"):
         path = checked_path(value)
         if not any(path.is_relative_to(root) for root in self.read_roots):
             raise ValueError("Input is outside configured read roots")
-        if path.suffix.lower() != ".3do":
-            raise ValueError("Input must be a .3do file")
+        if path.suffix.lower() != extension:
+            raise ValueError(f"Input must be a {extension} file")
         if path.stat().st_size > MAX_INPUT:
             raise ValueError("Input exceeds the 64 MiB limit")
         return path
+
+    @staticmethod
+    def snapshot(source, destination):
+        with source.open("rb") as stream:
+            data = stream.read(MAX_INPUT + 1)
+        if len(data) > MAX_INPUT:
+            raise ValueError("Input grew beyond the 64 MiB limit")
+        destination.write_bytes(data)
+        return hashlib.sha256(data).hexdigest()
 
     @contextmanager
     def job(self, operation):
@@ -131,10 +179,10 @@ class Service:
             self.lock.release()
 
     def info(self):
-        return {"server": "blender-sith", "version": "1.0.0", "transport": "stdio",
+        return {"server": "blender-sith", "version": "1.1.0", "transport": "stdio",
                 "runtime_route": self.route, "timeout_seconds": self.timeout, "threads": self.threads,
                 "read_roots": [str(p) for p in self.read_roots], "job_root": str(self.job_root),
-                "input_limit_bytes": MAX_INPUT, "tools": ["server_info", "inspect_3do", "convert_3do_to_blend", "run_regression", "build_extension"],
+                "input_limit_bytes": MAX_INPUT, "tools": ["server_info", "inspect_3do", "audit_model_key", "convert_3do_to_blend"],
                 "limits": ["Local trusted-user service, not an OS sandbox", "No interactive session or arbitrary Python tool",
                            "Geometry-only import: no implicit MAT/CMP reads; JK 2.1 UV normalization needs texture dimensions",
                            "No game-runtime compatibility claim"]}
@@ -178,11 +226,11 @@ class Service:
             receipt["status"] = "completed" if process.returncode == 0 else "process_failed"
         except subprocess.TimeoutExpired:
             receipt["status"] = "timeout"
-            receipt["owned_tree_cleanup_succeeded"] = runner.terminate_tree(process)
+            receipt["owned_tree_cleanup_succeeded"] = terminate_tree(process)
             receipt["exit_code"] = process.returncode
         except BaseException:
             if process is not None and process.poll() is None:
-                runner.terminate_tree(process)
+                terminate_tree(process)
             raise
         finally:
             for reader in readers:
@@ -197,98 +245,55 @@ class Service:
                     "--python-exit-code", "1", "--python", str(worker), "--", str(request)]
         return [str(self.executable), "-B", str(worker), str(request)]
 
-    def model_job(self, path, convert):
+    def model_job(self, path, convert, key_path=None, key_target="JKDF2"):
         source = self.source(path)
-        with self.job("convert" if convert else "inspect") as job:
-            # Snapshot the one allowlisted input, so the importer never searches its neighbors.
-            data = source.read_bytes()
-            if len(data) > MAX_INPUT:
-                raise ValueError("Input grew beyond the 64 MiB limit")
+        key = None
+        if key_path is not None:
+            if convert or key_target not in {"JKDF2", "MOTS"}:
+                raise ValueError("Choose JKDF2 or MOTS for the KEY binding audit")
+            key = self.source(key_path, ".key")
+        operation = "audit" if key else ("convert" if convert else "inspect")
+        with self.job(operation) as job:
             snapshot = job / "input.3do"
-            snapshot.write_bytes(data)
-            input_hash = hashlib.sha256(data).hexdigest()
-            before = runner.source_hashes(self.addon)
+            input_hash = self.snapshot(source, snapshot)
+            key_fields = {}
+            if key:
+                key_hash = self.snapshot(key, job / "input.key")
+                key_fields = {"key": str(job / "input.key"), "key_name": key.name, "key_target": key_target}
+            before = source_hashes(self.addon)
             request = job / "request.json"
-            request.write_text(json.dumps({"addon": str(self.addon), "input": str(snapshot), "output": str(job / "model.blend") if convert else None,
+            request.write_text(json.dumps({**key_fields, "addon": str(self.addon), "input": str(snapshot), "output": str(job / "model.blend") if convert else None,
                                            "report": str(job / "model.json"), "threads": self.threads,
                                            "bpy_site": str(self.bpy_site) if self.bpy_site else None}), encoding="utf-8")
             process = self.execute(self.runtime_command(ROOT / "mcp_server" / "worker.py", request), job)
             result = {"job_id": job.name, "job_directory": str(job), "input_sha256": input_hash, **process}
-            result["source_unchanged"] = before == runner.source_hashes(self.addon)
+            if key:
+                result["key_sha256"] = key_hash
+            if process["status"] == "process_failed" and (job / "diagnostic.json").is_file():
+                result["diagnostic"] = bounded_json(job / "diagnostic.json").get("detail")
+            result["source_unchanged"] = before == source_hashes(self.addon)
             if process["status"] == "completed":
                 try:
                     result["model"] = bounded_json(job / "model.json")
                     if result["model"].get("schema") != "blender-sith-mcp-model-v1":
                         raise ValueError("Wrong model report schema")
+                    if key and result["model"].get("binding", {}).get("status") not in {"consistent", "review", "incompatible", "no_tracks"}:
+                        raise ValueError("Missing KEY binding result")
                     if convert:
                         output = checked_path(str(job / "model.blend"))
-                        result["output"] = {"path": str(output), "sha256": runner.digest(output), "size": output.stat().st_size}
+                        result["output"] = {"path": str(output), "sha256": digest(output), "size": output.stat().st_size}
                     result["status"] = "passed" if result["source_unchanged"] else "source_changed"
                 except (ValueError, OSError):
                     result["status"] = "invalid_report"
             (job / "receipt.json").write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
             return result
 
-    def regression(self):
-        with self.job("regression") as job:
-            output = job / "regression"
-            command = [sys.executable, "-B", str(ROOT / "scripts" / "run_regression.py"), "--" + self.route, str(self.executable),
-                       "--addon", str(self.addon), "--output", str(output), "--timeout", str(self.timeout), "--threads", str(self.threads)]
-            if self.bpy_site:
-                command += ["--bpy-site", str(self.bpy_site)]
-            process = self.execute(command, job, timeout=self.timeout + 45)
-            result = {"job_id": job.name, "job_directory": str(job), **process}
-            if process["status"] == "completed":
-                try:
-                    receipt = bounded_json(output / "receipt.json")
-                    if receipt.get("status") != "passed" or receipt.get("source_unchanged") is not True:
-                        raise ValueError("Regression did not pass")
-                    result.update(status="passed", regression=receipt.get("regression"), runtime=receipt.get("runtime"))
-                except (ValueError, OSError):
-                    result["status"] = "invalid_report"
-            return result
-
-    def package(self):
-        with self.job("package") as job:
-            process = self.execute([sys.executable, "-B", str(ROOT / "scripts" / "build_extension.py"),
-                                    "--source-dir", str(ROOT), "--output-dir", str(job / "package")], job)
-            result = {"job_id": job.name, "job_directory": str(job), "source": "companion checkout sith directory",
-                      "validator": {"status": "not_run", "reason": "Package creation did not complete"}, **process}
-            if process["status"] == "completed":
-                receipts = list((job / "package").glob("*.receipt.json"))
-                if len(receipts) != 1:
-                    result["status"] = "invalid_report"
-                else:
-                    receipt = bounded_json(receipts[0])
-                    archive = job / "package" / receipt["archive"]["name"]
-                    if archive.parent != job / "package" or runner.digest(archive) != receipt["archive"]["sha256"]:
-                        result["status"] = "invalid_report"
-                    else:
-                        result.update(status="passed", archive={**receipt["archive"], "path": str(archive)}, receipt=str(receipts[0]))
-                        if self.route != "blender":
-                            result["validator"] = {"status": "not_run", "reason": "Python+bpy route has no configured Blender CLI executable"}
-                        else:
-                            validation_job = job / "official-validation"
-                            validation_job.mkdir(exist_ok=False)
-                            command = [str(self.executable), "--background", "--factory-startup", "--offline-mode",
-                                       "--disable-autoexec", "--threads", str(self.threads), "--command", "extension", "validate", str(archive)]
-                            try:
-                                validation = self.execute(command, validation_job)
-                            except OSError as exc:
-                                validation = {"status": "launch_failed", "exit_code": None, "error_type": type(exc).__name__}
-                            result["validator"] = {**validation, "method": "blender_builtin_extension_validate", "logs_directory": str(validation_job)}
-                            if validation["status"] == "completed":
-                                result["validator"]["status"] = "passed"
-                            else:
-                                result["status"] = "validation_failed"
-            (job / "receipt.json").write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
-            return result
 
 
 def create_server(service):
     from mcp.server import MCPServer
     from mcp.server.mcpserver.exceptions import ToolError
-    server = MCPServer("blender-sith", version="1.0.0", instructions="Operate only on explicitly authorized 3DO inputs. Outputs are new jobs. Inspect status, receipts and limitations before claiming success.")
+    server = MCPServer("blender-sith", version="1.1.0", instructions="Operate only on explicitly authorized 3DO and KEY inputs. Outputs are new jobs. Inspect status, receipts and limitations before claiming success.")
 
     def invoke(fn, *args):
         try:
@@ -307,19 +312,15 @@ def create_server(service):
         return invoke(service.model_job, path, False)
 
     @server.tool()
+    def audit_model_key(model_path: str, key_path: str, key_target: str = "JKDF2") -> dict[str, Any]:
+        """Audit native 3DO hierarchy indices against one KEY's tracks and JKDF2 or MOTS KEY export limits. Inspect model.binding for findings. Reads two named files and creates a receipt."""
+        return invoke(service.model_job, model_path, False, key_path, key_target)
+
+    @server.tool()
     def convert_3do_to_blend(path: str) -> dict[str, Any]:
         """Convert one authorized .3do to a NEW geometry-only .blend job artifact. No textures/palette are loaded; only geoset zero is imported. Never overwrite inputs."""
         return invoke(service.model_job, path, True)
 
-    @server.tool()
-    def run_regression() -> dict[str, Any]:
-        """Run the bundled synthetic 3DO/KEY/MAT regressions using the configured Blender runtime. Creates logs and machine-readable receipts."""
-        return invoke(service.regression)
-
-    @server.tool()
-    def build_extension() -> dict[str, Any]:
-        """Build the companion checkout's sith extension reproducibly with SHA-256 receipt. A configured Blender CLI also runs its built-in extension validator; Python+bpy explicitly reports validation not_run. Does not publish or install."""
-        return invoke(service.package)
 
     return server
 

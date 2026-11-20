@@ -29,6 +29,7 @@ behind those options and the transformations performed by the add-on.
 | How do scene objects become joints, and what does sync reorder? | [Blender pipeline](blender-pipeline.md) |
 | Why does import/export require baking or reject an animation? | [Compatibility notes](blender-compatibility.md) |
 | How is compatibility checked? | [Tests](../tests/README.md) and [asset verification](../tests/batch/README.md) |
+| How can tools inspect native model/KEY relationships? | [Optional format companion](MCP.md) and [Blender integration boundary](blender-alignment.md) |
 
 ## Reading The Layouts
 

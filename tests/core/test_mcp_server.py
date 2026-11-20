@@ -4,38 +4,64 @@ import importlib.util
 import json
 import os
 from pathlib import Path
-import subprocess
 import sys
 import tempfile
 import unittest
 
-ROOT = Path(__file__).resolve().parents[1]
-spec = importlib.util.spec_from_file_location("sith_mcp_test", ROOT / "mcp_server" / "server.py")
-server = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(server)
+ROOT = Path(__file__).resolve().parents[2]
+def load_module(name, path):
+    spec = importlib.util.spec_from_file_location(name, path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def python_executable():
+    if Path(sys.executable).name.lower().startswith("python"):
+        return sys.executable
+    for name in ("python.exe", f"python{sys.version_info.major}.{sys.version_info.minor}", "python3"):
+        candidate = Path(sys.prefix) / "bin" / name
+        if candidate.is_file():
+            return str(candidate)
+    raise RuntimeError("Standalone Python executable was not found")
+
+
+server = load_module("sith_mcp_test", ROOT / "mcp_server" / "server.py")
 
 
 class ServiceTests(unittest.TestCase):
     def setUp(self):
+        self.python = python_executable()
         self.temp = tempfile.TemporaryDirectory(prefix="sith-mcp-test-")
         self.root = Path(self.temp.name).resolve()
         self.read = self.root / "inputs"
         self.read.mkdir()
         self.input = self.read / "sample.3do"
         self.input.write_text("not a model", encoding="utf-8")
-        addon = self.root / "addon"
-        addon.mkdir()
+        addon = self.root / "checkout-source" / "sith"
+        addon.mkdir(parents=True)
+        (addon.parent / "LICENSE").write_text("fixture")
+        (addon / "blender_manifest.toml").write_text('id = "sith"\nversion = "0.0.7"\n')
         (addon / "__init__.py").write_text("# minimal trusted unit-test addon\n", encoding="utf-8")
-        self.config = {"python": str(Path(sys.executable).resolve()), "read_roots": [str(self.read)],
+        self.config = {"python": str(Path(self.python).resolve()), "read_roots": [str(self.read)],
                        "addon": str(addon), "job_root": str(self.root / "jobs"), "timeout": 30}
         self.service = server.Service(self.config)
 
     def tearDown(self):
         self.temp.cleanup()
 
+    def test_native_surface_budget_counts_polygons_before_conversion(self):
+        from types import SimpleNamespace
+        worker = load_module("sith_worker", ROOT / "mcp_server" / "worker.py")
+        geo = SimpleNamespace(meshes=[SimpleNamespace(faces=[
+            SimpleNamespace(vertexIdxs=range(n)) for n in (2, 3, 4, 5)])])
+        self.assertEqual(worker.geoset_topology(1, geo), {"index": 1, "meshes": 1, "triangles": 1, "quads": 1,
+                         "ngons": 1, "fewer_than_three_corners": 1, "triangle_equivalents": 6})
+
     def test_info_does_not_launch_runtime(self):
         self.assertEqual(self.service.info()["transport"], "stdio")
-        self.assertEqual(len(self.service.info()["tools"]), 5)
+        self.assertEqual(set(self.service.info()["tools"]),
+                         {"server_info", "inspect_3do", "audit_model_key", "convert_3do_to_blend"})
         self.assertFalse(list((self.root / "jobs").iterdir()))
 
     def test_allowlist_accepts_exact_input(self):
@@ -67,13 +93,41 @@ class ServiceTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Symlink"):
             self.service.source(str(link))
 
+    def test_key_is_checked_before_job_creation(self):
+        outside = self.root / "outside.key"
+        outside.write_text("fixture")
+        for key_path, target in ((str(outside), "JKDF2"), (str(self.input), "MOTS"), (str(self.input), "OTHER")):
+            with self.subTest(key_path=key_path, target=target), self.assertRaises(ValueError):
+                self.service.model_job(str(self.input), False, key_path, target)
+        self.assertFalse(list(self.service.job_root.iterdir()))
+
+    @unittest.skipUnless(os.name == "nt", "Windows App Execution Aliases")
+    def test_store_exception_only_for_configured_blender_alias(self):
+        from types import SimpleNamespace
+        from unittest.mock import patch
+        folder = self.root / "Microsoft" / "WindowsApps"
+        folder.mkdir(parents=True)
+        alias = folder / "blender-launcher.exe"
+        alias.touch()
+        original = Path.lstat
+        tag = SimpleNamespace(st_mode=0, st_file_attributes=0x400, st_reparse_tag=0x8000001B)
+        with patch.dict(os.environ, {"LOCALAPPDATA": str(self.root)}):
+            with patch.object(Path, "lstat", lambda p: tag if p == alias else original(p)):
+                self.assertEqual(server.checked_path(str(alias), blender_alias=True), alias)
+                with self.assertRaisesRegex(ValueError, "Symlink"):
+                    server.checked_path(str(alias))
+                tag.st_reparse_tag = 0xA000000C  # conventional symlink
+                with self.assertRaisesRegex(ValueError, "Symlink"):
+                    server.checked_path(str(alias), blender_alias=True)
+
+
     def test_size_limit(self):
         from unittest.mock import patch
         with patch.object(server, "MAX_INPUT", 4), self.assertRaisesRegex(ValueError, "64 MiB"):
             self.service.source(str(self.input))
 
     def test_configuration_rejects_unbounded_or_ambiguous_options(self):
-        for updates in ({"blender": sys.executable}, {"timeout": float("nan")}, {"timeout": 0},
+        for updates in ({"blender": self.python}, {"timeout": float("nan")}, {"timeout": 0},
                         {"timeout": 1801}, {"threads": True}, {"threads": 65}, {"shell": "x"}, {"read_roots": []}):
             with self.subTest(updates=updates), self.assertRaises(ValueError):
                 server.Service({**self.config, **updates})
@@ -112,27 +166,27 @@ class ServiceTests(unittest.TestCase):
         from unittest.mock import patch
         # Check truncation without benchmarking the host's external filesystem.
         with patch.object(server, "MAX_LOG", 4096), self.service.job("test") as job:
-            result = self.service.execute([sys.executable, "-c", "import sys; sys.stdout.write('x'*8192); sys.stderr.write('err')"], job)
+            result = self.service.execute([self.python, "-c", "import sys; sys.stdout.write('x'*8192); sys.stderr.write('err')"], job)
         self.assertEqual(result["status"], "completed")
         self.assertEqual((job / "stdout.log").stat().st_size, 4096)
         self.assertEqual((job / "stderr.log").read_text(), "err")
 
     def test_timeout_is_failure_with_cleanup_receipt(self):
         with self.service.job("test") as job:
-            result = self.service.execute([sys.executable, "-c", "import time; time.sleep(60)"], job, timeout=0.2)
+            result = self.service.execute([self.python, "-c", "import time; time.sleep(60)"], job, timeout=0.2)
         self.assertEqual(result["status"], "timeout")
         self.assertIs(result["owned_tree_cleanup_succeeded"], True)
         self.assertEqual(json.loads((job / "process.json").read_text())["status"], "timeout")
 
     def test_nonzero_process_is_not_success(self):
         with self.service.job("test") as job:
-            result = self.service.execute([sys.executable, "-c", "raise SystemExit(7)"], job)
+            result = self.service.execute([self.python, "-c", "raise SystemExit(7)"], job)
         self.assertEqual(result["status"], "process_failed")
         self.assertEqual(result["exit_code"], 7)
 
     def test_success_exit_without_report_is_not_success(self):
         from unittest.mock import patch
-        with patch.object(self.service, "runtime_command", return_value=[sys.executable, "-c", "pass"]):
+        with patch.object(self.service, "runtime_command", return_value=[self.python, "-c", "pass"]):
             result = self.service.model_job(str(self.input), False)
         self.assertEqual(result["status"], "invalid_report")
         self.assertEqual(self.input.read_text(), "not a model")
@@ -145,66 +199,9 @@ class ServiceTests(unittest.TestCase):
         self.assertIn("--background", command)
         self.assertIn("--offline-mode", command)
 
-    def test_regression_blender_command_uses_offline_mode(self):
-        from contextlib import redirect_stdout
-        import io
-        from unittest.mock import Mock, patch
-        process = Mock(returncode=0)
-        process.wait.return_value = 0
-        with patch.object(server.runner.subprocess, "Popen", return_value=process) as launch, redirect_stdout(io.StringIO()):
-            code = server.runner.main(["--blender", str(Path(sys.executable).resolve()), "--addon", str(self.service.addon),
-                                       "--output", str(self.root / "regression-output")])
-        # Deliberately no child report: an otherwise successful exit still fails.
-        self.assertEqual(code, 1)
-        self.assertIn("--offline-mode", launch.call_args.args[0])
 
-    def package_with_fake_validator(self, validation_status="completed"):
-        from unittest.mock import patch
-        calls = []
 
-        def execute(command, job, **kwargs):
-            calls.append((command, job))
-            if "--source-dir" in command:
-                output = job / "package"
-                output.mkdir()
-                archive = output / "sith-test.zip"
-                archive.write_bytes(b"synthetic-test-archive")
-                (output / "sith-test.receipt.json").write_text(json.dumps({"archive": {
-                    "name": archive.name, "sha256": server.runner.digest(archive), "size": archive.stat().st_size}}))
-                return {"status": "completed", "exit_code": 0}
-            return {"status": validation_status, "exit_code": 0 if validation_status == "completed" else 1}
 
-        with patch.object(self.service, "execute", side_effect=execute):
-            return self.service.package(), calls
-
-    def test_package_python_route_explicitly_skips_official_validator(self):
-        result, calls = self.package_with_fake_validator()
-        self.assertEqual(result["status"], "passed")
-        self.assertEqual(result["validator"]["status"], "not_run")
-        self.assertIn("no configured Blender CLI", result["validator"]["reason"])
-        self.assertEqual(len(calls), 1)
-
-    def test_package_blender_route_validates_exact_archive_in_isolated_job(self):
-        self.service.route = "blender"
-        result, calls = self.package_with_fake_validator()
-        self.assertEqual(result["status"], "passed")
-        self.assertEqual(result["validator"]["status"], "passed")
-        self.assertEqual(len(calls), 2)
-        command, validation_job = calls[1]
-        self.assertEqual(command[-4:], ["--command", "extension", "validate", result["archive"]["path"]])
-        self.assertIn("--offline-mode", command)
-        self.assertIn("--disable-autoexec", command)
-        self.assertEqual(validation_job.parent, calls[0][1])
-        self.assertNotEqual(validation_job, calls[0][1])
-
-    def test_package_validator_failure_cannot_pass(self):
-        self.service.route = "blender"
-        for status in ("process_failed", "timeout", "launch_failed"):
-            with self.subTest(status=status):
-                result, _ = self.package_with_fake_validator(status)
-                self.assertEqual(result["status"], "validation_failed")
-                self.assertEqual(result["validator"]["status"], status)
-                self.assertIn("archive", result)
 
     def test_report_limit(self):
         path = self.root / "report.json"

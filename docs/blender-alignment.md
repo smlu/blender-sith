@@ -1,66 +1,46 @@
-# Alignment with Blender and Blender Lab MCP
+# Native Format Checks and Blender Automation
 
-Official-project source review: **2026-11-01**. Blender-Sith is an add-on for
-Blender. Blender's general modeling, animation, baking, rendering and scene tools
-remain available when the add-on is installed.
+Blender-Sith adds native Sith-format import/export behavior to Blender. General
+scene editing, rendering and interactive inspection remain Blender tasks. The
+[official Blender Lab MCP project](https://www.blender.org/lab/mcp-server/) is an
+existing route for interactive MCP use; its
+[tool inventory](https://projects.blender.org/lab/blender_mcp/src/commit/dbbf836ad4b1025f14a2b3b504c43903f39e0b04/readme_tools.rst)
+was reviewed at that pinned revision on 2026-11-01.
 
-## General automation already exists
+The native `auditModelKey(model, key, target)` API compares a decoded 3DO hierarchy
+with one decoded KEY. Call it directly from ordinary Python with the resource
+modules available, from a Blender script, or through an existing Blender Lab
+session. The optional companion is a fixed four-tool adapter around this format
+work, with explicit input roots and structured results:
 
-The official [Blender Lab MCP project](https://www.blender.org/lab/mcp-server/)
-is a separate server and Blender add-on requiring Blender 5.1 or newer; it is
-not built into Blender core. This review inspected
-[`lab/blender_mcp` at `dbbf836ad4b1025f14a2b3b504c43903f39e0b04`](https://projects.blender.org/lab/blender_mcp/commit/dbbf836ad4b1025f14a2b3b504c43903f39e0b04).
+| Need | Entry point |
+| --- | --- |
+| Read the configured scope and limits | `server_info` |
+| Summarize native 3DO counts and polygon budgets | `inspect_3do` |
+| Check hierarchy-slot binding, names and KEY target limits | `audit_model_key` |
+| Create a new geometry-only blend from one 3DO | `convert_3do_to_blend` |
 
-Its [tool inventory](https://projects.blender.org/lab/blender_mcp/src/commit/dbbf836ad4b1025f14a2b3b504c43903f39e0b04/readme_tools.rst)
-already covers general Python execution, scene/object summaries, missing files
-and linked libraries, API/manual search, screenshots, viewport navigation and
-rendering. Several summary tools also offer background-process variants.
+The companion has no general Python execution, shell or live-scene tool. It
+creates fresh bounded jobs and does not attach to an existing interactive scene.
+Configuring it and Blender Lab as separate host entries does not prove a tested
+joint session, an automatic bridge or official Blender endorsement. Keep their
+server dependencies in separate environments. This companion pins SDK 2.3.0;
+that is independent of the Blender-Sith add-on version.
 
-The Sith companion concentrates on format-specific operations: bounded 3DO
-inspection, geometry-only conversion, baseline regression receipts and extension
-packaging. It does not duplicate general Python execution or attach to an
-artist's existing interactive scene. See [MCP setup](MCP.md).
+Use the repository's existing `tests/run.py` and `scripts/make_addon.py` for
+regression and packaging tasks. Blender's own
+[extension commands](https://docs.blender.org/manual/en/5.2/advanced/command_line/extension_arguments.html)
+remain available for building and validating an installable extension. Those
+operations are outside this companion's tool catalog.
 
-The servers can be configured as separate host entries. This is an arrangement
-of independent services, not an automatic bridge or evidence of tested
-coexistence. The Sith companion does not install the official Blender add-on,
-open its socket or forward requests to it.
+Background/factory-startup mode, automatic-script controls, thread limits and
+[offline preference controls](https://docs.blender.org/manual/en/5.1/advanced/command_line/arguments.html)
+are existing Blender facilities. The companion adds input snapshots, bounded
+reports, hashes and serialized jobs around its fixed worker. These are local
+trusted-user controls, not an operating-system sandbox.
 
-## Separate environments
-
-The inspected official project's
-[`mcp/pyproject.toml`](https://projects.blender.org/lab/blender_mcp/src/commit/dbbf836ad4b1025f14a2b3b504c43903f39e0b04/mcp/pyproject.toml)
-declares MCP SDK below version 2. The Sith companion pins SDK 2.3.0. Keep each
-server in its own external environment and point its host entry at the correct
-interpreter. Neither SDK needs to be installed into Blender.
-
-The official project's internal tool discovery is not a stable third-party
-plugin API. Its [design discussion](https://projects.blender.org/blender/blender/issues/152011)
-also considers separate MCP servers for customizations. A future backend adapter
-would need its own implementation and integration tests.
-
-## Reuse Blender's extension and process facilities
-
-Blender already supplies extension build, validation, installation, repository
-management and platform-split commands. The [deterministic packager](building.md)
-adds explicit membership and byte provenance; it does not redefine Blender's
-manifest rules. With a configured Blender executable, the MCP package operation
-runs Blender's built-in validator on the exact new ZIP and requires its success.
-The Python-plus-bpy route explicitly reports validator `not_run`.
-
-The [official extension command reference](https://docs.blender.org/manual/en/latest/advanced/command_line/extension_arguments.html)
-and [manifest instructions](https://docs.blender.org/manual/en/latest/advanced/extensions/getting_started.html)
-remain authoritative. Unused optional manifest fields should be omitted rather
-than set to empty values. The pure-Python add-on keeps its unrestricted manifest.
-
-Background execution, factory startup, automatic-script controls, thread limits
-and offline preference controls are existing Blender capabilities. The companion
-adds job isolation, bounded subprocess handling and receipts around them.
-`--offline-mode` sets Blender's online-access preference; it is not an OS network
-sandbox. See the [Blender CLI reference](https://docs.blender.org/manual/en/latest/advanced/command_line/arguments.html).
-
-Geometry conversion retains the importer restriction to geoset zero and skips
-implicit MAT/CMP discovery. JK 2.1 UV normalization needs texture dimensions;
-geometry-only output does not establish a textured round trip or game-runtime
-compatibility. Runtime, native-platform and coexistence claims require their
-own recorded tests.
+Geometry-only conversion imports geoset zero, omits external MAT/CMP discovery,
+and leaves JK 2.1 UV coordinates unnormalized without texture dimensions.
+Inspection summarizes all parsed geosets. A binding result describes native file
+relationships and selected export limits; pose quality and in-game playback
+remain separate validation tasks. See [configuration and limits](MCP.md).

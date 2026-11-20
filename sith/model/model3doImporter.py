@@ -26,9 +26,10 @@ from .model3do import (
     Mesh3do
 )
 
-def import3do(file_path: Union[Path, str], mat_dirs: List[Union[Path, str]] = [], cmp_file: str = '', uvAbsolute_2_1: bool = True, importVertexColors: bool = True, importRadiusObj: bool = False, preserveOrder: bool = True, clearScene: bool = True, *, allowErrors: bool = False, warnings: Optional[List[str]] = None, importVertexNormals: bool = False) -> bpy.types.Object:
+def import3do(file_path: Union[Path, str], mat_dirs: List[Union[Path, str]] = [], cmp_file: str = '', uvAbsolute_2_1: bool = True, importVertexColors: bool = True, importRadiusObj: bool = False, preserveOrder: bool = True, clearScene: bool = True, *, allowErrors: bool = False, warnings: Optional[List[str]] = None, importVertexNormals: bool = False, loadExternalMaterials: bool = True) -> bpy.types.Object:
     """Import strictly by default; opt-in recovery retains incomplete geometry.
 
+    Set loadExternalMaterials=False for geometry-only import without MAT/CMP lookup.
     Recovery diagnostics are returned through ``warnings`` and saved as a Blender
     Text datablock referenced by the model root. Missing source data is not
     reconstructed: placeholders and omitted faces are explicitly reported.
@@ -61,9 +62,10 @@ def import3do(file_path: Union[Path, str], mat_dirs: List[Union[Path, str]] = []
 
         # 2. Legacy text and Grim MODL use palette ColorMaps for material decoding. Resolve
         # external resources separately from the already-validated model data.
-        mat_dirs = _convert_to_absolute_paths(mat_dirs, os.path.dirname(file_path))
         cmp = None
-        if usesIndexedMaterials or cmp_file:
+        if loadExternalMaterials:
+            mat_dirs = _convert_to_absolute_paths(mat_dirs, os.path.dirname(file_path))
+        if loadExternalMaterials and (usesIndexedMaterials or cmp_file):
             try:
                 cmp = getCmpFileOrDefault(cmp_file, file_path, searchPaths=mat_dirs)
             except Exception as e:
@@ -85,7 +87,8 @@ def import3do(file_path: Union[Path, str], mat_dirs: List[Union[Path, str]] = []
         try:
             # Load model's textures
             with BenchmarkMeter('Info: \nLoaded materials from files in {:.4f} sec.', enabled=False):
-                importMaterials(model.materials, getDefaultMatFolders(file_path, mat_dirs), cmp)
+                if loadExternalMaterials:
+                    importMaterials(model.materials, getDefaultMatFolders(file_path, mat_dirs), cmp)
 
             # 4. Create LOD 0 geometry and joints, then add a wrapper carrying
             # INSERT OFFSET and the authored model radius outside the skeleton.

@@ -40,6 +40,17 @@ class ImportBoundaryTests(SceneTestCase):
         self.obj.keyframe_insert(data_path='location', frame=0)
         self.scene.frame_set(0)
 
+    def test_geometry_only_import_skips_palette_and_material_discovery(self):
+        from unittest.mock import patch
+        from sith.model import model3doImporter as importer
+        with (patch.object(importer, "getCmpFileOrDefault", side_effect=AssertionError("palette lookup")),
+              patch.object(importer, "getDefaultMatFolders", side_effect=AssertionError("material search")),
+              patch.object(importer, "importMaterials", side_effect=AssertionError("material load"))):
+            model = import3do(TV / "model/legacy_pixels.3do", clearScene=False, loadExternalMaterials=False,
+                              uvAbsolute_2_1=False)
+        self.assertIsNotNone(model)
+        self.assertTrue(any(child.type == "MESH" for child in model.children_recursive))
+
     def joint(self, name, index, parent=None):
         mesh = bpy.data.meshes.new(name)
         mesh.from_pydata([(0, 0, 0), (1, 0, 0), (0, 1, 0)], [], [(0, 1, 2)])
