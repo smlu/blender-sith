@@ -29,6 +29,7 @@ behind those options and the transformations performed by the add-on.
 | How do scene objects become joints, and what does sync reorder? | [Blender pipeline](blender-pipeline.md) |
 | Why does import/export require baking or reject an animation? | [Compatibility notes](blender-compatibility.md) |
 | How is compatibility checked? | [Tests](../tests/README.md) and [asset verification](../tests/batch/README.md) |
+| How can a script run app tests with fresh preferences and a timeout? | [Isolated application tests](agent-use.md) |
 
 ## Reading The Layouts
 
