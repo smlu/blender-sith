@@ -194,6 +194,10 @@ class Key:
     def __init__(self, name: str):
         self.fileFormat = KeyFileFormat.Text
         self.binaryData = None
+        # Source provenance, not the current editable marker-list length.
+        # None means no text MARKERS section was loaded (including new Keys).
+        self.sourceMarkerCount = None
+        self.sourceSkippedMarkers = 0
         self._name = name
         self._flags: KeyFlag = KeyFlag.Loop
         self._types: Mesh3doNodeType = Mesh3doNodeType.Nothing

@@ -113,6 +113,7 @@ def _parse_key_section_markers(tok: Tokenizer, key: Key, *, warnings=None):
     numMarkers = tok.getIntNumber()
     if numMarkers < 0:
         raise ValueError('KEY marker count must be nonnegative')
+    key.sourceMarkerCount = numMarkers
     for _ in range(0, numMarkers):
         m       = KeyMarker()
         m.frame = tok.getFloatNumber()
@@ -121,6 +122,7 @@ def _parse_key_section_markers(tok: Tokenizer, key: Key, *, warnings=None):
             m.type  = KeyMarkerType(mt)
         except ValueError:
             from .keyRecovery import recoveryWarning
+            key.sourceSkippedMarkers += 1
             recoveryWarning(warnings, f"Unknown marker type '{mt}' at frame {m.frame}, skipping!")
             continue
         key.markers.append(m)
