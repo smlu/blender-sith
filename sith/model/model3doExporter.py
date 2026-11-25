@@ -35,7 +35,7 @@ kDefaultVertexColor = Vector4f(0.0, 0.0, 0.0, 1.0)
 kHNDefaultFlags     = 0
 kHNDefaultType      = 0
 
-def export3do(obj: bpy.types.Object, path: str, version: Model3doFileVersion, uvAbsolute: bool, exportVertexColors: bool, sync_mesh_list: bool, *, warnings=None, exportTextures=False, textureEncoding='RGBA32', texturePalette='', overwriteTextures=False, generateMipmaps=True, textureDirectory='mat'):
+def export3do(obj: bpy.types.Object, path: str, version: Model3doFileVersion, uvAbsolute: bool, exportVertexColors: bool, sync_mesh_list: bool, *, warnings=None, exportTextures=False, textureEncoding='RGBA32', texturePalette='', overwriteTextures=False, generateMipmaps=True, textureDirectory='mat', checkRetailMeshLimits=False):
     """Build the resource from a Blender model, then write the requested version."""
     with BenchmarkMeter(' done in {:.4f} sec.'):
         print("exporting 3DO: %r..." % (path), end="")
@@ -53,7 +53,8 @@ def export3do(obj: bpy.types.Object, path: str, version: Model3doFileVersion, uv
                     mesh.shadow = None
         header   = getExportFileHeader(f"3DO model '{os.path.basename(path)}'")
         if not exportTextures:
-            model3doWriter.save3do(model3do, path, version, header, warnings=warnings)
+            model3doWriter.save3do(model3do, path, version, header, warnings=warnings,
+                                   checkRetailMeshLimits=checkRetailMeshLimits)
             return
 
         from ..material.matExporter import prepareMatExports, publishExportFiles, ExportRollbackError
@@ -79,7 +80,8 @@ def export3do(obj: bpy.types.Object, path: str, version: Model3doFileVersion, uv
         keepRecovery = False
         try:
             modelPath = staging / destination.name
-            model3doWriter.save3do(model3do, modelPath, version, header, warnings=warnings)
+            model3doWriter.save3do(model3do, modelPath, version, header, warnings=warnings,
+                                   checkRetailMeshLimits=checkRetailMeshLimits)
             files = []
             for index, (target, data) in enumerate(textures):
                 prepared = staging / f'texture-{index}'

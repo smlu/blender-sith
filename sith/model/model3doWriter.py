@@ -24,7 +24,7 @@ from typing import List, TextIO, Tuple, Union
 
 _file_magic = "3DO"
 
-def save3do(model: Model3do, filePath: Union[Path, str], version: Union[Model3doFileVersion, Model3doFileFormat], headerComment: str, *, warnings=None):
+def save3do(model: Model3do, filePath: Union[Path, str], version: Union[Model3doFileVersion, Model3doFileFormat], headerComment: str, *, warnings=None, checkRetailMeshLimits=False):
     """ Saves `model` to 3DO file """
     if version == Model3doFileFormat.GrimFandango:
         from .model3doBinary import encodeBinary3do
@@ -55,6 +55,23 @@ def save3do(model: Model3do, filePath: Union[Path, str], version: Union[Model3do
             for face in mesh.faces:
                 finite((*face.normal, *face.color))
 
+    def warn(message):
+        print('Warning: ' + message)
+        if warnings is not None:
+            warnings.append(message)
+
+    # Other games and source ports share the 2.1 format. Only check the
+    # original JK/MotS limits when the caller has selected this target.
+    if checkRetailMeshLimits and version == Model3doFileVersion.Version2_1:
+        for geosetIndex, geoset in enumerate(model.geosets):
+            for mesh in geoset.meshes:
+                for label, records, limit in (('vertices', mesh.vertices, 512),
+                                              ('texture vertices', mesh.uvs, 768),
+                                              ('faces', mesh.faces, 512)):
+                    if len(records) > limit:
+                        warn(f"3DO mesh '{mesh.name}' (geoset {geosetIndex}, mesh {mesh.idx}) "
+                             f"has {len(records)} {label}. The retail JK/MotS limit is {limit}.")
+
     # Long names remain useful for custom engines. Warn about legacy buffers,
     # but preserve identifiers verbatim rather than truncate or reject them.
     name_limit = 31 if version == Model3doFileVersion.Version2_1 else 63
@@ -67,9 +84,7 @@ def save3do(model: Model3do, filePath: Union[Path, str], version: Union[Model3do
         if len(name) > limit:
             message = (f"3DO {label} '{name}' has {len(name)} characters; the legacy compatibility "
                        f"limit is {limit}. Exported without truncation.")
-            print('Warning: ' + message)
-            if warnings is not None:
-                warnings.append(message)
+            warn(message)
 
     with open(filePath, 'w', encoding='utf-8') as f:
         _write_section_header(f, model, headerComment, version)

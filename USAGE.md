@@ -67,9 +67,12 @@ Recovery may leave missing geometry or joints.
 | Option | Default | When enabled |
 | --- | --- | --- |
 | **v2.1 Absolute UV** | On | Write pixel-sized UVs; shown only for 2.1 and Grim Fandango. |
+| **Check Retail JK/MotS Mesh Limits** | Off | For a 2.1 export meant for the original Jedi Knight or Mysteries of the Sith, warn when a mesh exceeds 512 vertices, 768 texture vertices, or 512 faces. The model is still written. |
 | **Export Vertex Colors** | Off | Include the active vertex-color layer. |
 | **Sync Mesh List with Node Hierarchy** | On | Order exported meshes to follow the joint hierarchy. |
 | **Export Textures to MAT** | Off | Export the model's image textures; reveals the options below. |
+
+Mesh limits apply to the final 3DO records for each mesh. For example, a sharp corner can cause one Blender vertex to be written as several 3DO vertices. Leave the retail check off for other games or engines that use text 2.1.
 
 Disable **Sync Mesh List with Node Hierarchy** to keep Blender traversal order instead.
 
