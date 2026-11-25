@@ -329,6 +329,9 @@ A pivot helper sits at the joint's native pivot, which is where the engine place
 attachments: its frame is `parent · T(-parentPivot) · J · T(pivot)`. While it exists,
 its position is the joint's pivot, like a radius helper's sphere is its radius.
 It follows imported KEY animation, so objects parented to it preview attachments.
+Move the helper to adjust its static local offset. Rotation and scale are locked.
+Animate the owning joint to move the attachment frame through a sequence. Reparent
+any preview attachments before removing their helper.
 The joint origin itself does not move. Review origin/Apply Transform edits
 separately and test attachments in the target game; these file/Blender
 guarantees are not a game-runtime test.

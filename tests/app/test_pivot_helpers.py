@@ -163,6 +163,70 @@ class PivotHelperTests(NativePivotFixture):
         self.assert_vector(obj.sith_model3do_pivot, (-0.75, 0.5, 0.125))
         self.assert_vector(self.export_model().meshHierarchy[1].pivot, (-0.75, 0.5, 0.125))
 
+    def test_preview_attachments_survive_a_refused_removal(self):
+        self.import_model(importPivotHelpers=True)
+        obj = self.node_object(1)
+        helper = self.helper(1)
+        attached = bpy.data.objects.new('preview attachment', None)
+        bpy.context.scene.collection.objects.link(attached)
+        attached.parent = helper
+        attached.location = (1.0, -2.0, 0.5)
+        bpy.context.view_layer.update()
+        before = attached.matrix_world.copy()
+        with self.assertRaisesRegex(ValueError, 'Reparent attachments'):
+            utils.removePivotHelper(obj)
+        self.assertEqual(attached.parent, helper)
+        self.assertEqual(utils.getPivotHelperObj(obj), helper)
+        self.assertEqual(attached.matrix_world, before)
+        attached.parent = None
+        utils.removePivotHelper(obj)
+        self.assertIsNone(utils.getPivotHelperObj(obj))
+
+    def test_preview_frame_rejects_rotation_scale_and_invalid_numeric_edits(self):
+        self.import_model(importPivotHelpers=True)
+        obj = self.node_object(1)
+        helper = self.helper(1)
+        self.assertEqual(tuple(helper.lock_rotation), (True, True, True))
+        self.assertEqual(tuple(helper.lock_scale), (True, True, True))
+        before = list(obj[utils.k3doPivot])
+        helper.rotation_euler.x = 0.5
+        with self.assertRaisesRegex(ValueError, 'Reset rotation and scale'):
+            self.export_model()
+        with self.assertRaisesRegex(ValueError, 'Reset rotation and scale'):
+            utils.setNativePivot(obj, (9.0, 8.0, 7.0))
+        self.assertEqual(list(obj[utils.k3doPivot]), before)
+        helper.rotation_euler.x = 0.0
+        helper.matrix_parent_inverse = mathutils.Matrix.Scale(0.5, 4)
+        with self.assertRaisesRegex(ValueError, 'Reset rotation and scale'):
+            self.export_model()
+        helper.matrix_parent_inverse = mathutils.Matrix.Identity(4)
+        self.export_model()
+
+    def test_helpers_reject_animated_and_driven_local_transforms(self):
+        self.import_model(importPivotHelpers=True)
+        helper = self.helper(1)
+        helper.keyframe_insert(data_path='location', frame=1)
+        with self.assertRaisesRegex(ValueError, 'animate the joint instead'):
+            self.export_model()
+        animation = helper.animation_data
+        action = animation.action
+        slot = animation.action_slot
+        track = animation.nla_tracks.new()
+        strip = track.strips.new('helper motion', 1, action)
+        strip.action_slot = slot
+        animation.action = None
+        with self.assertRaisesRegex(ValueError, 'animate the joint instead'):
+            self.export_model()
+        track.mute = True
+        self.export_model()
+        helper.animation_data_clear()
+        driver = helper.driver_add('delta_location', 0)
+        driver.driver.expression = '0'
+        with self.assertRaisesRegex(ValueError, 'animate the joint instead'):
+            self.export_model()
+        driver.mute = True
+        self.export_model()
+
     def test_invalid_helpers_are_rejected_before_export(self):
         self.import_model(importPivotHelpers=True)
         obj = self.node_object(1)

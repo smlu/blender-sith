@@ -384,8 +384,31 @@ def pivotHelperValue(helper: bpy.types.Object) -> mathutils.Vector:
         raise ValueError(f"Bake {helper.parent_type} parenting on pivot helper '{helper.name}' before 3DO export")
     if any(not constraint.mute and constraint.influence for constraint in helper.constraints):
         raise ValueError(f"Apply active constraints on pivot helper '{helper.name}' before 3DO export")
+    # Only a static translation can be stored in a 3DO joint pivot. The
+    # owner's animation still moves this frame and everything attached to it.
+    animation = helper.animation_data
+    if animation is not None:
+        from ..key.keyUtils import getActionFCurves, getActionSlotFCurves, iterActiveNlaStrips
+        curves = list(getActionFCurves(helper))
+        curves.extend(animation.drivers)
+        for strip in iterActiveNlaStrips(animation):
+            if strip.type == 'CLIP':
+                curves.extend(getActionSlotFCurves(strip.action, strip.action_slot))
+        transform_paths = {
+            'location', 'rotation_euler', 'rotation_quaternion', 'rotation_axis_angle',
+            'rotation_mode', 'scale', 'delta_location', 'delta_rotation_euler',
+            'delta_rotation_quaternion', 'delta_scale', 'matrix_parent_inverse',
+        }
+        if any(curve.is_valid and not curve.mute and
+               (curve.data_path in transform_paths or curve.data_path.startswith('constraints['))
+               for curve in curves):
+            raise ValueError(f"Remove animated or driven transforms on pivot helper '{helper.name}'; animate the joint instead")
+
     # A Ctrl+P parent inverse is part of the helper's placement in its owner.
-    return _validatedNativePivot(helper, (helper.matrix_parent_inverse @ helper.matrix_basis).translation)
+    local_frame = helper.matrix_parent_inverse @ helper.matrix_basis
+    if not np.allclose(np.asarray(local_frame.to_3x3()), np.eye(3), atol=1e-6, rtol=0):
+        raise ValueError(f"Reset rotation and scale on pivot helper '{helper.name}' in its joint's local frame")
+    return _validatedNativePivot(helper, local_frame.translation)
 
 
 def _placePivotHelper(helper: bpy.types.Object, pivot: mathutils.Vector):
@@ -415,12 +438,13 @@ def getNativePivot(obj: bpy.types.Object):
 def setNativePivot(obj: bpy.types.Object, value):
     """Author the native mesh frame without changing geometry or KEY channels."""
     pivot = _validatedNativePivot(obj, value)
+    helper = getPivotHelperObj(obj)
+    if helper is not None:
+        pivotHelperValue(helper)
+        _placePivotHelper(helper, pivot)
     obj[k3doPivot] = list(pivot)
     if k3doImportedPivot in obj:
         del obj[k3doImportedPivot]
-    helper = getPivotHelperObj(obj)
-    if helper is not None:
-        _placePivotHelper(helper, pivot)
 
 
 def makePivotHelper(obj: bpy.types.Object) -> bpy.types.Object:
@@ -438,6 +462,10 @@ def makePivotHelper(obj: bpy.types.Object) -> bpy.types.Object:
     helper = bpy.data.objects.new(kPivotHelperPrefix + obj.name, None)
     helper[kModel3doPivotHelper] = True
     helper.empty_display_type = 'ARROWS'
+    helper.lock_rotation = (True, True, True)
+    helper.lock_rotations_4d = True
+    helper.lock_rotation_w = True
+    helper.lock_scale = (True, True, True)
     extent = max((vertex.co.length for vertex in obj.data.vertices), default=0.0) \
         if obj.type == 'MESH' and obj.data is not None else 0.0
     helper.empty_display_size = max(extent * 0.5, 0.01)
@@ -455,6 +483,8 @@ def removePivotHelper(obj: bpy.types.Object):
     helper = getPivotHelperObj(obj)
     if helper is None:
         return
+    if helper.children:
+        raise ValueError(f"Reparent attachments on pivot helper '{helper.name}' before removing it")
     value = pivotHelperValue(helper)
     obj[k3doPivot] = list(value)
     if k3doImportedPivot in obj:
