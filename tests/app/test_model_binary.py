@@ -141,7 +141,8 @@ class BinaryModelAppTests(SceneTestCase):
                         self.assertEqual(mesh.binaryData['vertexData'], [0, 0xFFFFFFFF, 0x12345678, 0x80000000])
                         self.assertEqual(mesh.faces[0].binaryData, original.geosets[0].meshes[0].faces[0].binaryData)
                         self.assertEqual(mesh.uvs, [(0, 0), (64, 0), (0, 32)])
-                        self.assert_vector(mesh.vertices[0], (0.25, 0, 0))
+                        self.assert_vector(restored.meshHierarchy[1].pivot, (0.25, 0, 0))
+                        self.assert_vector(mesh.vertices[0], (0, 0, 0))
                         self.assertEqual(self.source.read_bytes(), binary_3do_bytes()[0])
 
     def test_wrong_absolute_uv_switch_is_detectably_different(self):

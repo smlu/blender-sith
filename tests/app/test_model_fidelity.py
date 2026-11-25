@@ -389,7 +389,11 @@ class ModelFidelityTests(SceneTestCase):
         bpy.data.objects.remove(utils.getModelRadiusObj(self.root), do_unlink=True)
         exported = self.export_model()
         self.assertEqual(exported.radius, self.model.radius)
-        self.assertGreaterEqual(exported.geosets[0].meshes[0].radius, 100)
+        # The scene coordinate includes the imported 0.125 mesh pivot. The
+        # native culling radius is centered on the restored native mesh frame.
+        self.assert_vector(exported.meshHierarchy[1].pivot, (0.125, 0, 0))
+        self.assert_vector(exported.geosets[0].meshes[0].vertices[0], (99.875, 0, 0))
+        self.assertGreaterEqual(exported.geosets[0].meshes[0].radius, 99.875)
 
     def test_model_bound_contains_nested_scaled_sibling_meshes(self):
         self.import_model()

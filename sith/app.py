@@ -72,7 +72,13 @@ from .model.utils import (
     kModel3doGeometryMode,
     kModel3doImportReport,
     kModel3doShadow,
-    kNameOrderPrefix
+    kNameOrderPrefix,
+    getNativePivot,
+    getPivotHelperObj,
+    isPivotHelperObj,
+    makePivotHelper,
+    removePivotHelper,
+    setNativePivot,
 )
 
 from .utils import *
@@ -402,6 +408,12 @@ class ImportModel3do(bpy.types.Operator, ImportHelper):
         default     = False,
     )
 
+    import_pivot_helpers: bpy.props.BoolProperty(
+        name        = 'Import Pivot Helpers',
+        description = "Show each joint's native pivot as a movable arrows helper. Moving a helper sets that joint's pivot, and objects parented to it follow the joint's attachment frame",
+        default     = False,
+    )
+
     preserve_order: bpy.props.BoolProperty(
         name        = 'Preserve Mesh Hierarchy',
         description = f"Keep the original node order visible in Blender by prefixing joint object names with '{kNameOrderPrefix}<seq_number>_'.\n\nParent links and stored node sequence numbers are preserved with this option on or off. Without prefixes, Blender's name ordering may change unsynced mesh-list order on export.",
@@ -432,6 +444,7 @@ class ImportModel3do(bpy.types.Operator, ImportHelper):
         layout.prop(self, 'vertex_colors')
         layout.prop(self, 'vertex_normals')
         layout.prop(self, 'import_radius_objects')
+        layout.prop(self, 'import_pivot_helpers')
         layout.prop(self, 'preserve_order')
         layout.prop(self, 'allow_errors')
 
@@ -455,7 +468,7 @@ class ImportModel3do(bpy.types.Operator, ImportHelper):
 
         warnings = []
         try:
-            obj = import3do(self.filepath, [self.mat_dir], self.cmp_file, self.uv_absolute_3do_2_1, self.vertex_colors, self.import_radius_objects, self.preserve_order, self.clear_scene, allowErrors=self.allow_errors, warnings=warnings, importVertexNormals=getattr(self, 'vertex_normals', False))
+            obj = import3do(self.filepath, [self.mat_dir], self.cmp_file, self.uv_absolute_3do_2_1, self.vertex_colors, self.import_radius_objects, self.preserve_order, self.clear_scene, allowErrors=self.allow_errors, warnings=warnings, importVertexNormals=getattr(self, 'vertex_normals', False), importPivotHelpers=getattr(self, 'import_pivot_helpers', False))
         except (AssertionError, TypeError, ValueError, OSError, IndexError, RuntimeError) as error:
             self.report({'ERROR'}, f'Cannot import 3DO: {error}')
             return {'CANCELLED'}
@@ -610,6 +623,12 @@ class ExportModel3do(bpy.types.Operator, ExportHelper):
         default     = True,
     )
 
+    bake_pivots: bpy.props.BoolProperty(
+        name        = 'Bake Pivots',
+        description = 'Write zero node pivots and bake their offsets into exported mesh coordinates. Discards stored native pivot metadata without changing the Blender scene',
+        default     = False,
+    )
+
     export_textures: bpy.props.BoolProperty(
         name='Export Textures to MAT', default=False,
         description='Write the model\'s image textures and all bound cels to the MAT directory. Exports image pixels, not procedural shaders or preview lighting',
@@ -641,6 +660,7 @@ class ExportModel3do(bpy.types.Operator, ExportHelper):
             layout.prop(self, 'absolute_uv')
         layout.prop(self, 'export_vert_colors')
         layout.prop(self, 'sync_mesh_list')
+        layout.prop(self, 'bake_pivots')
         layout.prop(self, 'export_textures')
         if self.export_textures:
             textures = layout.column()
@@ -680,6 +700,7 @@ class ExportModel3do(bpy.types.Operator, ExportHelper):
                 self.absolute_uv = False
             warnings = []
             export3do(self.obj, self.filepath, version, self.absolute_uv, self.export_vert_colors, self.sync_mesh_list,
+                      bakePivots=self.bake_pivots,
                       warnings=warnings, exportTextures=self.export_textures, textureEncoding=self.texture_encoding,
                       texturePalette=self.texture_cmp_file, overwriteTextures=self.overwrite_textures,
                       generateMipmaps=self.texture_mipmaps, textureDirectory=self.texture_directory)
@@ -911,6 +932,30 @@ class View3doImportReport(bpy.types.Operator):
         return {'FINISHED'}
 
 
+class Toggle3doPivotHelper(bpy.types.Operator):
+    """Show this joint's native pivot as a movable helper, or remove the helper and keep its current value"""
+    bl_idname  = 'object.sith_toggle_pivot_helper'
+    bl_label   = 'Toggle Pivot Helper'
+    bl_options = {'REGISTER', 'UNDO'}
+
+    @classmethod
+    def poll(cls, context):
+        obj = context.object
+        return obj is not None and obj.type in ('EMPTY', 'MESH') and not isPivotHelperObj(obj)
+
+    def execute(self, context):
+        obj = context.object
+        try:
+            if getPivotHelperObj(obj) is None:
+                makePivotHelper(obj)
+            else:
+                removePivotHelper(obj)
+        except ValueError as error:
+            self.report({'ERROR'}, str(error))
+            return {'CANCELLED'}
+        return {'FINISHED'}
+
+
 class Model3doPanel(bpy.types.Panel):
     """
     Panel exposes 3DO mesh properties to the UI.
@@ -969,6 +1014,17 @@ class Model3doPanel(bpy.types.Panel):
         node_properties.prop(obj, 'sith_model3do_hnode_name' , text='Name')
         node_properties.prop(obj, 'sith_model3do_hnode_flags', text='Flags')
         node_properties.prop(obj, 'sith_model3do_hnode_type' , text='Type')
+        pivot = node_properties.column()
+        pivot.enabled = not any(c.type == 'PIVOT' and not c.mute and c.influence for c in obj.constraints)
+        pivot.prop(obj, 'sith_model3do_pivot', text='Native Pivot')
+        try:
+            helper = getPivotHelperObj(obj)
+        except ValueError:
+            helper = None
+        pivot.operator(Toggle3doPivotHelper.bl_idname, icon='EMPTY_ARROWS',
+                       text='Remove Pivot Helper' if helper is not None else 'Show Pivot Helper')
+        if not pivot.enabled:
+            node_properties.label(text='Blender Pivot constraint overrides Native Pivot')
 
 
 # -- Update callbacks for Mesh3doFaceLayer properties --
@@ -1165,6 +1221,7 @@ classes = (
     Mesh3doFaceLayer,
     Mesh3doFacePanel,
     View3doImportReport,
+    Toggle3doPivotHelper,
     Model3doPanel,
     ImportMat,
     ExportMat,
@@ -1257,6 +1314,13 @@ def register():
     )
 
     # 3DO Mesh Face custom properties
+    bpy.types.Object.sith_model3do_pivot = bpy.props.FloatVectorProperty(
+        name='Native Pivot', size=3, subtype='XYZ',
+        description='Local native mesh-frame offset for 3DO export. Keeps editable geometry and KEY joint channels unchanged; an active Blender Pivot constraint takes precedence',
+        get=getNativePivot, set=setNativePivot,
+        options={'LIBRARY_EDITABLE'},
+    )
+
     bpy.types.WindowManager.sith_mesh3do_face_layer = bpy.props.PointerProperty(type=Mesh3doFaceLayer)
 
     # KEY custom properties
@@ -1292,6 +1356,7 @@ def unregister():
     del bpy.types.Object.sith_model3do_hnode_type
     del bpy.types.Object.sith_model3do_hnode_name
     del bpy.types.Object.sith_model3do_hnode_idx
+    del bpy.types.Object.sith_model3do_pivot
     del bpy.types.Object.sith_model3do_texture_mode
     delattr(bpy.types.Object, kModel3doGeometryMode)
     delattr(bpy.types.Object, kModel3doShadow)

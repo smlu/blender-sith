@@ -31,6 +31,7 @@ A quick guide to importing, editing and exporting game models, animations and te
 | **Import Vertex Colors** | Off | Keep the model's vertex lighting in an editable color layer. |
 | **Import Vertex Normals (Text)** | Off | Preserve authored vertex normals when importing legacy text models. |
 | **Import Radius Objects** | Off | Show editable wireframe spheres for model and mesh bounds. |
+| **Import Pivot Helpers** | Off | Show each joint's native pivot as a movable arrows helper. |
 | **Preserve Mesh Hierarchy** | Off | Prefix object names with their original joint numbers. |
 | **Try Recover Broken File** | Off | Try importing usable geometry and joints from damaged text models, with recovery warnings. |
 
@@ -69,6 +70,7 @@ Recovery may leave missing geometry or joints.
 | **v2.1 Absolute UV** | On | Write pixel-sized UVs; shown only for 2.1 and Grim Fandango. |
 | **Export Vertex Colors** | Off | Include the active vertex-color layer. |
 | **Sync Mesh List with Node Hierarchy** | On | Order exported meshes to follow the joint hierarchy. |
+| **Bake Pivots** | Off | Write zero pivots, retaining the surface in exported vertices. Use this to discard obsolete native offsets or recover the earlier zero-pivot workflow. The Blender scene is unchanged. |
 | **Export Textures to MAT** | Off | Export the model's image textures; reveals the options below. |
 
 Disable **Sync Mesh List with Node Hierarchy** to keep Blender traversal order instead.
@@ -286,6 +288,8 @@ Open **Object Properties > 3DO Properties**.
 - 🔢 **Sequence No.**: Joint order; `-1` means automatic.
 - 🏷️ **Name**: Exported joint name.
 - 🚩 **Flags / Type**: Game-specific joint settings.
+- 📍 **Native Pivot**: Set the local X/Y/Z native mesh-frame offset on Mesh or Empty joints. Import uses the same property. Editing it preserves the editable surface and KEY joint channels; export compensates native vertices. An active Blender Pivot constraint overrides it.
+- 🎯 **Show / Remove Pivot Helper**: Show the pivot as a movable arrows helper parented to the joint. Moving it sets **Native Pivot**; removing it keeps the current value.
 
 These are engine properties; they do not necessarily change Blender's viewport.
 
@@ -311,7 +315,26 @@ Change only the properties you need; other values on the selected faces stay unc
 - 🎛️ Toggle it under **Object Properties > 3DO Properties > Preview > Extra Light**.
 - 🎨 Preview does not bake into vertex colors or texture pixels.
 
-> ⚠️ Imported pivots are baked into the mesh. Test joint attachments in the game when replacing models with nonzero pivots.
+Native pivots are stored as `3do_pivot`. Saved scenes containing the earlier
+`3do_imported_pivot` key remain readable without migration; editing **Native Pivot**
+writes the shared property, including an explicit zero. Scenes with neither key
+keep their previous zero-pivot export behavior. Reimport the native file to recover
+an original offset that was never stored. **Bake Pivots** deliberately ignores
+stored offsets, including malformed values, and exports the current editable mesh.
+Supported Blender Pivot constraints retain their validation and are baked in the
+exported copy. Automatic mesh bounds use the emitted coordinates; authored radius
+helpers and the model-radius policy remain in effect.
+
+A pivot helper sits at the joint's native pivot, which is where the engine places
+attachments: its frame is `parent · T(-parentPivot) · J · T(pivot)`. While it exists,
+its position is the joint's pivot, like a radius helper's sphere is its radius.
+It follows imported KEY animation, so objects parented to it preview attachments.
+Move the helper to adjust its static local offset. Rotation and scale are locked.
+Animate the owning joint to move the attachment frame through a sequence. Reparent
+any preview attachments before removing their helper.
+The joint origin itself does not move. Review origin/Apply Transform edits
+separately and test attachments in the target game; these file/Blender
+guarantees are not a game-runtime test.
 
 ## 🔧 Troubleshooting
 
