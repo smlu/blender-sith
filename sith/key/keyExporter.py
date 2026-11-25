@@ -18,6 +18,7 @@ import bpy, mathutils, math, os.path
 from numpy.polynomial import Polynomial
 from . import keyWriter
 from bisect import bisect_left
+from .keyEuler import nearestEuler
 from .keyUtils import getActionFCurves, getSceneFrameRate, getSceneKeyFlags, hasActiveNlaStrips, markerTimeAndType, unchangedImportedJump, validateConstraintAnimation, validateKeyActionState, kKeyBinaryData
 from .keyBinary import prepareGrimExport
 import json
@@ -362,6 +363,13 @@ def _sample_key_node(hnode, root, end_frame, *, start_frame=0, allowLateStart=Fa
         # Invert the importer's active-pivot translation before applying scale.
         entry.position = Vector3f(*vectorMultiply(mathutils.Vector(location) - pivot, scale))
         entry.orientation = eulerToPYR(euler)
+        if reference is not None and not native_euler:
+            # Blender's compatible Euler can still return the other form or an extra turn near
+            # pitch +-90. The engine moves each component linearly between entries, and partial
+            # weights scale each component, so keep the triple nearest the previous sample.
+            entry.orientation = Vector3f(*nearestEuler(reference, entry.orientation))
+        validateFloat32((*entry.position, *entry.orientation), 'Generated KEY transform')
+        entry._sourceRotation = rotation
         validateFloat32((*entry.position, *entry.orientation), 'Generated KEY transform')
         entry._sourceRotation = rotation
         return entry
