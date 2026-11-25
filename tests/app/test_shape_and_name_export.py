@@ -100,7 +100,7 @@ class ShapeAndNameExportTests(SceneTestCase):
                                     absolute_uv=False, export_vert_colors=False, sync_mesh_list=True,
                                     export_textures=False, texture_encoding='RGBA32', texture_cmp_file='',
                                     overwrite_textures=False, texture_mipmaps=True,
-                                    texture_directory='mat',
+                                    texture_directory='mat', check_retail_mesh_limits=False,
                                     report=lambda kinds, message: reports.append((kinds, message)))
         self.assertEqual(app.ExportModel3do.execute(operation, bpy.context), {'FINISHED'})
         self.assertTrue(self.path.is_file())

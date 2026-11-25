@@ -598,6 +598,11 @@ class ExportModel3do(bpy.types.Operator, ExportHelper):
         default     = True,
     )
 
+    check_retail_mesh_limits: bpy.props.BoolProperty(
+        name='Check Retail JK/MotS Mesh Limits', default=False,
+        description='Warn when an exported mesh exceeds the original Jedi Knight or Mysteries of the Sith vertex, texture vertex, or face limit. The model is still exported',
+    )
+
     export_vert_colors: bpy.props.BoolProperty(
         name        = 'Export Vertex Colors',
         description = 'Export vertex colors to 3DO file',
@@ -639,6 +644,8 @@ class ExportModel3do(bpy.types.Operator, ExportHelper):
         layout.prop(self, 'version')
         if self.version in (Model3doFileVersion.Version2_1.name, Model3doFileFormat.GrimFandango.name):
             layout.prop(self, 'absolute_uv')
+        if self.version == Model3doFileVersion.Version2_1.name:
+            layout.prop(self, 'check_retail_mesh_limits')
         layout.prop(self, 'export_vert_colors')
         layout.prop(self, 'sync_mesh_list')
         layout.prop(self, 'export_textures')
@@ -682,7 +689,8 @@ class ExportModel3do(bpy.types.Operator, ExportHelper):
             export3do(self.obj, self.filepath, version, self.absolute_uv, self.export_vert_colors, self.sync_mesh_list,
                       warnings=warnings, exportTextures=self.export_textures, textureEncoding=self.texture_encoding,
                       texturePalette=self.texture_cmp_file, overwriteTextures=self.overwrite_textures,
-                      generateMipmaps=self.texture_mipmaps, textureDirectory=self.texture_directory)
+                      generateMipmaps=self.texture_mipmaps, textureDirectory=self.texture_directory,
+                      checkRetailMeshLimits=self.check_retail_mesh_limits)
         except (AssertionError, ImportError, ValueError, OSError, RuntimeError) as e:
             print(f"\nAn exception was encountered while exporting object '{self.obj.name}' to 3DO format!\nError: {e}")
             self.report({'ERROR'}, f'Error: {e}')
